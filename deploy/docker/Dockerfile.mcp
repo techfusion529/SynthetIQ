@@ -1,0 +1,28 @@
+# ============================================================
+# SynthetIQ MCP Server — Zero-Trust Tool Gateway Pod
+# ============================================================
+FROM python:3.11-slim AS base
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy project files
+COPY pyproject.toml ./
+COPY src/ ./src/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -e .
+
+# Expose MCP server port and metrics
+EXPOSE 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+# Run MCP server in HTTP mode
+CMD ["python", "-m", "synthetiq.mcp_server.server"]

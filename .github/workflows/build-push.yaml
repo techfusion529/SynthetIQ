@@ -1,0 +1,177 @@
+name: Build & Push Docker Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "api/**"
+      - "simulator/**"
+      - "dashboard/**"
+      - "deploy/docker/**"
+      - "pyproject.toml"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/synthetiq
+
+jobs:
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      worker: ${{ steps.filter.outputs.worker }}
+      mcp: ${{ steps.filter.outputs.mcp }}
+      dashboard: ${{ steps.filter.outputs.dashboard }}
+      simulator: ${{ steps.filter.outputs.simulator }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+              - 'src/**'
+              - 'pyproject.toml'
+              - 'deploy/docker/Dockerfile.api'
+            worker:
+              - 'src/**'
+              - 'data/**'
+              - 'pyproject.toml'
+              - 'deploy/docker/Dockerfile.worker'
+            mcp:
+              - 'src/synthetiq/mcp_server/**'
+              - 'src/synthetiq/models/**'
+              - 'pyproject.toml'
+              - 'deploy/docker/Dockerfile.mcp'
+            dashboard:
+              - 'dashboard/**'
+              - 'deploy/docker/Dockerfile.dashboard'
+            simulator:
+              - 'simulator/**'
+              - 'src/synthetiq/models/**'
+              - 'data/**'
+              - 'pyproject.toml'
+              - 'deploy/docker/Dockerfile.simulator'
+
+  build-api:
+    name: Build API Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.api
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:latest
+
+  build-worker:
+    name: Build Worker Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.worker == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.worker
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/worker:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/worker:latest
+
+  build-mcp:
+    name: Build MCP Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mcp == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.mcp
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/mcp:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/mcp:latest
+
+  build-dashboard:
+    name: Build Dashboard Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.dashboard == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.dashboard
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/dashboard:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/dashboard:latest
+
+  build-simulator:
+    name: Build Simulator Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.simulator == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.simulator
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/simulator:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/simulator:latest

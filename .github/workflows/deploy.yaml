@@ -1,0 +1,51 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_run:
+    workflows: ["Build & Push Docker Images"]
+    types: [completed]
+    branches: [main]
+
+env:
+  HELM_CHART_PATH: deploy/helm/synthetiq
+
+jobs:
+  deploy:
+    name: Helm Deploy
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "3.14.0"
+
+      - name: Authenticate to GKE
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GKE_SA_KEY }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER_NAME }}
+          location: ${{ vars.GKE_CLUSTER_ZONE }}
+
+      - name: Deploy via Helm (atomic with rollback)
+        run: |
+          helm upgrade --install synthetiq ${{ env.HELM_CHART_PATH }} \
+            -f ${{ env.HELM_CHART_PATH }}/values-prod.yaml \
+            --set global.imageTag=${{ github.sha }} \
+            --atomic \
+            --timeout 8m \
+            --namespace synthetiq \
+            --create-namespace
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n synthetiq
+          kubectl rollout status deployment/synthetiq-api -n synthetiq --timeout=120s
+          kubectl rollout status deployment/synthetiq-worker -n synthetiq --timeout=120s
+          kubectl rollout status deployment/synthetiq-dashboard -n synthetiq --timeout=120s

@@ -1,0 +1,48 @@
+# ============================================================
+# SynthetIQ Helm Values — Production GKE Overrides
+# ============================================================
+
+global:
+  environment: prod
+  imageRegistry: ghcr.io/techfusion529/synthetiq
+  imagePullPolicy: Always
+
+dashboard:
+  replicaCount: 2
+
+api:
+  replicaCount: 2
+  env:
+    CORS_ORIGINS: "https://synthetiq.techfusion.dev"
+
+worker:
+  replicaCount: 2
+
+grafana:
+  adminPassword: ""  # Set via sealed secret in production
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  tls:
+    - secretName: synthetiq-tls
+      hosts:
+        - synthetiq.techfusion.dev
+  hosts:
+    - host: synthetiq.techfusion.dev
+      paths:
+        - path: /
+          service: dashboard
+          port: 3000
+        - path: /api
+          service: api
+          port: 8000
+        - path: /grafana
+          service: grafana
+          port: 3000
+        - path: /temporal
+          service: temporal-ui
+          port: 8080

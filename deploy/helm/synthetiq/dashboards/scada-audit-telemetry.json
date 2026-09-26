@@ -1,0 +1,65 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    {
+      "title": "VFD Torque Curve (Nm) — Real-Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "synthetiq_scada_torque_nm", "legendFormat": "{{ plant_id }} Torque" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Nm", "custom": { "lineWidth": 2, "fillOpacity": 10 } } }
+    },
+    {
+      "title": "Power Factor — Inductive vs Resistive Signature",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "synthetiq_scada_power_factor", "legendFormat": "{{ plant_id }} PF" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1.1, "unit": "none", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.95 }] } } }
+    },
+    {
+      "title": "Thermodynamic Energy Balance (Expected vs Metered kWh)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "synthetiq_scada_energy_expected_kwh", "legendFormat": "Expected (Physics)" },
+        { "expr": "synthetiq_scada_energy_metered_kwh", "legendFormat": "Metered (Actual)" }
+      ]
+    },
+    {
+      "title": "Jev Reflex Evaluation Latency (ms)",
+      "type": "histogram",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, rate(synthetiq_jev_evaluation_duration_seconds_bucket[5m]))", "legendFormat": "p95 Latency" },
+        { "expr": "histogram_quantile(0.50, rate(synthetiq_jev_evaluation_duration_seconds_bucket[5m]))", "legendFormat": "p50 Latency" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Audit Verdicts (Melt Verified vs Fraud Detected)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "sum(synthetiq_scada_verdicts_total{result=\"melt_verified\"})", "legendFormat": "Verified" },
+        { "expr": "sum(synthetiq_scada_verdicts_total{result=\"fraud_detected\"})", "legendFormat": "Fraud" }
+      ]
+    },
+    {
+      "title": "PII Redactions (Gemma 2B)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        { "expr": "sum(rate(synthetiq_mcp_pii_redactions_total[1h]))", "legendFormat": "Redactions/hr" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["synthetiq", "scada", "audit", "fraud"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "SynthetIQ — SCADA Audit Telemetry",
+  "uid": "synthetiq-scada-audit"
+}

@@ -1,0 +1,63 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    {
+      "title": "Pod CPU Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "rate(process_cpu_seconds_total{job=~\"synthetiq-.*\"}[5m])", "legendFormat": "{{ job }}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit" } }
+    },
+    {
+      "title": "Pod Memory Usage (RSS)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "process_resident_memory_bytes{job=~\"synthetiq-.*\"}", "legendFormat": "{{ job }}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "title": "HTTP Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "sum by (job)(rate(http_requests_total{job=~\"synthetiq-.*\"}[5m]))", "legendFormat": "{{ job }}" }
+      ]
+    },
+    {
+      "title": "HTTP p95 Latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, job)(rate(http_request_duration_seconds_bucket{job=~\"synthetiq-.*\"}[5m])))", "legendFormat": "{{ job }} p95" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "MCP Tool Execution Duration",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, rate(synthetiq_mcp_tool_duration_seconds_bucket[5m]))", "legendFormat": "{{ tool }} p95" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "SCADA Simulator Throughput",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        { "expr": "synthetiq_scada_stream_throughput_readings_per_sec", "legendFormat": "Readings/sec" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["synthetiq", "pods", "health"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "SynthetIQ — Pod & Services Health",
+  "uid": "synthetiq-pod-health"
+}

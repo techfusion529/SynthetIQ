@@ -1,0 +1,16 @@
+apiVersion: v2
+name: synthetiq
+description: SynthetIQ — Autonomous EPR Compliance & Anti-Fraud Engine
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: TechFusion
+    email: techfusion529@gmail.com
+keywords:
+  - epr
+  - compliance
+  - anti-fraud
+  - temporal
+  - scada
+  - multi-agent

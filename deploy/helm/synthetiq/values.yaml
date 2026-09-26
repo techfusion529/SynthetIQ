@@ -1,0 +1,229 @@
+# ============================================================
+# SynthetIQ Helm Values — Global & Per-Pod Configuration
+# ============================================================
+
+global:
+  environment: dev
+  imageRegistry: ghcr.io/techfusion529/synthetiq
+  imageTag: latest
+  imagePullPolicy: IfNotPresent
+  namespace: synthetiq
+
+# ---- Next.js Executive Dashboard ----
+dashboard:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/dashboard"
+    tag: "{{ .Values.global.imageTag }}"
+  port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    NEXT_PUBLIC_API_URL: "http://synthetiq-api:8000"
+  telemetry:
+    scrape: true
+    path: "/api/metrics"
+    port: 3000
+
+# ---- FastAPI Gateway ----
+api:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/api"
+    tag: "{{ .Values.global.imageTag }}"
+  port: 8000
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  env:
+    TEMPORAL_ADDRESS: "temporal-server:7233"
+    CORS_ORIGINS: "http://localhost:3000"
+  telemetry:
+    scrape: true
+    path: "/metrics"
+    port: 8000
+
+# ---- Temporal Python Worker ----
+worker:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/worker"
+    tag: "{{ .Values.global.imageTag }}"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  env:
+    TEMPORAL_ADDRESS: "temporal-server:7233"
+    TEMPORAL_TASK_QUEUE: "synthetiq-main"
+    MCP_SERVER_URL: "http://synthetiq-mcp:8001"
+    OLLAMA_HOST: "http://ollama:11434"
+  telemetry:
+    scrape: true
+    path: "/metrics"
+    port: 9090
+
+# ---- MCP Tool Gateway ----
+mcp:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/mcp"
+    tag: "{{ .Values.global.imageTag }}"
+  port: 8001
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  env:
+    OLLAMA_HOST: "http://ollama:11434"
+  telemetry:
+    scrape: true
+    path: "/metrics"
+    port: 8001
+
+# ---- SCADA & Company Simulator ----
+simulator:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/simulator"
+    tag: "{{ .Values.global.imageTag }}"
+  port: 9091
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    SIMULATOR_STREAM_RATE_HZ: "1"
+    SIMULATOR_PROFILE: "genuine"
+  telemetry:
+    scrape: true
+    path: "/metrics"
+    port: 9091
+
+# ---- Ollama (Gemma 2B PII Scrubber) ----
+ollama:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ollama/ollama
+    tag: latest
+  port: 11434
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+# ---- Temporal Server ----
+temporalServer:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: temporalio/auto-setup
+    tag: latest
+  port: 7233
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# ---- Temporal UI ----
+temporalUi:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: temporalio/ui
+    tag: latest
+  port: 8080
+  env:
+    TEMPORAL_ADDRESS: "temporal-server:7233"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# ---- Grafana ----
+grafana:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: grafana/grafana
+    tag: "10.4.0"
+  port: 3000
+  adminPassword: "admin"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ---- Prometheus ----
+prometheus:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: prom/prometheus
+    tag: "v2.51.0"
+  port: 9090
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# ---- Ingress ----
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  hosts:
+    - host: synthetiq.local
+      paths:
+        - path: /
+          service: dashboard
+          port: 3000
+        - path: /api
+          service: api
+          port: 8000
+        - path: /grafana
+          service: grafana
+          port: 3000
+        - path: /temporal
+          service: temporal-ui
+          port: 8080

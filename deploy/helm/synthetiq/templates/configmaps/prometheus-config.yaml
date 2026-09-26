@@ -1,0 +1,45 @@
+{{- if .Values.prometheus.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      # --- SynthetIQ Core Services ---
+      - job_name: "synthetiq-api"
+        static_configs:
+          - targets: ["synthetiq-api:{{ .Values.api.telemetry.port }}"]
+        metrics_path: "{{ .Values.api.telemetry.path }}"
+
+      - job_name: "synthetiq-worker"
+        static_configs:
+          - targets: ["synthetiq-worker:{{ .Values.worker.telemetry.port }}"]
+        metrics_path: "{{ .Values.worker.telemetry.path }}"
+
+      - job_name: "synthetiq-mcp"
+        static_configs:
+          - targets: ["synthetiq-mcp:{{ .Values.mcp.telemetry.port }}"]
+        metrics_path: "{{ .Values.mcp.telemetry.path }}"
+
+      - job_name: "synthetiq-simulator"
+        static_configs:
+          - targets: ["synthetiq-simulator:{{ .Values.simulator.telemetry.port }}"]
+        metrics_path: "{{ .Values.simulator.telemetry.path }}"
+
+      - job_name: "synthetiq-dashboard"
+        static_configs:
+          - targets: ["synthetiq-dashboard:{{ .Values.dashboard.telemetry.port }}"]
+        metrics_path: "{{ .Values.dashboard.telemetry.path }}"
+
+      # --- Prometheus self-monitoring ---
+      - job_name: "prometheus"
+        static_configs:
+          - targets: ["localhost:9090"]
+{{- end }}

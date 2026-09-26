@@ -1,0 +1,40 @@
+# ============================================================
+# SynthetIQ Helm Values — Local Development Overrides (k3d/Minikube)
+# ============================================================
+
+global:
+  environment: dev
+  imageRegistry: synthetiq
+  imageTag: dev
+  imagePullPolicy: Never   # Use locally built images
+
+dashboard:
+  replicaCount: 1
+  env:
+    NEXT_PUBLIC_API_URL: "http://localhost:8000"
+
+api:
+  replicaCount: 1
+  env:
+    CORS_ORIGINS: "http://localhost:3000,http://synthetiq.local"
+
+worker:
+  replicaCount: 1
+
+ingress:
+  enabled: true
+  hosts:
+    - host: synthetiq.local
+      paths:
+        - path: /
+          service: dashboard
+          port: 3000
+        - path: /api
+          service: api
+          port: 8000
+        - path: /grafana
+          service: grafana
+          port: 3000
+        - path: /temporal
+          service: temporal-ui
+          port: 8080

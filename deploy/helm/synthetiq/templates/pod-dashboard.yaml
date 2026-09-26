@@ -1,0 +1,62 @@
+{{- if .Values.dashboard.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synthetiq-dashboard
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+    {{- include "synthetiq.selectorLabels" (dict "component" "dashboard" "root" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.dashboard.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "synthetiq.selectorLabels" (dict "component" "dashboard" "root" .) | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- include "synthetiq.prometheusAnnotations" (dict "path" .Values.dashboard.telemetry.path "port" (.Values.dashboard.telemetry.port | toString)) | nindent 8 }}
+      labels:
+        {{- include "synthetiq.selectorLabels" (dict "component" "dashboard" "root" .) | nindent 8 }}
+    spec:
+      containers:
+        - name: dashboard
+          image: "{{ .Values.global.imageRegistry }}/dashboard:{{ .Values.global.imageTag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.dashboard.port }}
+              name: http
+              protocol: TCP
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: {{ .Values.dashboard.env.NEXT_PUBLIC_API_URL | quote }}
+          resources:
+            {{- toYaml .Values.dashboard.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: synthetiq-dashboard
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.dashboard.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "synthetiq.selectorLabels" (dict "component" "dashboard" "root" .) | nindent 4 }}
+{{- end }}

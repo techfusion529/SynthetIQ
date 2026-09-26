@@ -1,0 +1,52 @@
+{{- if .Values.simulator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synthetiq-simulator
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+    {{- include "synthetiq.selectorLabels" (dict "component" "simulator" "root" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.simulator.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "synthetiq.selectorLabels" (dict "component" "simulator" "root" .) | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- include "synthetiq.prometheusAnnotations" (dict "path" .Values.simulator.telemetry.path "port" (.Values.simulator.telemetry.port | toString)) | nindent 8 }}
+      labels:
+        {{- include "synthetiq.selectorLabels" (dict "component" "simulator" "root" .) | nindent 8 }}
+    spec:
+      containers:
+        - name: simulator
+          image: "{{ .Values.global.imageRegistry }}/simulator:{{ .Values.global.imageTag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.simulator.port }}
+              name: metrics
+              protocol: TCP
+          env:
+            - name: SIMULATOR_STREAM_RATE_HZ
+              value: {{ .Values.simulator.env.SIMULATOR_STREAM_RATE_HZ | quote }}
+            - name: SIMULATOR_PROFILE
+              value: {{ .Values.simulator.env.SIMULATOR_PROFILE | quote }}
+          resources:
+            {{- toYaml .Values.simulator.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: synthetiq-simulator
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.simulator.port }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "synthetiq.selectorLabels" (dict "component" "simulator" "root" .) | nindent 4 }}
+{{- end }}

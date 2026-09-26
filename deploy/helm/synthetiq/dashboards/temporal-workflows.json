@@ -1,0 +1,45 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    {
+      "title": "Workflow Execution Duration",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, rate(temporal_workflow_endtoend_latency_bucket{namespace=\"default\"}[5m]))", "legendFormat": "{{ workflow_type }} p95" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Activity Task Retries",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "sum by (activity_type)(rate(temporal_activity_execution_failed_total[5m]))", "legendFormat": "{{ activity_type }} Failures/s" }
+      ]
+    },
+    {
+      "title": "Workflow Status Distribution",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "sum by (status)(temporal_workflow_completed_total{namespace=\"default\"})", "legendFormat": "{{ status }}" }
+      ]
+    },
+    {
+      "title": "Saga Compensation Events",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "sum(synthetiq_saga_compensation_total)", "legendFormat": "Compensations" },
+        { "expr": "sum(synthetiq_saga_compensation_failed_total)", "legendFormat": "Failed Compensations" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["synthetiq", "temporal", "workflows"],
+  "time": { "from": "now-3h", "to": "now" },
+  "title": "SynthetIQ — Temporal Workflows",
+  "uid": "synthetiq-temporal"
+}

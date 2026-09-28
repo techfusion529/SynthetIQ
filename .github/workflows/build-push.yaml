@@ -4,12 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/**"
+      - "packages/**"
       - "api/**"
+      - "worker/**"
+      - "mcp/**"
       - "simulator/**"
+      - "mocks/**"
       - "dashboard/**"
-      - "deploy/docker/**"
-      - "pyproject.toml"
+      - "data/**"
 
 env:
   REGISTRY: ghcr.io
@@ -25,6 +27,7 @@ jobs:
       mcp: ${{ steps.filter.outputs.mcp }}
       dashboard: ${{ steps.filter.outputs.dashboard }}
       simulator: ${{ steps.filter.outputs.simulator }}
+      mocks: ${{ steps.filter.outputs.mocks }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -33,28 +36,23 @@ jobs:
           filters: |
             api:
               - 'api/**'
-              - 'src/**'
-              - 'pyproject.toml'
-              - 'deploy/docker/Dockerfile.api'
+              - 'packages/shared/**'
             worker:
-              - 'src/**'
+              - 'worker/**'
+              - 'packages/shared/**'
               - 'data/**'
-              - 'pyproject.toml'
-              - 'deploy/docker/Dockerfile.worker'
             mcp:
-              - 'src/synthetiq/mcp_server/**'
-              - 'src/synthetiq/models/**'
-              - 'pyproject.toml'
-              - 'deploy/docker/Dockerfile.mcp'
+              - 'mcp/**'
+              - 'packages/shared/**'
             dashboard:
               - 'dashboard/**'
-              - 'deploy/docker/Dockerfile.dashboard'
             simulator:
               - 'simulator/**'
-              - 'src/synthetiq/models/**'
+              - 'packages/shared/**'
               - 'data/**'
-              - 'pyproject.toml'
-              - 'deploy/docker/Dockerfile.simulator'
+            mocks:
+              - 'mocks/**'
+              - 'packages/shared/**'
 
   build-api:
     name: Build API Image
@@ -74,7 +72,7 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           context: .
-          file: deploy/docker/Dockerfile.api
+          file: api/Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:${{ github.sha }}
@@ -98,7 +96,7 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           context: .
-          file: deploy/docker/Dockerfile.worker
+          file: worker/Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/worker:${{ github.sha }}
@@ -122,7 +120,7 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           context: .
-          file: deploy/docker/Dockerfile.mcp
+          file: mcp/Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/mcp:${{ github.sha }}
@@ -146,7 +144,7 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           context: .
-          file: deploy/docker/Dockerfile.dashboard
+          file: dashboard/Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/dashboard:${{ github.sha }}
@@ -170,8 +168,32 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           context: .
-          file: deploy/docker/Dockerfile.simulator
+          file: simulator/Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/simulator:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/simulator:latest
+
+  build-mocks:
+    name: Build Mocks Image
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mocks == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: mocks/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/mocks:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/mocks:latest

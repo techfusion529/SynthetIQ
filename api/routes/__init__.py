@@ -1,1 +1,0 @@
-"""SynthetIQ API route modules."""

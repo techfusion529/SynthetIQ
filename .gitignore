@@ -52,3 +52,6 @@ data/reference/*.zip
 
 # Ollama models cache
 .ollama/
+
+# uv
+# uv.lock is committed for reproducible builds

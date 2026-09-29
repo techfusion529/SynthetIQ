@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Building2, ChevronDown, Radio, Shield, User } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Building2, Cpu, Settings } from "lucide-react";
+import ConfigModal from "./ConfigModal";
+import { fetchConfig, SystemConfig } from "@/app/lib/api";
 
 export const COMPANIES = [
   {
@@ -34,7 +36,16 @@ interface HeaderProps {
 
 export default function Header({ selectedCompanyId = "COMP-IN-001", onCompanyChange }: HeaderProps) {
   const [selectedId, setSelectedId] = useState(selectedCompanyId);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [engineConfig, setEngineConfig] = useState<SystemConfig | null>(null);
+
   const activeCompany = COMPANIES.find((c) => c.id === selectedId) || COMPANIES[0];
+
+  useEffect(() => {
+    fetchConfig().then((cfg) => {
+      if (cfg) setEngineConfig(cfg);
+    });
+  }, []);
 
   const handleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedId(e.target.value);
@@ -43,52 +54,83 @@ export default function Header({ selectedCompanyId = "COMP-IN-001", onCompanyCha
     }
   };
 
+  const modelBadge = engineConfig?.gemini.model.replace("gemini-", "Gemini ") || "Gemini 2.5";
+  const jevBadge =
+    engineConfig?.jev_mode.mode === "REFLEX_PHYSICS_ONLY"
+      ? "Jev: Physics"
+      : engineConfig?.jev_mode.mode === "DEEP_FORENSIC_ONLY"
+      ? "Jev: Forensic"
+      : "Jev: Hybrid";
+
   return (
-    <header className="h-16 border-b border-slate-800/80 bg-[#070b16]/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20">
-      {/* Company Switcher */}
-      <div className="flex items-center space-x-3">
-        <div className="flex items-center space-x-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl">
-          <Building2 className="w-4 h-4 text-indigo-400" />
-          <select
-            value={selectedId}
-            onChange={handleSelect}
-            className="bg-transparent text-sm font-semibold text-slate-100 focus:outline-none cursor-pointer pr-1"
+    <>
+      <header className="h-16 border-b border-slate-800/80 bg-[#070b16]/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20">
+        {/* Company Switcher */}
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl">
+            <Building2 className="w-4 h-4 text-indigo-400" />
+            <select
+              value={selectedId}
+              onChange={handleSelect}
+              className="bg-transparent text-sm font-semibold text-slate-100 focus:outline-none cursor-pointer pr-1"
+            >
+              {COMPANIES.map((c) => (
+                <option key={c.id} value={c.id} className="bg-slate-900 text-slate-100">
+                  {c.name} ({c.sector})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <span className="text-xs font-mono text-slate-400 px-2.5 py-1 rounded-lg bg-slate-900/50 border border-slate-800/60 hidden md:inline-block">
+            GSTIN: {activeCompany.gstin}
+          </span>
+          <span className="text-xs font-bold text-indigo-400 px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20">
+            FY2026-27
+          </span>
+        </div>
+
+        {/* Live Status Indicators, Engine Config & Profile */}
+        <div className="flex items-center space-x-3">
+          {/* Engine & Model Config Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsConfigOpen(true)}
+            className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700 hover:border-indigo-500 text-slate-200 hover:text-white transition shadow-sm text-xs cursor-pointer group"
+            title="Configure Gemini Model, Jev Physics thresholds & Microservices"
           >
-            {COMPANIES.map((c) => (
-              <option key={c.id} value={c.id} className="bg-slate-900 text-slate-100">
-                {c.name} ({c.sector})
-              </option>
-            ))}
-          </select>
-        </div>
+            <Cpu className="w-3.5 h-3.5 text-indigo-400 group-hover:rotate-12 transition-transform" />
+            <span className="font-mono text-[11px] text-indigo-300 hidden sm:inline-block">
+              {modelBadge} • {jevBadge}
+            </span>
+            <Settings className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200" />
+          </button>
 
-        <span className="text-xs font-mono text-slate-400 px-2.5 py-1 rounded-lg bg-slate-900/50 border border-slate-800/60 hidden md:inline-block">
-          GSTIN: {activeCompany.gstin}
-        </span>
-        <span className="text-xs font-bold text-indigo-400 px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20">
-          FY2026-27
-        </span>
-      </div>
-
-      {/* Live Status Indicators & Profile */}
-      <div className="flex items-center space-x-4">
-        {/* SCADA Status Pill */}
-        <div className="flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span className="font-mono">50Hz Extruder Stream</span>
-        </div>
-
-        {/* User Identity */}
-        <div className="flex items-center space-x-2.5 pl-3 border-l border-slate-800">
-          <div className="w-8 h-8 rounded-full bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-bold text-xs">
-            CO
+          {/* SCADA Status Pill */}
+          <div className="hidden lg:flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span className="font-mono">50Hz Extruder Stream</span>
           </div>
-          <div className="hidden sm:block text-left">
-            <p className="text-xs font-semibold text-slate-200">Compliance Officer</p>
-            <p className="text-[10px] text-slate-400 font-mono">DSC: Valid (X.509)</p>
+
+          {/* User Identity */}
+          <div className="flex items-center space-x-2.5 pl-3 border-l border-slate-800">
+            <div className="w-8 h-8 rounded-full bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-bold text-xs">
+              CO
+            </div>
+            <div className="hidden sm:block text-left">
+              <p className="text-xs font-semibold text-slate-200">Compliance Officer</p>
+              <p className="text-[10px] text-slate-400 font-mono">DSC: Valid (X.509)</p>
+            </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* Config Slide-over / Modal */}
+      <ConfigModal
+        isOpen={isConfigOpen}
+        onClose={() => setIsConfigOpen(false)}
+        onConfigUpdated={(cfg) => setEngineConfig(cfg)}
+      />
+    </>
   );
 }

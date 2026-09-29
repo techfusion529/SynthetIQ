@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -21,27 +21,31 @@ import {
   UserCheck,
   XCircle,
 } from "lucide-react";
+import { approveEscrow, fetchEscrowPOs } from "@/app/lib/api";
 
 export default function SettlementEscrowPage() {
   const [isApproving, setIsApproving] = useState(false);
   const [approved, setApproved] = useState(true);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalResponse, setApprovalResponse] = useState<any>(null);
 
   const totalAmount = 1950000;
   const advanceAmount = Math.round(totalAmount * 0.8); // 80%
   const retentionAmount = Math.round(totalAmount * 0.2); // 20%
 
+  useEffect(() => {
+    fetchEscrowPOs().then((pos) => {
+      if (pos && pos.length > 0) {
+        setApproved(pos[0].status === "advance_released");
+      }
+    });
+  }, []);
+
   const handleApprove = async () => {
     setIsApproving(true);
     try {
-      await fetch("http://localhost:8000/api/v1/settlement/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          audit_id: "AUD-2026-881",
-          action: "APPROVE",
-        }),
-      });
+      const res = await approveEscrow("AUD-2026-881", "APPROVE");
+      setApprovalResponse(res);
       setApproved(true);
       setShowApprovalModal(false);
     } catch {
@@ -80,6 +84,18 @@ export default function SettlementEscrowPage() {
         </Link>
       </div>
 
+      {approvalResponse && (
+        <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/50 text-emerald-200 text-xs flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>
+              <strong>Temporal HITL Approval Recorded:</strong> Approved by {approvalResponse.approved_by || "compliance.officer@brand.in"}. Advance 80% released in ERP.
+            </span>
+          </div>
+          <span className="font-mono text-[11px] text-slate-300">Status: {approvalResponse.status}</span>
+        </div>
+      )}
+
       {/* 80/20 Escrow Split Visualizer Card */}
       <div className="p-6 rounded-2xl glass-panel space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
@@ -98,150 +114,171 @@ export default function SettlementEscrowPage() {
         </div>
 
         {/* Visual Split Bar */}
-        <div className="space-y-3">
-          <div className="h-6 w-full rounded-xl bg-slate-950 p-1 flex overflow-hidden border border-slate-800">
+        <div className="space-y-2">
+          <div className="flex h-12 w-full rounded-xl overflow-hidden border border-slate-700/80 p-1 bg-slate-950 gap-1.5">
+            {/* 80% Tranche */}
             <div
+              className={`h-full rounded-lg transition-all flex items-center justify-between px-4 font-mono text-xs font-bold ${
+                approved
+                  ? "bg-gradient-to-r from-emerald-600 to-teal-500 text-white"
+                  : "bg-emerald-900/50 text-emerald-200 border border-emerald-500/40"
+              }`}
               style={{ width: "80%" }}
-              className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-l-lg flex items-center justify-center text-[10px] font-mono font-bold text-white shadow-sm"
             >
-              80% ADVANCE PAYMENT (RELEASED ON MELT PROOF)
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                80% Advance Tranche
+              </span>
+              <span>₹{(advanceAmount / 100000).toFixed(2)} Lakhs</span>
             </div>
+
+            {/* 20% Retention Tranche */}
             <div
+              className="h-full rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-200 flex items-center justify-between px-3 font-mono text-xs font-bold"
               style={{ width: "20%" }}
-              className="h-full bg-gradient-to-r from-amber-600 to-amber-500 rounded-r-lg flex items-center justify-center text-[10px] font-mono font-bold text-white shadow-sm"
             >
-              20% ESCROW
+              <span className="flex items-center gap-1.5 truncate">
+                <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="truncate">20% Retention</span>
+              </span>
+              <span>₹{(retentionAmount / 100000).toFixed(2)}L</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            {/* Advance Portion */}
-            <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 space-y-1.5">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-semibold text-emerald-300">80% Advance Tranche</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  {approved ? "RELEASED" : "AWAITING APPROVAL"}
-                </span>
-              </div>
-              <div className="text-2xl font-bold font-mono text-white">₹{(advanceAmount / 100000).toFixed(2)} Lakhs</div>
-              <p className="text-[11px] text-slate-400">
-                Transferred to Recycler bank account after TypeSafe Jev verifies 57.7 Nm viscous extruder torque.
-              </p>
-            </div>
+          <div className="flex justify-between text-[11px] text-slate-400 px-1 font-mono">
+            <span className="text-emerald-400 font-semibold">
+              Condition: Verified Melt Proof (SCADA VFD + GST E-Way Bill)
+            </span>
+            <span className="text-amber-400 font-semibold">
+              Condition: Form-1 Acceptance & Credit Transfer on CPCB Portal
+            </span>
+          </div>
+        </div>
 
-            {/* Retention Portion */}
-            <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/30 space-y-1.5">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-semibold text-amber-300">20% Escrow Retention Tranche</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  LOCKED IN ESCROW
-                </span>
+        {/* Details Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          {/* Box 1: Advance Details */}
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Advance Escrow (80%)</span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                {approved ? "RELEASED TO RECYCLER" : "HELD IN ESCROW"}
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Triggered automatically when the TypeSafe Jev System 1 Reflex confirms authentic polymer melting with confidence score ≥ 85% and weighbridge delta within ±2%.
+            </p>
+            <div className="text-xs font-mono space-y-1 text-slate-400 border-t border-slate-800/80 pt-2">
+              <div className="flex justify-between">
+                <span>SAP PO Number:</span>
+                <span className="text-white">PO-2026-901</span>
               </div>
-              <div className="text-2xl font-bold font-mono text-white">₹{(retentionAmount / 100000).toFixed(2)} Lakhs</div>
-              <p className="text-[11px] text-slate-400">
-                Held in corporate escrow until CPCB statutory portal confirms annual credit acceptance.
-              </p>
+              <div className="flex justify-between">
+                <span>Beneficiary Recycler:</span>
+                <span className="text-white">EcoPlast Recyclers Ltd</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Box 2: Retention Details */}
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Retention Escrow (20%)</span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                PENDING CPCB ACK
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Protects against certificate revocations by CPCB. Released strictly upon generation of final Form-1 receipt and official portal acknowledgment.
+            </p>
+            <div className="text-xs font-mono space-y-1 text-slate-400 border-t border-slate-800/80 pt-2">
+              <div className="flex justify-between">
+                <span>Escrow Smart Account:</span>
+                <span className="text-white">ESCROW-HDFC-9921</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Auto-Release Trigger:</span>
+                <span className="text-amber-300">CPCB_ACCEPTED status</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Human-in-the-Loop Gate Card */}
-      <div className="p-6 rounded-2xl glass-panel space-y-5 border-indigo-500/30 relative overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-              <UserCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white">Human-in-the-Loop Authorization Gate</h3>
-              <p className="text-xs text-slate-400">
-                Authorized Signatory review required before ERP escrow release and CPCB dispatch
-              </p>
-            </div>
+        {/* HITL Action Button */}
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-800/80">
+          <div className="flex items-center space-x-2 text-xs text-slate-400">
+            <UserCheck className="w-4 h-4 text-indigo-400" />
+            <span>Human-in-the-Loop review enforced for high-value tranches (&gt;₹10L)</span>
           </div>
 
           <button
             onClick={() => setShowApprovalModal(true)}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-600 hover:to-cyan-600 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-indigo-500/25 transition-all"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-semibold text-xs text-white bg-indigo-600 hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2"
           >
-            <span>Review & Authorize PO</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ShieldCheck className="w-4 h-4" />
+            <span>Authorizing Signature Gate (HITL)</span>
           </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
-          <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
-            <span className="text-slate-400 font-sans">Active Purchase Order</span>
-            <p className="text-white font-bold text-sm">PO-2026-901 (SAP S/4HANA)</p>
-            <p className="text-slate-400 font-sans">Vendor: EcoMelt Solutions (RECYC-DELHI-01)</p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
-            <span className="text-slate-400 font-sans">Physical Melt Proof</span>
-            <p className="text-emerald-400 font-bold text-sm">248.6 Tons (Melt Verified)</p>
-            <p className="text-slate-400 font-sans">Jev Confidence: 96.5% Genuine</p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
-            <span className="text-slate-400 font-sans">Cryptographic Audit Hash</span>
-            <p className="text-indigo-300 font-bold truncate">e3b0c44298fc1c149afbf4c8996fb...</p>
-            <p className="text-emerald-400 font-sans">SHA-256 Ledger: Sealed</p>
-          </div>
         </div>
       </div>
 
-      {/* Modal Dialog for Human-in-the-Loop Sign-Off */}
+      {/* Approval Modal */}
       {showApprovalModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="w-full max-w-lg rounded-2xl glass-panel p-6 space-y-5 border border-slate-700 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#0b1021] border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center space-x-2 text-white font-bold text-base">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                <span>Authorize 80/20 Escrow Purchase Order</span>
+              <div className="flex items-center space-x-2.5">
+                <Shield className="w-5 h-5 text-indigo-400" />
+                <h3 className="font-bold text-white text-base">Authorize 80% Advance Escrow Release</h3>
               </div>
               <button
                 onClick={() => setShowApprovalModal(false)}
-                className="text-slate-400 hover:text-white p-1"
+                className="text-slate-400 hover:text-white"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <p className="text-slate-300">
-                You are about to approve the release of <strong>₹15,60,000 (80% Advance)</strong> for 250 Tons of verified Cat-I rigid plastic recycling credits to <strong>EcoMelt Solutions Ltd</strong>.
+            <div className="space-y-3 text-xs text-slate-300">
+              <p>
+                You are about to sign off on releasing <strong>₹{(advanceAmount / 100000).toFixed(2)} Lakhs</strong> (80% of PO-2026-901) to <strong>EcoPlast Recyclers Ltd</strong>.
               </p>
-
-              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono space-y-1 text-slate-300">
-                <div><strong>PO:</strong> PO-2026-901</div>
-                <div><strong>Audit Verdict:</strong> APPROVED (SCADA Torque: 57.7 Nm, PF: 0.871)</div>
-                <div><strong>Audit Hash:</strong> e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</div>
-                <div><strong>Signatory:</strong> Compliance Officer (Authorized DSC Token)</div>
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 font-mono text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Audit Verification:</span>
+                  <span className="text-emerald-400 font-bold">APPROVED (Jev System 1: 96.5%)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Audit Proof Hash:</span>
+                  <span className="text-slate-300 truncate max-w-[200px]">e3b0c44298fc1c14...</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Approver DN:</span>
+                  <span className="text-slate-300">CN=Compliance Officer, C=IN</span>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end space-x-3 pt-2">
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
               <button
                 onClick={() => setShowApprovalModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800"
               >
                 Cancel
               </button>
               <button
                 onClick={handleApprove}
                 disabled={isApproving}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-semibold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/25"
+                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/30 flex items-center gap-1.5"
               >
                 {isApproving ? (
                   <>
                     <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Signing PO...</span>
+                    <span>Signing DSC Token...</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Confirm & Release Advance</span>
+                    <span>Confirm & Sign Escrow Release</span>
                   </>
                 )}
               </button>

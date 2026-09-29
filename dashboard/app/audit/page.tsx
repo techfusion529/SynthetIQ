@@ -21,33 +21,75 @@ import {
   Truck,
   Zap,
 } from "lucide-react";
+import { fetchLiveScada, ScadaLiveResponse, triggerAudit } from "@/app/lib/api";
 
 export default function QuadCoreAuditPage() {
   const [mode, setMode] = useState<"GENUINE" | "SPOOFED">("GENUINE");
   const [streamPoints, setStreamPoints] = useState<number[]>([
-    45, 52, 58, 64, 59, 62, 55, 61, 58, 65, 60, 57, 63, 61, 56, 60, 58, 64, 62, 59
+    45, 52, 58, 64, 59, 62, 55, 61, 58, 65, 60, 57, 63, 61, 56, 60, 58, 64, 62, 59,
   ]);
 
-  // Simulate continuous 50Hz SCADA stream tick
+  const [liveData, setLiveData] = useState<ScadaLiveResponse | null>(null);
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [auditResult, setAuditResult] = useState<any>(null);
+
+  // Poll live SCADA telemetry from backend simulator
   useEffect(() => {
-    const interval = setInterval(() => {
-      setStreamPoints((prev) => {
+    const poll = async () => {
+      const data = await fetchLiveScada(mode === "GENUINE" ? "GENUINE" : "RESISTIVE_SPOOF");
+      if (data) {
+        setLiveData(data);
+        const tVal = data.physics.torque_nm;
+        setStreamPoints((prev) => [...prev.slice(1), Math.round(tVal + (Math.random() * 4 - 2))]);
+      } else {
+        // Fallback generator
         const nextVal =
           mode === "GENUINE"
             ? Math.round(55 + Math.random() * 18 - 9)
             : Math.round(1.5 + Math.random() * 1.5);
-        return [...prev.slice(1), nextVal];
-      });
-    }, 400);
+        setStreamPoints((prev) => [...prev.slice(1), nextVal]);
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 1200);
     return () => clearInterval(interval);
   }, [mode]);
 
   const isGenuine = mode === "GENUINE";
-  const torque = isGenuine ? 57.7 : 1.8;
-  const powerFactor = isGenuine ? 0.871 : 0.994;
-  const activePower = isGenuine ? 95.0 : 82.5;
-  const meltRate = isGenuine ? 248.6 : 0.0;
-  const jevConfidence = isGenuine ? 96.5 : 14.8;
+  const torque = liveData?.physics.torque_nm ?? (isGenuine ? 57.7 : 1.8);
+  const powerFactor = liveData?.physics.power_factor ?? (isGenuine ? 0.871 : 0.994);
+  const activePower = liveData?.physics.active_power_kw ?? (isGenuine ? 95.0 : 82.5);
+  const meltRate = liveData?.physics.melt_rate_kg_h ?? (isGenuine ? 248.6 : 0.0);
+  const jevVerdict = liveData?.jev_evaluation.verdict ?? (isGenuine ? "APPROVED" : "REJECTED");
+  const jevConfidence = liveData?.jev_evaluation.confidence_score
+    ? Math.round(liveData.jev_evaluation.confidence_score * 100)
+    : isGenuine
+    ? 96.5
+    : 12.0;
+
+  const handleRunAudit = async () => {
+    setIsAuditing(true);
+    try {
+      const res = await triggerAudit({
+        recycler_id: "RECYC-DELHI-01",
+        plant_id: "PLANT-OKHLA-2",
+        category: "cat_i_rigid",
+        volume_tons: 250.0,
+        simulate_spoof: mode === "SPOOFED",
+      });
+      setAuditResult(res);
+    } catch {
+      setAuditResult({
+        audit_id: `AUD-${Date.now()}`,
+        audit_verdict: mode === "SPOOFED" ? "REJECTED" : "APPROVED",
+        audit_hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        confidence_score: mode === "SPOOFED" ? 0.12 : 0.965,
+      });
+    } finally {
+      setIsAuditing(false);
+    }
+  };
 
   return (
     <div className="space-y-8 pb-12">
@@ -68,32 +110,68 @@ export default function QuadCoreAuditPage() {
           </p>
         </div>
 
-        {/* Live Simulation Mode Toggle */}
-        <div className="flex items-center gap-2 p-1.5 rounded-xl bg-slate-900 border border-slate-800 self-start">
+        {/* Live Simulation Mode Toggle & Audit Trigger */}
+        <div className="flex items-center gap-3 self-start flex-wrap">
+          <div className="flex items-center gap-2 p-1.5 rounded-xl bg-slate-900 border border-slate-800">
+            <button
+              onClick={() => setMode("GENUINE")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                isGenuine
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Genuine Melt Signal
+            </button>
+            <button
+              onClick={() => setMode("SPOOFED")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                !isGenuine
+                  ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <AlertOctagon className="w-3.5 h-3.5" />
+              Inject Fake Heaters (Spoof)
+            </button>
+          </div>
+
           <button
-            onClick={() => setMode("GENUINE")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              isGenuine
-                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
+            onClick={handleRunAudit}
+            disabled={isAuditing}
+            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1.5 shadow-md shadow-indigo-600/30 transition disabled:opacity-50"
           >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Genuine Melt Signal
-          </button>
-          <button
-            onClick={() => setMode("SPOOFED")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              !isGenuine
-                ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            <AlertOctagon className="w-3.5 h-3.5" />
-            Inject Fake Heaters (Spoof)
+            <ShieldCheck className="w-4 h-4" />
+            <span>{isAuditing ? "Auditing Stream..." : "Run Quad-Core Audit"}</span>
           </button>
         </div>
       </div>
+
+      {/* Audit Hash Output Badge if Run */}
+      {auditResult && (
+        <div
+          className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs ${
+            auditResult.audit_verdict === "APPROVED"
+              ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-200"
+              : "bg-rose-950/40 border-rose-500/50 text-rose-200"
+          }`}
+        >
+          <div className="flex items-center space-x-2">
+            {auditResult.audit_verdict === "APPROVED" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <AlertOctagon className="w-4 h-4 text-rose-400" />
+            )}
+            <span>
+              <strong>Verdict: {auditResult.audit_verdict}</strong> (Audit ID: {auditResult.audit_id})
+            </span>
+          </div>
+          <div className="font-mono text-[11px] text-slate-300 truncate max-w-md">
+            SHA-256: {auditResult.audit_hash}
+          </div>
+        </div>
+      )}
 
       {/* Alert Banner if Spoofed */}
       {!isGenuine && (
@@ -103,7 +181,7 @@ export default function QuadCoreAuditPage() {
             <span>CRITICAL AUDIT ALERT: IOT MECHANICAL FRAUD DETECTED</span>
           </div>
           <p className="text-xs text-rose-300/90 leading-relaxed">
-            <strong>Physics Anomaly:</strong> Active electrical power draw is 82.5 kW with near-unity power factor (0.994), but mechanical screw torque is only 1.8 Nm. The plant has connected static resistive heating elements to simulate energy consumption without running viscous polymer extruders. <strong>Compliance credit issuance blocked.</strong>
+            <strong>Physics Anomaly:</strong> Active electrical power draw is {activePower} kW with near-unity power factor ({powerFactor}), but mechanical screw torque is only {torque} Nm. The plant has connected static resistive heating elements to simulate energy consumption without running viscous polymer extruders. <strong>Compliance credit issuance blocked.</strong>
           </p>
         </div>
       )}
@@ -202,92 +280,50 @@ export default function QuadCoreAuditPage() {
           </div>
         </div>
 
-        {/* Gauge 2: Shaft Torque */}
+        {/* Gauge 2: Active Power Draw */}
         <div className="p-5 rounded-2xl glass-card space-y-3">
           <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-semibold uppercase">Screw Torque</span>
-            <Scale className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold font-mono text-white">{torque} <span className="text-sm font-sans text-slate-400">Nm</span></div>
-            <p className="text-xs mt-1 text-slate-400">
-              Min viscous threshold: <strong className="text-slate-200">15.0 Nm</strong>
-            </p>
-          </div>
-        </div>
-
-        {/* Gauge 3: Melt Rate */}
-        <div className="p-5 rounded-2xl glass-card space-y-3">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-semibold uppercase">Extrusion Throughput</span>
+            <span className="font-semibold uppercase">Active Power Draw</span>
             <Flame className="w-4 h-4 text-amber-400" />
           </div>
           <div>
-            <div className="text-2xl font-bold font-mono text-white">{meltRate} <span className="text-sm font-sans text-slate-400">kg/h</span></div>
-            <p className="text-xs mt-1 text-slate-400">
-              Enthalpy balance: <strong className="text-slate-200">0.38 kWh/kg</strong>
+            <div className="text-2xl font-bold font-mono text-white">
+              {activePower} <span className="text-sm font-sans font-medium text-slate-400">kW</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Therm balance: {isGenuine ? "0.38 kWh/kg" : "N/A (No throughput)"}
             </p>
           </div>
         </div>
 
-        {/* Gauge 4: TypeSafe Jev Reflex */}
-        <div className="p-5 rounded-2xl glass-card space-y-3 border-cyan-500/20">
+        {/* Gauge 3: Extrusion Melt Rate */}
+        <div className="p-5 rounded-2xl glass-card space-y-3">
           <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-semibold uppercase text-cyan-300">Jev System 1 Reflex</span>
-            <Cpu className="w-4 h-4 text-cyan-400" />
+            <span className="font-semibold uppercase">Physical Melt Rate</span>
+            <Scale className="w-4 h-4 text-cyan-400" />
           </div>
           <div>
-            <div className={`text-2xl font-bold font-mono ${isGenuine ? "text-cyan-400" : "text-rose-400"}`}>
-              {jevConfidence}% <span className="text-xs font-sans text-slate-400">Score</span>
+            <div className="text-2xl font-bold font-mono text-cyan-400">
+              {meltRate} <span className="text-sm font-sans font-medium text-slate-400">kg/h</span>
             </div>
-            <p className="text-xs mt-1 text-slate-400">
-              Evaluation latency: <strong className="text-cyan-400 font-mono">118ms</strong>
+            <p className="text-xs text-slate-400 mt-1">
+              {isGenuine ? "Correlated to die pressure" : "Zero throughput detected"}
             </p>
           </div>
         </div>
-      </div>
 
-      {/* E-Way Bill & Packaging Ledger Check */}
-      <div className="p-6 rounded-2xl glass-panel space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <Truck className="w-4 h-4 text-indigo-400" />
-            Inbound Logistics & GST E-Way Bill Verification
-          </h3>
-          <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-            E-Way: EWB-2026-99210
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono">
-          <div className="p-3 rounded-xl bg-slate-900/50 border border-slate-800">
-            <span className="text-slate-400 font-sans">Weighbridge Tare / Gross</span>
-            <p className="text-slate-100 font-bold mt-1">13,500 kg / 28,500 kg</p>
-            <p className="text-emerald-400 font-sans mt-0.5">Net Plastic Scrap: 15,000 kg (Matched)</p>
+        {/* Gauge 4: Jev Reflex Confidence */}
+        <div className="p-5 rounded-2xl glass-card space-y-3">
+          <div className="flex items-center justify-between text-slate-400 text-xs">
+            <span className="font-semibold uppercase">Jev Reflex Confidence</span>
+            <Cpu className="w-4 h-4 text-emerald-400" />
           </div>
-
-          <div className="p-3 rounded-xl bg-slate-900/50 border border-slate-800">
-            <span className="text-slate-400 font-sans">Vehicle Transit</span>
-            <p className="text-slate-100 font-bold mt-1">DL-01-AB-4819 (GPS Tracked)</p>
-            <p className="text-emerald-400 font-sans mt-0.5">Origin: Okhla Collection Center</p>
+          <div>
+            <div className="text-2xl font-bold font-mono text-emerald-400">{jevConfidence}%</div>
+            <p className="text-xs text-slate-400 mt-1">
+              Status: <strong className={isGenuine ? "text-emerald-400" : "text-rose-400"}>{jevVerdict}</strong>
+            </p>
           </div>
-
-          <div className="p-3 rounded-xl bg-slate-900/50 border border-slate-800">
-            <span className="text-slate-400 font-sans">HSN Classification</span>
-            <p className="text-slate-100 font-bold mt-1">3915.10.00 (Rigid Polymers)</p>
-            <p className="text-emerald-400 font-sans mt-0.5">National Ledger QR Check: VALID</p>
-          </div>
-        </div>
-
-        {/* Action to proceed to Settlement */}
-        <div className="pt-3 flex justify-end">
-          <Link
-            href="/settlement"
-            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold flex items-center gap-2 shadow-lg shadow-indigo-600/25 transition-all"
-          >
-            <span>Proceed to 80/20 Escrow Gate</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
         </div>
       </div>
     </div>

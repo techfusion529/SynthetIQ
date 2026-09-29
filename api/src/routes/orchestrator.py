@@ -53,13 +53,15 @@ async def execute_e2e_compliance_run(payload: dict[str, Any] | None = None) -> d
     except Exception:
         pass
 
-    if not erp_data:
-        erp_data = {
-            "batch_id": f"ERP-BAT-{uuid.uuid4().hex[:6]}",
-            "total_sales_kg": volume_tons * 1000 * 12,
-            "category": category,
-            "period": "Q1-FY26",
-        }
+    if isinstance(erp_data, list) and erp_data:
+        erp_batch_id = erp_data[0].get("invoice_number", f"ERP-BAT-{uuid.uuid4().hex[:6]}")
+        total_sales_kg = sum(float(x.get("quantity_kg", 0)) for x in erp_data) or (volume_tons * 1000 * 12)
+    elif isinstance(erp_data, dict):
+        erp_batch_id = erp_data.get("batch_id", f"ERP-BAT-{uuid.uuid4().hex[:6]}")
+        total_sales_kg = float(erp_data.get("total_sales_kg", volume_tons * 1000 * 12))
+    else:
+        erp_batch_id = f"ERP-BAT-{uuid.uuid4().hex[:6]}"
+        total_sales_kg = volume_tons * 1000 * 12
 
     # Statutory 1/3 historic debt amortization calculation
     gross_liability_tons = volume_tons * 4.5
@@ -74,7 +76,8 @@ async def execute_e2e_compliance_run(payload: dict[str, Any] | None = None) -> d
         "status": "COMPLETED",
         "data": {
             "company_id": company_id,
-            "erp_batch_id": erp_data.get("batch_id"),
+            "erp_batch_id": erp_batch_id,
+            "total_sales_kg": total_sales_kg,
             "category": category,
             "gross_liability_tons": round(gross_liability_tons, 1),
             "historic_debt_tons": round(historic_debt_tons, 1),

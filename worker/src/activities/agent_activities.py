@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
+from temporalio import activity
 
 from src.services.ai_service import gemini_service
-from src.services.gemma_privacy import privacy_scrubber
 from src.services.jev_auditor import jev_auditor
 
 
 # --- Agent 1: Brand Liability Agent ---
+@activity.defn
 async def calculate_brand_liability_activity(company_id: str, fiscal_year: str) -> dict[str, Any]:
     """Queries ERP sales data, calculates physical content mandates & 1/3 debt amortization."""
     current_year_tons = 18500.0
@@ -37,12 +38,14 @@ async def calculate_brand_liability_activity(company_id: str, fiscal_year: str) 
 
 
 # --- Agent 2: Regulatory Watchdog Agent ---
+@activity.defn
 async def parse_regulatory_rules_activity(gazette_text: str) -> dict[str, Any]:
     """Parses CPCB regulatory text into conversion factors and CTO constraints."""
     return await gemini_service.analyze_regulatory_rules(gazette_text)
 
 
 # --- Agent 3 & 4: Treasury Agent & Recycler Bidders ---
+@activity.defn
 async def execute_double_auction_activity(
     rfp_id: str,
     category: str,
@@ -53,11 +56,26 @@ async def execute_double_auction_activity(
     floor_price = round(statutory_base_rate * 0.30, 2)
     ceiling_price = round(statutory_base_rate * 1.00, 2)
 
-    # Simulated recycler bids within market
+    # Recycler bids within market corridor
     simulated_bids = [
-        {"bid_id": "BID-01", "recycler_id": "RECYC-DELHI-01", "offered_tons": target_tons * 0.6, "unit_price_inr": floor_price * 1.5},
-        {"bid_id": "BID-02", "recycler_id": "RECYC-GUJ-04", "offered_tons": target_tons * 0.5, "unit_price_inr": floor_price * 1.8},
-        {"bid_id": "BID-03", "recycler_id": "RECYC-MAH-09", "offered_tons": target_tons * 0.4, "unit_price_inr": ceiling_price * 0.9},
+        {
+            "bid_id": "BID-01",
+            "recycler_id": "RECYC-DELHI-01",
+            "offered_tons": target_tons * 0.6,
+            "unit_price_inr": floor_price * 1.5,
+        },
+        {
+            "bid_id": "BID-02",
+            "recycler_id": "RECYC-GUJ-04",
+            "offered_tons": target_tons * 0.5,
+            "unit_price_inr": floor_price * 1.8,
+        },
+        {
+            "bid_id": "BID-03",
+            "recycler_id": "RECYC-MAH-09",
+            "offered_tons": target_tons * 0.4,
+            "unit_price_inr": ceiling_price * 0.9,
+        },
     ]
 
     res = await gemini_service.evaluate_auction_strategy(
@@ -76,6 +94,7 @@ async def execute_double_auction_activity(
 
 
 # --- Agent 5: Logistics Agent ---
+@activity.defn
 async def verify_eway_bill_activity(eway_bill_number: str) -> dict[str, Any]:
     """Validates GST E-Way bill with national ledger."""
     return {
@@ -88,6 +107,7 @@ async def verify_eway_bill_activity(eway_bill_number: str) -> dict[str, Any]:
 
 
 # --- Agent 6: Auditor Agent (TypeSafe Jev) ---
+@activity.defn
 async def audit_scada_telemetry_activity(
     recycler_id: str,
     plant_id: str,
@@ -118,6 +138,7 @@ async def audit_scada_telemetry_activity(
 
 
 # --- Agent 7: ERP Agent ---
+@activity.defn
 async def create_escrow_split_po_activity(
     company_id: str,
     recycler_id: str,
@@ -144,6 +165,7 @@ async def create_escrow_split_po_activity(
 
 
 # --- Agent 8: Legal Agent / Form Serializer ---
+@activity.defn
 async def generate_and_dispatch_form1_activity(
     po_number: str,
     audit_id: str,

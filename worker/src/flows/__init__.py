@@ -2,6 +2,7 @@
 
 from .workflows import (
     AuctionLiquidityWorkflow,
+    MasterEPRComplianceWorkflow,
     QuadCoreAuditWorkflow,
     SettlementDispatchWorkflow,
     UpstreamLiabilityWorkflow,
@@ -12,4 +13,5 @@ __all__ = [
     "AuctionLiquidityWorkflow",
     "QuadCoreAuditWorkflow",
     "SettlementDispatchWorkflow",
+    "MasterEPRComplianceWorkflow",
 ]

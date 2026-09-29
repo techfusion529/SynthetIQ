@@ -11,6 +11,7 @@ from fastapi import APIRouter
 
 from src.constants import MCP_URL, MOCKS_URL, SIMULATOR_URL
 from src.routes.config import get_runtime_config
+from src.services.temporal_service import temporal_service
 
 router = APIRouter(prefix="/compliance", tags=["Autonomous End-to-End Orchestrator"])
 
@@ -40,6 +41,15 @@ async def execute_e2e_compliance_run(payload: dict[str, Any] | None = None) -> d
     run_id = f"RUN-{time.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
     started_at = time.time()
     steps_log: list[dict[str, Any]] = []
+
+    # Dispatch to real Temporal Cluster
+    workflow_id = f"wf-master-compliance-{company_id}-{uuid.uuid4().hex[:6]}"
+    temporal_dispatch = await temporal_service.start_workflow(
+        workflow_name="MasterEPRComplianceWorkflow",
+        workflow_id=workflow_id,
+        args=[company_id, fiscal_year, category, volume_tons, simulate_spoof],
+        task_queue="synthetiq-main",
+    )
 
     # -------------------------------------------------------------
     # STAGE 1: Upstream Liability & ERP Sales Batch Ingestion
@@ -195,6 +205,8 @@ async def execute_e2e_compliance_run(payload: dict[str, Any] | None = None) -> d
         # Fraud halted pipeline
         final_result = {
             "run_id": run_id,
+            "temporal_workflow_id": workflow_id,
+            "temporal_ui_url": temporal_dispatch.get("temporal_ui_url"),
             "status": "HALTED_DUE_TO_FRAUD",
             "message": "Pipeline halted: Jev System 1 Reflex detected fake heating element spoofing.",
             "duration_seconds": round(time.time() - started_at, 2),
@@ -257,6 +269,8 @@ async def execute_e2e_compliance_run(payload: dict[str, Any] | None = None) -> d
 
     final_result = {
         "run_id": run_id,
+        "temporal_workflow_id": workflow_id,
+        "temporal_ui_url": temporal_dispatch.get("temporal_ui_url"),
         "status": "SUCCESS_FULLY_COMPLIANT",
         "message": "End-to-End EPR lifecycle executed successfully across all 5 zero-trust workflows.",
         "duration_seconds": round(time.time() - started_at, 2),

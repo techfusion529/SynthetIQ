@@ -80,3 +80,16 @@ services:
       - "8080:8080"
     environment:
       - TEMPORAL_ADDRESS=temporal-server:7233
+
+  # --- Executive Dashboard Frontend ---
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: synthetiq-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - api

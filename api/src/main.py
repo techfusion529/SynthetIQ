@@ -13,8 +13,10 @@ from src.routes import (
     auctions_router,
     audit_router,
     companies_router,
+    config_router,
     health_router,
     liability_router,
+    orchestrator_router,
     settlement_router,
 )
 
@@ -47,6 +49,9 @@ app.add_middleware(
 app.include_router(health_router)
 
 # API v1 feature routers
+app.include_router(health_router, prefix=API_V1_STR)
+app.include_router(config_router, prefix=API_V1_STR)
+app.include_router(orchestrator_router, prefix=API_V1_STR)
 app.include_router(companies_router, prefix=API_V1_STR)
 app.include_router(liability_router, prefix=API_V1_STR)
 app.include_router(auctions_router, prefix=API_V1_STR)

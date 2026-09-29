@@ -24,20 +24,40 @@ import {
   XCircle,
   Zap,
 } from "lucide-react";
-import { E2ERunResult, fetchComplianceRuns, fetchConfig, runE2ECompliance, SystemConfig } from "@/app/lib/api";
+import {
+  E2ERunResult,
+  fetchAuditVerdicts,
+  fetchComplianceRuns,
+  fetchConfig,
+  fetchLiabilityReport,
+  runE2ECompliance,
+  SystemConfig,
+} from "@/app/lib/api";
 
 export default function ExecutiveOverviewPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [simulateSpoof, setSimulateSpoof] = useState(false);
   const [latestRun, setLatestRun] = useState<E2ERunResult | null>(null);
+  const [allRuns, setAllRuns] = useState<E2ERunResult[]>([]);
   const [engineConfig, setEngineConfig] = useState<SystemConfig | null>(null);
+  const [liabilityData, setLiabilityData] = useState<any>(null);
+  const [auditVerdicts, setAuditVerdicts] = useState<any[]>([]);
 
   useEffect(() => {
     fetchConfig().then((cfg) => {
       if (cfg) setEngineConfig(cfg);
     });
     fetchComplianceRuns().then((runs) => {
-      if (runs && runs.length > 0) setLatestRun(runs[0]);
+      if (runs && runs.length > 0) {
+        setAllRuns(runs);
+        setLatestRun(runs[0]);
+      }
+    });
+    fetchLiabilityReport("COMP-IN-001").then((rep) => {
+      if (rep) setLiabilityData(rep);
+    });
+    fetchAuditVerdicts().then((verdicts) => {
+      if (verdicts) setAuditVerdicts(verdicts);
     });
   }, []);
 
@@ -52,57 +72,25 @@ export default function ExecutiveOverviewPage() {
         simulate_spoof: simulateSpoof,
       });
       setLatestRun(result);
-    } catch {
-      // Local fallback representation if backend container is starting up
-      const mockResult: E2ERunResult = {
-        run_id: `RUN-${Date.now()}`,
-        status: simulateSpoof ? "HALTED_DUE_TO_FRAUD" : "SUCCESS_FULLY_COMPLIANT",
-        message: simulateSpoof
-          ? "Pipeline halted: Jev System 1 Reflex detected fake heating element spoofing."
-          : "End-to-End EPR lifecycle executed successfully across all 5 zero-trust workflows.",
-        duration_seconds: 1.45,
-        company_id: "COMP-IN-001",
-        category: "cat_i_rigid",
-        volume_tons: 250.0,
-        audit_hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        po_number: "PO-2026-901",
-        portal_ack_number: "ACK-CPCB-2026-8812A",
-        steps: [
-          {
-            step: 1,
-            name: "Upstream Liability Ingestion",
-            service: "ERP & Rule Engine",
-            status: "COMPLETED",
-            data: { gross_liability_tons: 1125.0, amortized_debt_1_3rd_tons: 100.0 },
-            timestamp: Date.now(),
-          },
-          {
-            step: 2,
-            name: "Continuous Double Auction",
-            service: "Marketplace Engine",
-            status: "COMPLETED",
-            data: { clearing_price_inr_per_kg: 7.8, allocated_tons: 250.0 },
-            timestamp: Date.now(),
-          },
-          {
-            step: 3,
-            name: "Quad-Core Fraud Audit",
-            service: "Jev System 1 Reflex",
-            status: simulateSpoof ? "BLOCKED_BY_JEV" : "COMPLETED",
-            data: {
-              verdict: simulateSpoof ? "REJECTED_FRAUD" : "APPROVED",
-              torque_nm: simulateSpoof ? 2.1 : 42.6,
-              power_factor: simulateSpoof ? 0.992 : 0.845,
-            },
-            timestamp: Date.now(),
-          },
-        ],
-      };
-      setLatestRun(mockResult);
+      setAllRuns((prev) => [result, ...prev]);
+
+      // Refresh audits and liability
+      fetchAuditVerdicts().then((v) => v && setAuditVerdicts(v));
+      fetchLiabilityReport("COMP-IN-001").then((r) => r && setLiabilityData(r));
+    } catch (e: any) {
+      console.error("Compliance run error:", e);
     } finally {
       setIsRunning(false);
     }
   };
+
+  const grossTons = liabilityData?.current_year_liability_tons || 18500;
+  const netDeficitTons = liabilityData?.net_liability_tons || 17200;
+  const amortizedDebtTons = liabilityData?.amortized_debt_tons || 1200;
+  const escrowCr = latestRun?.status === "SUCCESS_FULLY_COMPLIANT" ? "₹1.95" : "₹0.00";
+  const confidenceScore = latestRun?.steps?.[2]?.data?.confidence_score
+    ? `${Math.round(latestRun.steps[2].data.confidence_score * 100)}%`
+    : "96.5%";
 
   return (
     <div className="space-y-8 pb-12">
@@ -112,19 +100,19 @@ export default function ExecutiveOverviewPage() {
         <div className="space-y-1 z-10">
           <div className="flex items-center space-x-2">
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-              Autonomous Orchestrator
+              Autonomous Multi-Agent Orchestrator
             </span>
             <span className="text-xs text-slate-400">Enterprise PIBO Portal</span>
             <span className="text-xs font-mono text-cyan-400 px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20">
-              {engineConfig ? `${engineConfig.gemini.model} • ${engineConfig.jev_mode.mode}` : "Loading engine..."}
+              {engineConfig ? `${engineConfig.gemini.model} • ${engineConfig.jev_mode.mode}` : "Temporal Worker Active"}
             </span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-white">
             EPR Compliance & Anti-Fraud Cockpit
           </h2>
           <p className="text-sm text-slate-400 max-w-2xl">
-            Real-time synchronization between SAP sales records, continuous double auctions, and
-            SCADA VFD physics telemetry for statutory CPCB fulfillment.
+            Temporal-orchestrated multi-agent pipeline executing across SAP sales records, double auctions,
+            and real-time 50Hz SCADA physics telemetry for statutory CPCB fulfillment.
           </p>
         </div>
 
@@ -150,14 +138,14 @@ export default function ExecutiveOverviewPage() {
               isRunning
                 ? "bg-slate-800 text-slate-400 cursor-not-allowed"
                 : simulateSpoof
-                ? "bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white shadow-rose-900/30"
-                : "bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-600 hover:to-cyan-600 text-white shadow-indigo-500/25 hover:shadow-indigo-500/40"
+                ? "bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white shadow-rose-900/30 cursor-pointer"
+                : "bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-600 hover:to-cyan-600 text-white shadow-indigo-500/25 hover:shadow-indigo-500/40 cursor-pointer"
             }`}
           >
             {isRunning ? (
               <>
                 <RotateCw className="w-4 h-4 animate-spin text-cyan-400" />
-                <span>Orchestrating Real Pipeline...</span>
+                <span>Executing Temporal Workflow...</span>
               </>
             ) : (
               <>
@@ -202,13 +190,23 @@ export default function ExecutiveOverviewPage() {
               </div>
             </div>
 
-            <div className="flex items-center space-x-3 text-xs font-mono text-slate-300">
+            <div className="flex items-center space-x-3 text-xs font-mono text-slate-300 flex-wrap gap-y-2">
               <span>Duration: {latestRun.duration_seconds}s</span>
               {latestRun.portal_ack_number && (
                 <span className="text-cyan-300 font-bold bg-cyan-950/60 px-2 py-1 rounded border border-cyan-800">
                   CPCB: {latestRun.portal_ack_number}
                 </span>
               )}
+              {/* Direct Link to Temporal Web UI */}
+              <a
+                href="http://localhost:8080/namespaces/default/workflows"
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-400/40 text-indigo-200 font-semibold flex items-center space-x-1.5 transition"
+              >
+                <span>Temporal UI</span>
+                <ExternalLink className="w-3.5 h-3.5 text-indigo-300" />
+              </a>
             </div>
           </div>
 
@@ -252,7 +250,9 @@ export default function ExecutiveOverviewPage() {
             <Scale className="w-4 h-4 text-indigo-400" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-white font-mono">18,500 <span className="text-sm font-sans font-medium text-slate-400">Tons</span></div>
+            <div className="text-2xl font-bold text-white font-mono">
+              {grossTons.toLocaleString()} <span className="text-sm font-sans font-medium text-slate-400">Tons</span>
+            </div>
             <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
               <span className="text-indigo-400 font-semibold">+4.2%</span> YoY FMCG packaging sales
             </p>
@@ -266,9 +266,11 @@ export default function ExecutiveOverviewPage() {
             <AlertTriangle className="w-4 h-4 text-amber-400" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-amber-400 font-mono">17,200 <span className="text-sm font-sans font-medium text-slate-400">Tons</span></div>
+            <div className="text-2xl font-bold text-amber-400 font-mono">
+              {netDeficitTons.toLocaleString()} <span className="text-sm font-sans font-medium text-slate-400">Tons</span>
+            </div>
             <p className="text-xs text-slate-400 mt-1">
-              Incl. <strong className="text-slate-200">1,200 T</strong> (1/3rd debt amortization)
+              Incl. <strong className="text-slate-200">{amortizedDebtTons.toLocaleString()} T</strong> (1/3rd debt amortization)
             </p>
           </div>
         </div>
@@ -280,7 +282,9 @@ export default function ExecutiveOverviewPage() {
             <Coins className="w-4 h-4 text-emerald-400" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-white font-mono">₹1.95 <span className="text-sm font-sans font-medium text-slate-400">Cr</span></div>
+            <div className="text-2xl font-bold text-white font-mono">
+              {escrowCr} <span className="text-sm font-sans font-medium text-slate-400">Cr</span>
+            </div>
             <p className="text-xs text-emerald-400 mt-1 font-semibold flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" /> 80% Advance released on melt proof
             </p>
@@ -294,7 +298,9 @@ export default function ExecutiveOverviewPage() {
             <Activity className="w-4 h-4 text-cyan-400" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-cyan-400 font-mono">96.5% <span className="text-xs font-sans text-slate-400">Confidence</span></div>
+            <div className="text-2xl font-bold text-cyan-400 font-mono">
+              {confidenceScore} <span className="text-xs font-sans text-slate-400">Confidence</span>
+            </div>
             <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
               TypeSafe Jev: Zero resistive spoofing
@@ -315,9 +321,15 @@ export default function ExecutiveOverviewPage() {
               Temporal durable orchestration connecting SAP ERP, continuous auctions, Jev SCADA audit, and CPCB Form-1
             </p>
           </div>
-          <span className="text-xs font-mono text-indigo-300 px-2.5 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20">
-            Saga: Active
-          </span>
+          <a
+            href="http://localhost:8080/namespaces/default/workflows"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs font-mono text-indigo-300 hover:text-white px-2.5 py-1 rounded-md bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 flex items-center space-x-1"
+          >
+            <span>Temporal Web UI</span>
+            <ExternalLink className="w-3 h-3 ml-1" />
+          </a>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -392,12 +404,36 @@ export default function ExecutiveOverviewPage() {
 
           <div className="space-y-4 pt-1">
             {[
-              { cat: "Category I: Rigid Plastic", target: 7500, fulfilled: 6200, color: "bg-indigo-500", cf: "1.00" },
-              { cat: "Category II: Flexible Plastic", target: 6200, fulfilled: 4800, color: "bg-cyan-500", cf: "0.80" },
-              { cat: "Category III: Multi-Layered (MLP)", target: 2500, fulfilled: 2100, color: "bg-emerald-500", cf: "0.50" },
-              { cat: "Category IV: Compostable", target: 1000, fulfilled: 950, color: "bg-amber-500", cf: "1.00" },
+              {
+                cat: "Category I: Rigid Plastic",
+                target: liabilityData?.breakdown_by_category?.cat_i_rigid || 7500,
+                fulfilled: 6200,
+                color: "bg-indigo-500",
+                cf: "1.00",
+              },
+              {
+                cat: "Category II: Flexible Plastic",
+                target: liabilityData?.breakdown_by_category?.cat_ii_flexible || 6200,
+                fulfilled: 4800,
+                color: "bg-cyan-500",
+                cf: "0.80",
+              },
+              {
+                cat: "Category III: Multi-Layered (MLP)",
+                target: liabilityData?.breakdown_by_category?.cat_iii_mlp || 2500,
+                fulfilled: 2100,
+                color: "bg-emerald-500",
+                cf: "0.50",
+              },
+              {
+                cat: "Category IV: Compostable",
+                target: liabilityData?.breakdown_by_category?.cat_iv_compostable || 1000,
+                fulfilled: 950,
+                color: "bg-amber-500",
+                cf: "1.00",
+              },
             ].map((item) => {
-              const pct = Math.round((item.fulfilled / item.target) * 100);
+              const pct = Math.min(100, Math.round((item.fulfilled / item.target) * 100));
               return (
                 <div key={item.cat} className="space-y-1.5">
                   <div className="flex justify-between text-xs">
@@ -431,49 +467,33 @@ export default function ExecutiveOverviewPage() {
           </div>
 
           <div className="space-y-3">
-            {[
-              {
-                id: "AUD-2026-881",
-                plant: "PLANT-OKHLA-2",
-                recyc: "EcoPlast Recyclers",
-                torque: "42.6 Nm",
-                verdict: "APPROVED",
-                conf: "96.5%",
-                badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-              },
-              {
-                id: "AUD-2026-880",
-                plant: "PLANT-AHMD-1",
-                recyc: "Gujarat Polymers",
-                torque: "38.2 Nm",
-                verdict: "APPROVED",
-                conf: "94.8%",
-                badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-              },
-              {
-                id: "AUD-2026-879",
-                plant: "PLANT-SURAT-4",
-                recyc: "Shree CleanTech",
-                torque: "2.3 Nm",
-                verdict: "FRAUD_REJECTED",
-                conf: "12.0%",
-                badge: "bg-rose-500/10 text-rose-400 border-rose-500/30",
-              },
-            ].map((aud) => (
-              <div key={aud.id} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-bold text-slate-300">{aud.id}</span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${aud.badge}`}>
-                    {aud.verdict}
-                  </span>
+            {auditVerdicts.length > 0 ? (
+              auditVerdicts.slice(0, 3).map((aud) => (
+                <div key={aud.audit_id} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-slate-300">{aud.audit_id}</span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                        aud.audit_verdict === "APPROVED"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                          : "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                      }`}
+                    >
+                      {aud.audit_verdict}
+                    </span>
+                  </div>
+                  <p className="text-slate-400 truncate">{aud.recycler_id} • {aud.plant_id}</p>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                    <span>Torque: {aud.physics?.torque_nm || 42.6} Nm</span>
+                    <span>Conf: {Math.round((aud.confidence_score || 0.965) * 100)}%</span>
+                  </div>
                 </div>
-                <p className="text-slate-400 truncate">{aud.recyc} • {aud.plant}</p>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                  <span>Torque: {aud.torque}</span>
-                  <span>Conf: {aud.conf}</span>
-                </div>
+              ))
+            ) : (
+              <div className="p-4 text-center text-xs text-slate-500 font-mono">
+                No audits logged yet. Launch a run to generate live verdicts.
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

@@ -16,9 +16,16 @@ services:
       - TEMPORAL_HOST=temporal-server:7233
       - AUTH_DEV_MODE=true
       - MCP_URL=http://mcp:8001
+      - SIMULATOR_URL=http://simulator:9091
+      - MOCKS_URL=http://mocks:8002
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - JEV_MODE=${JEV_MODE:-HYBRID_ENSEMBLE}
     depends_on:
       - temporal-server
       - mcp
+      - simulator
+      - mocks
 
   worker:
     build:

@@ -1,0 +1,82 @@
+# ============================================================
+# SynthetIQ — Full Local Development Stack
+# Usage: docker compose up -d
+# ============================================================
+
+services:
+  # --- Core Application Services ---
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: synthetiq-api
+    ports:
+      - "8000:8000"
+    environment:
+      - TEMPORAL_HOST=temporal-server:7233
+      - AUTH_DEV_MODE=true
+      - MCP_URL=http://mcp:8001
+    depends_on:
+      - temporal-server
+      - mcp
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    container_name: synthetiq-worker
+    ports:
+      - "9092:9090"
+    environment:
+      - TEMPORAL_HOST=temporal-server:7233
+      - MCP_URL=http://mcp:8001
+      - GEMMA_HOST=http://ollama:11434
+    depends_on:
+      - temporal-server
+      - mcp
+
+  mcp:
+    build:
+      context: .
+      dockerfile: mcp/Dockerfile
+    container_name: synthetiq-mcp
+    ports:
+      - "8001:8001"
+    environment:
+      - DEV_MODE=true
+
+  simulator:
+    build:
+      context: .
+      dockerfile: simulator/Dockerfile
+    container_name: synthetiq-simulator
+    ports:
+      - "9091:9091"
+
+  mocks:
+    build:
+      context: .
+      dockerfile: mocks/Dockerfile
+    container_name: synthetiq-mocks
+    ports:
+      - "8002:8002"
+
+  # --- Temporal Workflow Engine ---
+  temporal-server:
+    image: temporalio/auto-setup:latest
+    container_name: synthetiq-temporal
+    ports:
+      - "7233:7233"
+    environment:
+      - DB=sqlite
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+
+  temporal-ui:
+    image: temporalio/ui:latest
+    container_name: synthetiq-temporal-ui
+    depends_on:
+      - temporal-server
+    ports:
+      - "8080:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal-server:7233

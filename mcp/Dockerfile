@@ -1,15 +1,16 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 COPY packages/shared/ /tmp/shared/
-RUN pip install --no-cache-dir /tmp/shared/ && rm -rf /tmp/shared/
+RUN uv pip install --system /tmp/shared/ && rm -rf /tmp/shared/
 
 COPY mcp/pyproject.toml ./pyproject.toml
-RUN pip install --no-cache-dir .
-
 COPY mcp/src/ ./src/
+RUN uv pip install --system .
 
 EXPOSE 8001
 

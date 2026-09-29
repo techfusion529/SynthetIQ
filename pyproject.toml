@@ -3,7 +3,7 @@ name = "synthetiq"
 version = "0.1.0"
 description = "SynthetIQ — Autonomous EPR Compliance & Anti-Fraud Engine"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 license = { text = "MIT" }
 authors = [{ name = "TechFusion", email = "techfusion529@gmail.com" }]
 dependencies = []
@@ -25,15 +25,17 @@ members = [
     "mcp",
     "simulator",
     "mocks",
-    "dashboard",
 ]
+
+[tool.uv.sources]
+synthetiq-shared = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 line-length = 120
 
 [tool.ruff.lint]
@@ -43,6 +45,6 @@ select = ["E", "F", "I", "N", "W", "UP"]
 asyncio_mode = "auto"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 strict = true
 warn_return_any = true

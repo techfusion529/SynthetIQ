@@ -2,7 +2,7 @@
 name = "synthetiq-api"
 version = "0.1.0"
 description = "SynthetIQ API Gateway — FastAPI endpoints for dashboard, workflows, and approvals"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "synthetiq-shared",
     "fastapi>=0.115.0",

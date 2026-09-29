@@ -2,7 +2,7 @@
 name = "synthetiq-mcp"
 version = "0.1.0"
 description = "SynthetIQ MCP Server — zero-trust tool execution gateway for agents"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "synthetiq-shared",
     "mcp[cli]>=2.0.0",

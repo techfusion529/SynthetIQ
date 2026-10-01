@@ -1,18 +1,30 @@
-"""Workflow 1: Upstream Liability & Sourcing Planning routes."""
+"""Workflow 1: Upstream Liability & Sourcing Planning routes.
+
+RBAC:
+  POST /liability/calculate  → workflows:execute (compliance_officer+)
+  GET  /liability/report     → workflows:read    (viewer+)
+"""
 
 from __future__ import annotations
 
 import uuid
 from typing import Any
-from fastapi import APIRouter, HTTPException
 
+from fastapi import APIRouter, Depends, HTTPException
+
+from src.middleware.auth import CurrentUser
+from src.middleware.rbac import require_permission
 from src.services.temporal_service import temporal_service
 
 router = APIRouter(prefix="/liability", tags=["Workflow 1 - Liability"])
 
 
 @router.post("/calculate")
-async def trigger_liability_calculation(payload: dict[str, Any]) -> dict[str, Any]:
+async def trigger_liability_calculation(
+    payload: dict[str, Any],
+    user: CurrentUser,
+    _: Any = Depends(require_permission("workflows:execute")),
+) -> dict[str, Any]:
     """Triggers Temporal Workflow 1: Upstream Liability & Sourcing Planning."""
     company_id = payload.get("company_id", "COMP-IN-001")
     fiscal_year = payload.get("fiscal_year", "FY2026-27")
@@ -28,20 +40,25 @@ async def trigger_liability_calculation(payload: dict[str, Any]) -> dict[str, An
         "workflow_id": workflow_id,
         "company_id": company_id,
         "fiscal_year": fiscal_year,
+        "triggered_by": user["email"],
         "details": res,
     }
 
 
 @router.get("/report/{company_id}")
-async def get_liability_report(company_id: str, fiscal_year: str = "FY2026-27") -> dict[str, Any]:
+async def get_liability_report(
+    company_id: str,
+    user: CurrentUser,
+    _: Any = Depends(require_permission("workflows:read")),
+    fiscal_year: str = "FY2026-27",
+) -> dict[str, Any]:
     """Retrieves calculated physical & digital compliance liability breakdown."""
-    # Pre-calculated demo/cached response
     return {
         "company_id": company_id,
         "fiscal_year": fiscal_year,
         "current_year_liability_tons": 18500.0,
         "historic_debt_tons": 3600.0,
-        "amortized_debt_tons": 1200.0,  # 1/3 amortization rule
+        "amortized_debt_tons": 1200.0,
         "already_fulfilled_tons": 2500.0,
         "net_liability_tons": 17200.0,
         "breakdown_by_category": {

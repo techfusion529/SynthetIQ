@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import os
 from typing import Any
+
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from src.constants import (
@@ -19,6 +20,8 @@ from src.constants import (
     SIMULATOR_URL,
     TEMPORAL_HOST,
 )
+from src.middleware.auth import CurrentUser
+from src.middleware.rbac import require_permission
 
 router = APIRouter(prefix="/config", tags=["System & Engine Configuration"])
 
@@ -77,7 +80,7 @@ async def check_http_service(url: str, path: str = "/health") -> dict[str, Any]:
 
 @router.get("")
 async def get_system_config() -> dict[str, Any]:
-    """Returns active runtime configuration, model settings, and microservice statuses."""
+    """Returns active runtime configuration and microservice statuses. Public read."""
     # Live health checks
     mcp_status = await check_http_service(_RUNTIME_CONFIG.mcp_url)
     simulator_status = await check_http_service(_RUNTIME_CONFIG.simulator_url)
@@ -119,8 +122,12 @@ async def get_system_config() -> dict[str, Any]:
 
 
 @router.post("")
-async def update_system_config(payload: dict[str, Any]) -> dict[str, Any]:
-    """Updates runtime engine configuration (Gemini model, API key, Jev reflex mode)."""
+async def update_system_config(
+    payload: dict[str, Any],
+    user: CurrentUser,
+    _: Any = Depends(require_permission("config:write")),
+) -> dict[str, Any]:
+    """Updates runtime engine configuration. Requires config:write (admin only)."""
     if "gemini_model" in payload and payload["gemini_model"]:
         _RUNTIME_CONFIG.gemini_model = str(payload["gemini_model"])
     if "gemini_api_key" in payload:

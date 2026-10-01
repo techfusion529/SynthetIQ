@@ -1,4 +1,10 @@
-"""End-to-End Autonomous EPR Compliance & Anti-Fraud Orchestration Pipeline."""
+"""End-to-End Autonomous EPR Compliance & Anti-Fraud Orchestration Pipeline.
+
+RBAC:
+  POST /compliance/run-e2e  → workflows:execute (compliance_officer+)
+  GET  /compliance/runs     → workflows:read    (viewer+)
+  GET  /compliance/runs/{id}→ workflows:read    (viewer+)
+"""
 
 from __future__ import annotations
 
@@ -6,21 +12,28 @@ import hashlib
 import time
 import uuid
 from typing import Any
+
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from src.constants import MCP_URL, MOCKS_URL, SIMULATOR_URL
+from src.middleware.auth import CurrentUser
+from src.middleware.rbac import require_permission
 from src.routes.config import get_runtime_config
 from src.services.temporal_service import temporal_service
 
 router = APIRouter(prefix="/compliance", tags=["Autonomous End-to-End Orchestrator"])
 
-# In-memory history of completed or running compliance runs
+# In-memory run history (replaced by WorkflowRun ORM in Phase 6)
 _RUNS_DB: list[dict[str, Any]] = []
 
 
 @router.post("/run-e2e")
-async def execute_e2e_compliance_run(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+async def execute_e2e_compliance_run(
+    user: CurrentUser,
+    _: Any = Depends(require_permission("workflows:execute")),
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Executes the full 5-stage zero-trust EPR compliance and anti-fraud lifecycle in real time.
 
     Stages:
@@ -280,6 +293,7 @@ async def execute_e2e_compliance_run(payload: dict[str, Any] | None = None) -> d
         "audit_hash": audit_hash,
         "po_number": po_number,
         "portal_ack_number": ack_number,
+        "triggered_by": user["email"],
         "steps": steps_log,
     }
     _RUNS_DB.insert(0, final_result)
@@ -287,13 +301,20 @@ async def execute_e2e_compliance_run(payload: dict[str, Any] | None = None) -> d
 
 
 @router.get("/runs")
-async def list_compliance_runs() -> list[dict[str, Any]]:
+async def list_compliance_runs(
+    user: CurrentUser,
+    _: Any = Depends(require_permission("workflows:read")),
+) -> list[dict[str, Any]]:
     """Returns list of previous autonomous compliance runs."""
     return _RUNS_DB
 
 
 @router.get("/runs/{run_id}")
-async def get_compliance_run(run_id: str) -> dict[str, Any]:
+async def get_compliance_run(
+    run_id: str,
+    user: CurrentUser,
+    _: Any = Depends(require_permission("workflows:read")),
+) -> dict[str, Any]:
     """Retrieves detailed log and cryptographic hashes of a compliance run."""
     for r in _RUNS_DB:
         if r.get("run_id") == run_id:

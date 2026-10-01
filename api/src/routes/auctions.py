@@ -1,11 +1,20 @@
-"""Workflow 2: Liquidity & Continuous Double Auction routes."""
+"""Workflow 2: Liquidity & Continuous Double Auction routes.
+
+RBAC:
+  POST /auctions/rfp    → workflows:execute (compliance_officer+)
+  GET  /auctions/       → workflows:read    (viewer+)
+  GET  /auctions/{id}   → workflows:read    (viewer+)
+"""
 
 from __future__ import annotations
 
 import uuid
 from typing import Any
-from fastapi import APIRouter
 
+from fastapi import APIRouter, Depends
+
+from src.middleware.auth import CurrentUser
+from src.middleware.rbac import require_permission
 from src.services.temporal_service import temporal_service
 
 router = APIRouter(prefix="/auctions", tags=["Workflow 2 - Auctions"])
@@ -16,8 +25,8 @@ _AUCTIONS_DB: dict[str, dict[str, Any]] = {
         "category": "cat_i_rigid",
         "target_tons": 5000.0,
         "statutory_rate_per_kg": 12.0,
-        "floor_price_inr": 3.6,  # 30% corridor floor
-        "ceiling_price_inr": 12.0,  # 100% corridor ceiling
+        "floor_price_inr": 3.6,
+        "ceiling_price_inr": 12.0,
         "clearing_price_inr": 7.8,
         "total_cleared_tons": 5000.0,
         "status": "COMPLETED",
@@ -27,7 +36,11 @@ _AUCTIONS_DB: dict[str, dict[str, Any]] = {
 
 
 @router.post("/rfp")
-async def broadcast_rfp(payload: dict[str, Any]) -> dict[str, Any]:
+async def broadcast_rfp(
+    payload: dict[str, Any],
+    user: CurrentUser,
+    _: Any = Depends(require_permission("workflows:execute")),
+) -> dict[str, Any]:
     """Triggers Temporal Workflow 2: Liquidity & Dual-Mode Auction."""
     company_id = payload.get("company_id", "COMP-IN-001")
     category = payload.get("category", "cat_i_rigid")
@@ -42,20 +55,25 @@ async def broadcast_rfp(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "status": "auction_broadcast",
         "workflow_id": workflow_id,
+        "triggered_by": user["email"],
         "details": res,
     }
 
 
 @router.get("/")
-async def list_auctions() -> list[dict[str, Any]]:
+async def list_auctions(
+    user: CurrentUser,
+    _: Any = Depends(require_permission("workflows:read")),
+) -> list[dict[str, Any]]:
     """Lists all active and completed market auctions."""
     return list(_AUCTIONS_DB.values())
 
 
 @router.get("/{auction_id}")
-async def get_auction(auction_id: str) -> dict[str, Any]:
+async def get_auction(
+    auction_id: str,
+    user: CurrentUser,
+    _: Any = Depends(require_permission("workflows:read")),
+) -> dict[str, Any]:
     """Retrieves specific auction result and bid matching ledger."""
-    return _AUCTIONS_DB.get(
-        auction_id,
-        {"auction_id": auction_id, "status": "UNKNOWN"},
-    )
+    return _AUCTIONS_DB.get(auction_id, {"auction_id": auction_id, "status": "UNKNOWN"})

@@ -1,12 +1,20 @@
-"""Workflow 4: Settlement, Human-in-the-Loop Approval & Statutory Dispatch."""
+"""Workflow 4: Settlement, Human-in-the-Loop Approval & Statutory Dispatch.
+
+RBAC:
+  POST /settlement/approve        → workflows:execute (compliance_officer+)
+  GET  /settlement/pos            → audits:read       (viewer+)
+  POST /settlement/form1/dispatch → workflows:execute (compliance_officer+)
+"""
 
 from __future__ import annotations
 
 import uuid
 from typing import Any
-from fastapi import APIRouter, Header, HTTPException
 
-from src.services.auth_service import auth_service
+from fastapi import APIRouter, Depends, HTTPException
+
+from src.middleware.auth import CurrentUser
+from src.middleware.rbac import require_permission
 from src.services.temporal_service import temporal_service
 
 router = APIRouter(prefix="/settlement", tags=["Workflow 4 - Settlement"])
@@ -19,8 +27,8 @@ _ESCROW_POS: dict[str, dict[str, Any]] = {
         "category": "cat_i_rigid",
         "plastic_tons": 250.0,
         "total_amount_inr": 1950000.0,
-        "advance_amount_inr": 1560000.0,  # 80% advance
-        "retention_amount_inr": 390000.0,  # 20% retention held in escrow
+        "advance_amount_inr": 1560000.0,
+        "retention_amount_inr": 390000.0,
         "status": "advance_released",
         "audit_id": "AUD-2026-881",
     }
@@ -30,45 +38,48 @@ _ESCROW_POS: dict[str, dict[str, Any]] = {
 @router.post("/approve")
 async def approve_audit_and_settle(
     payload: dict[str, Any],
-    authorization: str | None = Header(default=None),
+    user: CurrentUser,
+    _: Any = Depends(require_permission("workflows:execute")),
 ) -> dict[str, Any]:
-    """Human-in-the-Loop approval gate via Firebase Auth token.
-
-    Signals Workflow 4 to generate the 80/20 Escrow Purchase Order and Form-1.
-    """
-    user_info = await auth_service.verify_token(authorization)
+    """Human-in-the-Loop approval gate — signals Temporal Workflow 4."""
     audit_id = payload.get("audit_id")
     if not audit_id:
         raise HTTPException(status_code=400, detail="audit_id required")
 
     workflow_id = payload.get("workflow_id", f"wf4-settlement-{audit_id}")
-    action = payload.get("action", "APPROVE")
+    action      = payload.get("action", "APPROVE")
 
     signal_res = await temporal_service.signal_workflow(
         workflow_id=workflow_id,
         signal_name="HumanApprovalSignal",
-        signal_args=[{"approver": user_info["email"], "decision": action}],
+        signal_args=[{"approver": user["email"], "decision": action}],
     )
-
     return {
         "status": "approved" if action == "APPROVE" else "rejected",
         "audit_id": audit_id,
-        "approved_by": user_info["email"],
+        "approved_by": user["email"],
         "signal_result": signal_res,
     }
 
 
 @router.get("/pos")
-async def list_escrow_pos() -> list[dict[str, Any]]:
+async def list_escrow_pos(
+    user: CurrentUser,
+    _: Any = Depends(require_permission("audits:read")),
+) -> list[dict[str, Any]]:
     """Lists all 80/20 escrow purchase orders."""
     return list(_ESCROW_POS.values())
 
 
 @router.post("/form1/dispatch")
-async def dispatch_form1_statutory(payload: dict[str, Any]) -> dict[str, Any]:
-    """Generates Form-1 with Cf conversion factor and DSC signature to CPCB portal."""
+async def dispatch_form1_statutory(
+    payload: dict[str, Any],
+    user: CurrentUser,
+    _: Any = Depends(require_permission("workflows:execute")),
+) -> dict[str, Any]:
+    """Generates Form-1 with Cf conversion factor and DSC signature for CPCB portal."""
     po_number = payload.get("po_number", "PO-2026-901")
-    form_id = f"FORM1-{uuid.uuid4().hex[:8].upper()}"
+    form_id   = f"FORM1-{uuid.uuid4().hex[:8].upper()}"
 
     return {
         "form_id": form_id,
@@ -79,4 +90,5 @@ async def dispatch_form1_statutory(payload: dict[str, Any]) -> dict[str, Any]:
         "dsc_signature": "DSC_SIG_48F19B8C7E2A91F0",
         "portal_status": "CPCB_ACCEPTED",
         "portal_ack_number": f"ACK-CPCB-{uuid.uuid4().hex[:10].upper()}",
+        "dispatched_by": user["email"],
     }

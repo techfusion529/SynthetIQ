@@ -20,6 +20,7 @@ from src.routes import (
     health_router,
     liability_router,
     orchestrator_router,
+    organizations_router,
     schedules_router,
     settlement_router,
 )
@@ -118,6 +119,7 @@ app.include_router(auctions_router,     prefix=API_V1_STR)
 app.include_router(audit_router,        prefix=API_V1_STR)
 app.include_router(settlement_router,   prefix=API_V1_STR)
 app.include_router(schedules_router,    prefix=API_V1_STR)
+app.include_router(organizations_router, prefix=API_V1_STR)
 
 if __name__ == "__main__":
     import uvicorn

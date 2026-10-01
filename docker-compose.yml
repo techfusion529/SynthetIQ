@@ -1,5 +1,5 @@
 ﻿# ============================================================
-# SynthetIQ â€” Full Local Development Stack
+# SynthetIQ — Full Local Development Stack
 # Usage: docker compose up -d
 # ============================================================
 
@@ -21,11 +21,15 @@ services:
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - JEV_MODE=${JEV_MODE:-NIMBLE_PRIMARY}
+      - DATABASE_URL=postgresql+asyncpg://synthetiq:synthetiq@app-db:5432/synthetiq
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - temporal-server
       - mcp
       - simulator
       - mocks
+      - app-db
+      - redis
 
   worker:
     build:
@@ -42,9 +46,13 @@ services:
       - JEV_MODE=${JEV_MODE:-NIMBLE_PRIMARY}
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_ENABLE_PII_SCRUBBING=${OLLAMA_ENABLE_PII_SCRUBBING:-false}
+      - DATABASE_URL=postgresql+asyncpg://synthetiq:synthetiq@app-db:5432/synthetiq
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - temporal-server
       - mcp
+      - app-db
+      - redis
 
   mcp:
     build:
@@ -55,6 +63,8 @@ services:
       - "8001:8001"
     environment:
       - DEV_MODE=true
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
 
   simulator:
     build:
@@ -72,7 +82,57 @@ services:
     ports:
       - "8002:8002"
 
-  # --- PostgreSQL Database for Temporal Engine ---
+  # --- Application State DB (multi-tenant orgs / schedules / workflow runs) ---
+  app-db:
+    image: postgres:15-alpine
+    container_name: synthetiq-app-db
+    environment:
+      - POSTGRES_DB=synthetiq
+      - POSTGRES_USER=synthetiq
+      - POSTGRES_PASSWORD=synthetiq
+    ports:
+      - "5433:5432"
+    volumes:
+      - app-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synthetiq -d synthetiq"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Redis (agent memory, session cache, cost-tracking counters) ---
+  redis:
+    image: redis:7-alpine
+    container_name: synthetiq-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Ollama (Gemma 2B PII scrubbing + Nimble System 1 fraud detection) ---
+  ollama:
+    image: ollama/ollama:latest
+    container_name: synthetiq-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    entrypoint: ["/bin/bash", "-c",
+      "ollama serve & sleep 8 && ollama pull gemma2:2b && ollama pull nimble && wait"]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # --- PostgreSQL for Temporal Engine ---
   temporal-db:
     image: postgres:15-alpine
     container_name: synthetiq-temporal-db
@@ -81,6 +141,8 @@ services:
       - POSTGRES_PASSWORD=temporal
     ports:
       - "5432:5432"
+    volumes:
+      - temporal-db-data:/var/lib/postgresql/data
 
   # --- Temporal Workflow Engine ---
   temporal-server:
@@ -120,3 +182,9 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
       - api
+
+volumes:
+  app-db-data:
+  redis-data:
+  ollama-data:
+  temporal-db-data:

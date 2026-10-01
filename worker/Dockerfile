@@ -5,8 +5,9 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
-COPY packages/shared/ /tmp/shared/
-RUN uv pip install --system /tmp/shared/ && rm -rf /tmp/shared/
+# Install the shared package (config, database, ORM models)
+COPY packages/synthetiq-shared/ /tmp/synthetiq-shared/
+RUN uv pip install --system /tmp/synthetiq-shared/ && rm -rf /tmp/synthetiq-shared/
 
 COPY worker/pyproject.toml ./pyproject.toml
 COPY worker/src/ ./src/

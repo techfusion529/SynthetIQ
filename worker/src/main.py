@@ -1,109 +1,161 @@
-"""SynthetIQ Temporal Worker — registers 5 workflows and 7 AI agent activities with healthcheck server."""
+"""SynthetIQ Temporal Worker - Multi-agent orchestration entry point."""
 
 from __future__ import annotations
 
 import asyncio
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import logging
 import os
-import threading
-from typing import Any
+import sys
+from pathlib import Path
+
 from temporalio.client import Client
 from temporalio.worker import Worker
 
-from src.activities import (
-    audit_scada_telemetry_activity,
-    calculate_brand_liability_activity,
-    create_escrow_split_po_activity,
-    execute_double_auction_activity,
-    generate_and_dispatch_form1_activity,
-    parse_regulatory_rules_activity,
-    verify_eway_bill_activity,
-)
-from src.constants import TEMPORAL_TASK_QUEUE
-from src.flows import (
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
+
+from flows.workflows import (
     AuctionLiquidityWorkflow,
     MasterEPRComplianceWorkflow,
     QuadCoreAuditWorkflow,
     SettlementDispatchWorkflow,
     UpstreamLiabilityWorkflow,
 )
+from activities import agent_activities
+from services.jev_auditor import initialize_jev_auditor
+from services.privacy_service import initialize_privacy_service
+
+# Shared config — installed under the synthetiq_shared namespace
+try:
+    from synthetiq_shared.config import get_config
+except ModuleNotFoundError:
+    # Local dev fallback (running outside Docker with src/ on sys.path)
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent / "packages" / "synthetiq-shared" / "src"))
+    from config import get_config  # type: ignore[no-redef]
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-class WorkerHealthHandler(BaseHTTPRequestHandler):
-    """Responds to Docker and Kubernetes health probes."""
+async def initialize_services() -> None:
+    """Initialize all AI services with configuration from environment."""
+    config = get_config()
 
-    def do_GET(self) -> None:
-        if self.path == "/health":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(b'{"status":"ok","service":"synthetiq-worker","task_queue":"synthetiq-main"}')
-        else:
-            self.send_response(404)
-            self.end_headers()
+    # Validate configuration
+    validation = config.validate()
+    if validation["errors"]:
+        logger.error("Configuration errors:")
+        for error in validation["errors"]:
+            logger.error(f"  - {error}")
+        raise RuntimeError("Invalid configuration. Fix errors and restart.")
 
-    def log_message(self, format: str, *args: Any) -> None:
-        pass
+    if validation["warnings"]:
+        logger.warning("Configuration warnings:")
+        for warning in validation["warnings"]:
+            logger.warning(f"  - {warning}")
+
+    # Set GEMINI_API_KEY in env so google-adk's LlmAgent picks it up
+    import os
+    if config.gemini.is_configured:
+        os.environ["GOOGLE_API_KEY"] = config.gemini.api_key
+        os.environ["GEMINI_API_KEY"] = config.gemini.api_key
+        os.environ["GEMINI_MODEL"] = config.gemini.model
+        logger.info(f"✓ Google ADK configured: model={config.gemini.model}")
+    else:
+        logger.error("GEMINI_API_KEY not configured. Cannot start worker.")
+        raise RuntimeError("Gemini API key required")
+
+    # Initialize ADK session service
+    from agents.base_adk import get_session_service
+    get_session_service()
+    logger.info("✓ ADK InMemorySessionService initialized")
+
+    # Initialize Jev auditor
+    logger.info(f"Initializing Jev auditor in {config.jev.mode} mode...")
+    initialize_jev_auditor(
+        mode=config.jev.mode,
+        model_path=config.jev.model_path if config.jev.model_exists else None,
+        torque_threshold_nm=config.jev.torque_threshold_nm,
+        power_factor_min=config.jev.power_factor_min,
+        power_factor_max=config.jev.power_factor_max,
+        confidence_threshold=config.jev.confidence_threshold,
+    )
+    logger.info("✓ Jev auditor initialized")
+
+    # Initialize privacy service (Ollama + Gemma)
+    if config.ollama.enable_pii_scrubbing:
+        logger.info("Initializing privacy service (Ollama + Gemma 2B)...")
+        initialize_privacy_service(
+            ollama_host=config.ollama.host,
+            model=config.ollama.model,
+            enabled=True,
+        )
+        logger.info("✓ Privacy service initialized")
+    else:
+        initialize_privacy_service(enabled=False)
+        logger.info("Privacy service disabled (PII scrubbing off)")
+
+    logger.info("All services initialized successfully!")
 
 
-def start_health_server(port: int = 9090) -> None:
-    try:
-        server = HTTPServer(("0.0.0.0", port), WorkerHealthHandler)
-        server.serve_forever()
-    except Exception as e:
-        print(f"[Worker Health] Could not start health server on {port}: {e}")
+async def main() -> None:
+    """Start Temporal worker with all workflows and activities."""
+    config = get_config()
 
+    # Initialize AI services
+    await initialize_services()
 
-async def run_worker() -> None:
-    """Initializes worker and registers all workflows and activities with retry loop."""
-    temporal_host = os.getenv("TEMPORAL_HOST", "localhost:7233")
-    print(f"[SynthetIQ Worker] Connecting to Temporal Server at: {temporal_host}", flush=True)
-    print(f"[SynthetIQ Worker] Listening on Task Queue: {TEMPORAL_TASK_QUEUE}", flush=True)
+    # Connect to Temporal server
+    logger.info(f"Connecting to Temporal at {config.temporal.host}...")
+    client = await Client.connect(config.temporal.host)
+    logger.info("✓ Connected to Temporal")
 
-    client = None
-    for attempt in range(1, 30):
-        try:
-            client = await Client.connect(temporal_host)
-            print(f"[SynthetIQ Worker] Successfully connected to Temporal Server on attempt {attempt}!", flush=True)
-            break
-        except Exception as e:
-            print(f"[SynthetIQ Worker] Waiting for Temporal Server at {temporal_host} (attempt {attempt}/30)... {e}", flush=True)
-            await asyncio.sleep(2)
+    # List all activity functions
+    activities = [
+        agent_activities.calculate_brand_liability_activity,
+        agent_activities.parse_regulatory_rules_activity,
+        agent_activities.execute_double_auction_activity,
+        agent_activities.verify_eway_bill_activity,
+        agent_activities.audit_scada_telemetry_activity,
+        agent_activities.create_escrow_split_po_activity,
+        agent_activities.generate_and_dispatch_form1_activity,
+    ]
 
-    if not client:
-        raise RuntimeError(f"Could not connect to Temporal Server at {temporal_host} after 30 attempts")
-
+    # Start worker
+    logger.info("Starting Temporal worker...")
     worker = Worker(
         client,
-        task_queue=TEMPORAL_TASK_QUEUE,
+        task_queue="synthetiq-main",
         workflows=[
-            MasterEPRComplianceWorkflow,
             UpstreamLiabilityWorkflow,
             AuctionLiquidityWorkflow,
             QuadCoreAuditWorkflow,
             SettlementDispatchWorkflow,
+            MasterEPRComplianceWorkflow,
         ],
-        activities=[
-            calculate_brand_liability_activity,
-            parse_regulatory_rules_activity,
-            execute_double_auction_activity,
-            verify_eway_bill_activity,
-            audit_scada_telemetry_activity,
-            create_escrow_split_po_activity,
-            generate_and_dispatch_form1_activity,
-        ],
+        activities=activities,
     )
 
-    print("[SynthetIQ Worker] Multi-agent worker listening on queue. Ready for workflow dispatches!", flush=True)
-    await worker.run()
+    logger.info("=" * 60)
+    logger.info("🚀 SynthetIQ Temporal Worker Started Successfully!")
+    logger.info("=" * 60)
+    logger.info(f"Task Queue: synthetiq-main")
+    logger.info(f"Workflows: 5 registered")
+    logger.info(f"Activities: {len(activities)} registered")
+    logger.info(f"AI Model: {config.gemini.model}")
+    logger.info(f"Jev Mode: {config.jev.mode}")
+    logger.info(f"Privacy: {'Enabled' if config.ollama.enable_pii_scrubbing else 'Disabled'}")
+    logger.info("=" * 60)
 
-
-def main() -> None:
-    port = int(os.getenv("WORKER_PORT", "9090"))
-    health_thread = threading.Thread(target=start_health_server, args=(port,), daemon=True)
-    health_thread.start()
-    asyncio.run(run_worker())
+    try:
+        await worker.run()
+    except KeyboardInterrupt:
+        logger.info("\nShutting down worker...")
+    finally:
+        await client.close()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

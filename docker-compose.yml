@@ -37,7 +37,11 @@ services:
     environment:
       - TEMPORAL_HOST=temporal-server:7233
       - MCP_URL=http://mcp:8001
-      - GEMMA_HOST=http://ollama:11434
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - JEV_MODE=${JEV_MODE:-HYBRID_ENSEMBLE}
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_ENABLE_PII_SCRUBBING=${OLLAMA_ENABLE_PII_SCRUBBING:-false}
     depends_on:
       - temporal-server
       - mcp

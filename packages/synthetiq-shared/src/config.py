@@ -61,10 +61,10 @@ class AgentConfig(BaseSettings):
 
 
 class JevConfig(BaseSettings):
-    """TypeSafe Jev fraud detection configuration."""
+    """TypeSafe Jev / Nimble fraud detection configuration."""
 
-    mode: Literal["ML_MODEL", "HYBRID_ENSEMBLE", "REFLEX_PHYSICS_ONLY"] = Field(
-        default="ML_MODEL",
+    mode: Literal["NIMBLE_PRIMARY", "ML_MODEL", "HYBRID_ENSEMBLE", "REFLEX_PHYSICS_ONLY"] = Field(
+        default="NIMBLE_PRIMARY",
         alias="JEV_MODE",
     )
     model_path: str = Field(

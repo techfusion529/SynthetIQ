@@ -23,6 +23,7 @@ from flows.workflows import (
 )
 from activities import agent_activities
 from services.jev_auditor import initialize_jev_auditor
+from services.nimble_service import initialize_nimble_service
 from services.privacy_service import initialize_privacy_service
 
 # Shared config — installed under the synthetiq_shared namespace
@@ -72,7 +73,17 @@ async def initialize_services() -> None:
     get_session_service()
     logger.info("✓ ADK InMemorySessionService initialized")
 
-    # Initialize Jev auditor
+    # Initialize Nimble System 1 service (Ollama /v1/systemone)
+    nimble_host = config.ollama.host  # reuse OLLAMA_HOST
+    logger.info(f"Initializing Nimble System 1 service at {nimble_host}...")
+    initialize_nimble_service(
+        ollama_host=nimble_host,
+        model="nimble",
+        timeout=10.0,
+    )
+    logger.info("✓ Nimble service initialized (availability checked on first call)")
+
+    # Initialize Jev auditor (NIMBLE_PRIMARY → falls back to HYBRID_ENSEMBLE)
     logger.info(f"Initializing Jev auditor in {config.jev.mode} mode...")
     initialize_jev_auditor(
         mode=config.jev.mode,
@@ -145,8 +156,8 @@ async def main() -> None:
     logger.info(f"Workflows: 5 registered")
     logger.info(f"Activities: {len(activities)} registered")
     logger.info(f"AI Model: {config.gemini.model}")
-    logger.info(f"Jev Mode: {config.jev.mode}")
-    logger.info(f"Privacy: {'Enabled' if config.ollama.enable_pii_scrubbing else 'Disabled'}")
+    logger.info(f"Jev Mode: {config.jev.mode} (Nimble primary, Jev fallback)")
+    logger.info(f"Privacy:  {'Enabled' if config.ollama.enable_pii_scrubbing else 'Disabled'}")
     logger.info("=" * 60)
 
     try:

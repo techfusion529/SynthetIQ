@@ -1,5 +1,5 @@
-# ============================================================
-# SynthetIQ — Full Local Development Stack
+﻿# ============================================================
+# SynthetIQ â€” Full Local Development Stack
 # Usage: docker compose up -d
 # ============================================================
 
@@ -20,7 +20,7 @@ services:
       - MOCKS_URL=http://mocks:8002
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - JEV_MODE=${JEV_MODE:-HYBRID_ENSEMBLE}
+      - JEV_MODE=${JEV_MODE:-NIMBLE_PRIMARY}
     depends_on:
       - temporal-server
       - mcp
@@ -39,7 +39,7 @@ services:
       - MCP_URL=http://mcp:8001
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
-      - JEV_MODE=${JEV_MODE:-HYBRID_ENSEMBLE}
+      - JEV_MODE=${JEV_MODE:-NIMBLE_PRIMARY}
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_ENABLE_PII_SCRUBBING=${OLLAMA_ENABLE_PII_SCRUBBING:-false}
     depends_on:

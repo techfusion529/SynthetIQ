@@ -16,10 +16,12 @@ dist/
 build/
 *.egg-info/
 
-# Environment variables
+# Environment variables & Credentials
 .env
 .env.local
 .env.production
+credentials/
+*.key.json
 
 # IDE
 .vscode/

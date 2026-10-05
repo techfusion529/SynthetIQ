@@ -1,291 +1,301 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import {
-  ArrowLeft,
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  Coins,
-  DollarSign,
-  FileCheck,
-  Hash,
-  HelpCircle,
-  Lock,
-  RotateCw,
-  Scale,
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
-  UserCheck,
-  XCircle,
-} from "lucide-react";
-import { approveEscrow, fetchEscrowPOs } from "@/app/lib/api";
+import React, { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Box from "@mui/material/Box";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Alert from "@mui/material/Alert";
+import Skeleton from "@mui/material/Skeleton";
+import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
+import Breadcrumbs from "@mui/material/Breadcrumbs";
+import Link from "@mui/material/Link";
+import CircularProgress from "@mui/material/CircularProgress";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import LinearProgress from "@mui/material/LinearProgress";
+import Stepper from "@mui/material/Stepper";
+import Step from "@mui/material/Step";
+import StepLabel from "@mui/material/StepLabel";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import LockIcon from "@mui/icons-material/Lock";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import HowToRegIcon from "@mui/icons-material/HowToReg";
+import ShieldIcon from "@mui/icons-material/Shield";
 
-export default function SettlementEscrowPage() {
-  const [isApproving, setIsApproving] = useState(false);
-  const [approved, setApproved] = useState(true);
-  const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [approvalResponse, setApprovalResponse] = useState<any>(null);
+import { useSettlementService } from "../lib/hooks/useServices";
+import { ApiError } from "../lib/services/base.service";
+import type { EscrowPO } from "../lib/types/settlement.types";
 
-  const totalAmount = 1950000;
-  const advanceAmount = Math.round(totalAmount * 0.8); // 80%
-  const retentionAmount = Math.round(totalAmount * 0.2); // 20%
+const fmt = (n: number | undefined) =>
+  n != null ? `₹${(n / 100000).toFixed(2)} Lakhs` : "—";
 
-  useEffect(() => {
-    fetchEscrowPOs().then((pos) => {
-      if (pos && pos.length > 0) {
-        setApproved(pos[0].status === "advance_released");
-      }
-    });
-  }, []);
+export default function SettlementPage() {
+  const router = useRouter();
+  const settlementSvc = useSettlementService();
 
-  const handleApprove = async () => {
-    setIsApproving(true);
+  const [pos, setPos]         = useState<EscrowPO[]>([]);
+  const [activePO, setActivePO] = useState<EscrowPO | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+
+  const [approveOpen, setApproveOpen]   = useState(false);
+  const [approving, setApproving]       = useState(false);
+  const [approveResult, setApproveResult] = useState<string | null>(null);
+  const [approveError, setApproveError]   = useState<string | null>(null);
+
+  // ── fetch PO list ────────────────────────────────────────────────────────
+  const fetchPOs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const res = await approveEscrow("AUD-2026-881", "APPROVE");
-      setApprovalResponse(res);
-      setApproved(true);
-      setShowApprovalModal(false);
-    } catch {
-      setApproved(true);
-      setShowApprovalModal(false);
+      const list = await settlementSvc.listPOs();
+      setPos(list);
+      if (list.length > 0) {
+        // Fetch full PO detail for the first item
+        const detail = await settlementSvc.getPO(list[0].po_number);
+        setActivePO(detail);
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to load purchase orders");
     } finally {
-      setIsApproving(false);
+      setLoading(false);
+    }
+  }, [settlementSvc]);
+
+  useEffect(() => { fetchPOs(); }, [fetchPOs]);
+
+  // ── HITL approval ─────────────────────────────────────────────────────────
+  const handleApprove = async () => {
+    if (!activePO?.audit_id) {
+      setApproveError("Cannot approve PO without an associated audit_id.");
+      return;
+    }
+    setApproving(true);
+    setApproveError(null);
+    try {
+      const res = await settlementSvc.approve({ audit_id: activePO.audit_id, action: "APPROVE" });
+      setApproveResult(`Approved by ${res.approved_by}. 80% advance released in ERP.`);
+      setApproveOpen(false);
+      fetchPOs();
+    } catch (e) {
+      setApproveError(e instanceof ApiError ? e.message : "Approval failed");
+    } finally {
+      setApproving(false);
     }
   };
 
+  // ── derived values — all from API, no hardcoded amounts ──────────────────
+  const total    = activePO?.total_amount_inr;
+  const advance  = activePO?.advance_amount_inr;
+  const retention = activePO?.retention_amount_inr;
+  const advancePct  = total && advance   ? Math.round((advance / total) * 100) : null;
+  const retentionPct = total && retention ? Math.round((retention / total) * 100) : null;
+
+  const STEPS = ["Jev Melt Proof", "80% Advance Released", "Form-1 Dispatched", "20% Retention Released"];
+
   return (
-    <div className="space-y-8 pb-12">
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+      <Breadcrumbs>
+        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>Executive Hub</Link>
+        <Typography color="success.light" fontWeight={600}>Workflow 4 — Settlement & Escrow</Typography>
+      </Breadcrumbs>
+
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2 text-xs text-slate-400 mb-1">
-            <Link href="/" className="hover:text-slate-200">Executive Hub</Link>
-            <span>/</span>
-            <span className="text-indigo-400 font-medium">Workflow 4: Settlement & Escrow</span>
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
-            <ShieldCheck className="w-6 h-6 text-emerald-400" />
-            Financial Settlement & 80/20 Escrow Gate
-          </h2>
-          <p className="text-sm text-slate-400">
+      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
+        <Box>
+          <Typography variant="h5" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <AccountBalanceWalletIcon color="success" /> Financial Settlement & 80/20 Escrow Gate
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
             Split-Payment Escrow PO in SAP/Oracle: 80% advance on physical melt proof, 20% retention until CPCB acceptance
-          </p>
-        </div>
+          </Typography>
+        </Box>
+        <Button variant="contained" color="success" endIcon={<ArrowForwardIcon />} onClick={() => router.push("/dispatch")}>
+          View CPCB Form-1 Vault
+        </Button>
+      </Box>
 
-        <Link
-          href="/dispatch"
-          className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm flex items-center gap-2 self-start shadow-md shadow-indigo-600/20"
-        >
-          <span>View CPCB Form-1 Vault</span>
-          <ArrowRight className="w-4 h-4" />
-        </Link>
-      </div>
+      {error    && <Alert severity="error">{error}</Alert>}
+      {approveResult && <Alert severity="success" icon={<CheckCircleIcon />}>{approveResult}</Alert>}
 
-      {approvalResponse && (
-        <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/50 text-emerald-200 text-xs flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>
-              <strong>Temporal HITL Approval Recorded:</strong> Approved by {approvalResponse.approved_by || "compliance.officer@brand.in"}. Advance 80% released in ERP.
-            </span>
-          </div>
-          <span className="font-mono text-[11px] text-slate-300">Status: {approvalResponse.status}</span>
-        </div>
+      {loading ? (
+        <>
+          <Skeleton variant="rounded" height={120} />
+          <Skeleton variant="rounded" height={200} />
+        </>
+      ) : pos.length === 0 ? (
+        <Alert severity="info">No escrow purchase orders found.</Alert>
+      ) : (
+        <>
+          {/* PO selector chips */}
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+            {pos.map((p) => (
+              <Chip
+                key={p.po_number}
+                label={`${p.po_number} · ${p.status}`}
+                onClick={async () => { const d = await settlementSvc.getPO(p.po_number); setActivePO(d); }}
+                color={activePO?.po_number === p.po_number ? "success" : "default"}
+                variant={activePO?.po_number === p.po_number ? "filled" : "outlined"}
+                size="small"
+              />
+            ))}
+          </Box>
+
+          {/* Settlement Stepper */}
+          <Card>
+            <CardContent>
+              <Typography variant="subtitle1" fontWeight={700} mb={2}>Settlement Pipeline</Typography>
+              <Stepper alternativeLabel activeStep={activePO?.status === "advance_released" ? 2 : 1}>
+                {STEPS.map((label) => (
+                  <Step key={label}>
+                    <StepLabel>{label}</StepLabel>
+                  </Step>
+                ))}
+              </Stepper>
+            </CardContent>
+          </Card>
+
+          {/* 80/20 Split Visualizer */}
+          {activePO && (
+            <Card>
+              <CardContent>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                  <Typography variant="subtitle1" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <AccountBalanceWalletIcon color="success" fontSize="small" /> 80/20 Split-Payment Escrow Structure
+                  </Typography>
+                  <Typography variant="body1" fontWeight={700} fontFamily="monospace" color="success.main">
+                    Total: {fmt(total)}
+                  </Typography>
+                </Box>
+
+                {/* Visual split bar */}
+                <Box sx={{ display: "flex", height: 48, borderRadius: 2, overflow: "hidden", gap: 0.5, p: 0.5, bgcolor: "rgba(255,255,255,0.04)", border: "1px solid", borderColor: "divider" }}>
+                  <Box sx={{ width: `${advancePct ?? 80}%`, bgcolor: "success.dark", borderRadius: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", px: 2 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <CheckCircleIcon fontSize="small" sx={{ color: "success.contrastText" }} />
+                      <Typography variant="caption" fontWeight={700} color="success.contrastText">{advancePct ?? 80}% Advance</Typography>
+                    </Box>
+                    <Typography variant="caption" fontWeight={700} color="success.contrastText" fontFamily="monospace">{fmt(advance)}</Typography>
+                  </Box>
+                  <Box sx={{ width: `${retentionPct ?? 20}%`, bgcolor: "rgba(245,158,11,0.2)", border: "1px solid", borderColor: "warning.dark", borderRadius: 1.5, display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5, px: 1 }}>
+                    <LockIcon fontSize="small" color="warning" />
+                    <Typography variant="caption" fontWeight={700} color="warning.main" noWrap>{retentionPct ?? 20}%</Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.5 }}>
+                  <Typography variant="caption" color="success.light" fontWeight={600}>Condition: Jev Melt Proof (SCADA VFD + GST E-Way Bill)</Typography>
+                  <Typography variant="caption" color="warning.main" fontWeight={600}>Condition: Form-1 Acceptance & CPCB ACK</Typography>
+                </Box>
+
+                <Divider sx={{ my: 2 }} />
+
+                {/* PO details grid */}
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Card variant="outlined" sx={{ p: 2 }}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+                        <Typography variant="caption" color="success.main" fontWeight={700} textTransform="uppercase">Advance Escrow ({advancePct ?? 80}%)</Typography>
+                        <Chip label={activePO.status === "advance_released" ? "RELEASED" : "HELD"} size="small" color="success" />
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" mb={1.5}>
+                        Released when Jev System 1 confirms authentic polymer melting with confidence ≥85%.
+                      </Typography>
+                      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.5, fontSize: "0.75rem", fontFamily: "monospace" }}>
+                        <Typography variant="caption" color="text.secondary">SAP PO:</Typography>
+                        <Typography variant="caption" color="text.primary" fontWeight={600}>{activePO.sap_purchase_order_number ?? activePO.po_number}</Typography>
+                        <Typography variant="caption" color="text.secondary">Beneficiary:</Typography>
+                        <Typography variant="caption" color="text.primary" fontWeight={600}>{activePO.recycler_name ?? activePO.recycler_id}</Typography>
+                        <Typography variant="caption" color="text.secondary">Volume:</Typography>
+                        <Typography variant="caption" color="text.primary">{activePO.plastic_tons?.toLocaleString()} T</Typography>
+                      </Box>
+                    </Card>
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    <Card variant="outlined" sx={{ p: 2 }}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+                        <Typography variant="caption" color="warning.main" fontWeight={700} textTransform="uppercase">Retention Escrow ({retentionPct ?? 20}%)</Typography>
+                        <Chip label="PENDING CPCB ACK" size="small" color="warning" variant="outlined" />
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" mb={1.5}>
+                        Released on Form-1 acceptance and official portal acknowledgment.
+                      </Typography>
+                      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.5, fontSize: "0.75rem", fontFamily: "monospace" }}>
+                        <Typography variant="caption" color="text.secondary">Escrow Account:</Typography>
+                        <Typography variant="caption" color="text.primary" fontWeight={600}>{activePO.escrow_account ?? "—"}</Typography>
+                        <Typography variant="caption" color="text.secondary">ERP Sync:</Typography>
+                        <Typography variant="caption" color="text.primary">{activePO.sap_sync_status ?? "—"}</Typography>
+                        <Typography variant="caption" color="text.secondary">Retention:</Typography>
+                        <Typography variant="caption" color="warning.main" fontWeight={600}>{fmt(retention)}</Typography>
+                      </Box>
+                    </Card>
+                  </Grid>
+                </Grid>
+
+                {/* HITL action */}
+                <Box sx={{ mt: 2.5, pt: 2, borderTop: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <HowToRegIcon color="primary" fontSize="small" />
+                    <Typography variant="caption" color="text.secondary">Human-in-the-Loop review enforced for high-value tranches (&gt;₹10L)</Typography>
+                  </Box>
+                  <Button
+                    variant="contained" color="primary"
+                    startIcon={<ShieldIcon />}
+                    onClick={() => setApproveOpen(true)}
+                  >
+                    Authorize Escrow Release (HITL)
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
-      {/* 80/20 Escrow Split Visualizer Card */}
-      <div className="p-6 rounded-2xl glass-panel space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Coins className="w-4 h-4 text-emerald-400" />
-              80/20 Split-Payment Escrow Structure
-            </h3>
-            <p className="text-xs text-slate-400">
-              Protection against fake certificates and retroactive CPCB registration revocations
-            </p>
-          </div>
-          <div className="text-sm font-mono text-white">
-            Total PO Value: <strong className="text-emerald-400 text-base">₹{(totalAmount / 100000).toFixed(2)} Lakhs</strong>
-          </div>
-        </div>
-
-        {/* Visual Split Bar */}
-        <div className="space-y-2">
-          <div className="flex h-12 w-full rounded-xl overflow-hidden border border-slate-700/80 p-1 bg-slate-950 gap-1.5">
-            {/* 80% Tranche */}
-            <div
-              className={`h-full rounded-lg transition-all flex items-center justify-between px-4 font-mono text-xs font-bold ${
-                approved
-                  ? "bg-gradient-to-r from-emerald-600 to-teal-500 text-white"
-                  : "bg-emerald-900/50 text-emerald-200 border border-emerald-500/40"
-              }`}
-              style={{ width: "80%" }}
-            >
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                80% Advance Tranche
-              </span>
-              <span>₹{(advanceAmount / 100000).toFixed(2)} Lakhs</span>
-            </div>
-
-            {/* 20% Retention Tranche */}
-            <div
-              className="h-full rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-200 flex items-center justify-between px-3 font-mono text-xs font-bold"
-              style={{ width: "20%" }}
-            >
-              <span className="flex items-center gap-1.5 truncate">
-                <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="truncate">20% Retention</span>
-              </span>
-              <span>₹{(retentionAmount / 100000).toFixed(2)}L</span>
-            </div>
-          </div>
-
-          <div className="flex justify-between text-[11px] text-slate-400 px-1 font-mono">
-            <span className="text-emerald-400 font-semibold">
-              Condition: Verified Melt Proof (SCADA VFD + GST E-Way Bill)
-            </span>
-            <span className="text-amber-400 font-semibold">
-              Condition: Form-1 Acceptance & Credit Transfer on CPCB Portal
-            </span>
-          </div>
-        </div>
-
-        {/* Details Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-          {/* Box 1: Advance Details */}
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Advance Escrow (80%)</span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                {approved ? "RELEASED TO RECYCLER" : "HELD IN ESCROW"}
-              </span>
-            </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Triggered automatically when the TypeSafe Jev System 1 Reflex confirms authentic polymer melting with confidence score ≥ 85% and weighbridge delta within ±2%.
-            </p>
-            <div className="text-xs font-mono space-y-1 text-slate-400 border-t border-slate-800/80 pt-2">
-              <div className="flex justify-between">
-                <span>SAP PO Number:</span>
-                <span className="text-white">PO-2026-901</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Beneficiary Recycler:</span>
-                <span className="text-white">EcoPlast Recyclers Ltd</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Box 2: Retention Details */}
-          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Retention Escrow (20%)</span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                PENDING CPCB ACK
-              </span>
-            </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Protects against certificate revocations by CPCB. Released strictly upon generation of final Form-1 receipt and official portal acknowledgment.
-            </p>
-            <div className="text-xs font-mono space-y-1 text-slate-400 border-t border-slate-800/80 pt-2">
-              <div className="flex justify-between">
-                <span>Escrow Smart Account:</span>
-                <span className="text-white">ESCROW-HDFC-9921</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Auto-Release Trigger:</span>
-                <span className="text-amber-300">CPCB_ACCEPTED status</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* HITL Action Button */}
-        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-800/80">
-          <div className="flex items-center space-x-2 text-xs text-slate-400">
-            <UserCheck className="w-4 h-4 text-indigo-400" />
-            <span>Human-in-the-Loop review enforced for high-value tranches (&gt;₹10L)</span>
-          </div>
-
-          <button
-            onClick={() => setShowApprovalModal(true)}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-semibold text-xs text-white bg-indigo-600 hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2"
+      {/* HITL Approval Modal */}
+      <Dialog open={approveOpen} onClose={() => setApproveOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <ShieldIcon color="primary" /> Authorize 80% Advance Escrow Release
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ pt: 2.5, display: "flex", flexDirection: "column", gap: 2 }}>
+          {approveError && <Alert severity="error">{approveError}</Alert>}
+          <Typography variant="body2">
+            You are signing off on releasing <strong>{fmt(advance)}</strong> ({advancePct ?? 80}% of {activePO?.po_number}) to <strong>{activePO?.recycler_name ?? activePO?.recycler_id}</strong>.
+          </Typography>
+          <Card variant="outlined" sx={{ p: 2 }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 0.75, fontSize: "0.75rem", fontFamily: "monospace" }}>
+              <Typography variant="caption" color="text.secondary">PO Number:</Typography>
+              <Typography variant="caption" fontWeight={700}>{activePO?.po_number ?? "—"}</Typography>
+              <Typography variant="caption" color="text.secondary">Audit ID:</Typography>
+              <Typography variant="caption" fontWeight={700}>{activePO?.audit_id ?? "—"}</Typography>
+              <Typography variant="caption" color="text.secondary">Total Contract:</Typography>
+              <Typography variant="caption" fontWeight={700} color="success.main">{fmt(total)}</Typography>
+              <Typography variant="caption" color="text.secondary">Advance 80%:</Typography>
+              <Typography variant="caption" fontWeight={700}>{fmt(advance)}</Typography>
+            </Box>
+          </Card>
+        </DialogContent>
+        <Divider />
+        <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+          <Button onClick={() => setApproveOpen(false)} color="inherit">Cancel</Button>
+          <Button
+            onClick={handleApprove} variant="contained" color="success"
+            disabled={approving}
+            startIcon={approving ? <CircularProgress size={14} color="inherit" /> : <CheckCircleIcon />}
           >
-            <ShieldCheck className="w-4 h-4" />
-            <span>Authorizing Signature Gate (HITL)</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Approval Modal */}
-      {showApprovalModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-[#0b1021] border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center space-x-2.5">
-                <Shield className="w-5 h-5 text-indigo-400" />
-                <h3 className="font-bold text-white text-base">Authorize 80% Advance Escrow Release</h3>
-              </div>
-              <button
-                onClick={() => setShowApprovalModal(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-slate-300">
-              <p>
-                You are about to sign off on releasing <strong>₹{(advanceAmount / 100000).toFixed(2)} Lakhs</strong> (80% of PO-2026-901) to <strong>EcoPlast Recyclers Ltd</strong>.
-              </p>
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 font-mono text-[11px]">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Audit Verification:</span>
-                  <span className="text-emerald-400 font-bold">APPROVED (Jev System 1: 96.5%)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Audit Proof Hash:</span>
-                  <span className="text-slate-300 truncate max-w-[200px]">e3b0c44298fc1c14...</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Approver DN:</span>
-                  <span className="text-slate-300">CN=Compliance Officer, C=IN</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
-              <button
-                onClick={() => setShowApprovalModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleApprove}
-                disabled={isApproving}
-                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/30 flex items-center gap-1.5"
-              >
-                {isApproving ? (
-                  <>
-                    <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Signing DSC Token...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Confirm & Sign Escrow Release</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+            {approving ? "Signing DSC Token…" : "Confirm & Sign Escrow Release"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 }

@@ -1,331 +1,453 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Box from "@mui/material/Box";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Alert from "@mui/material/Alert";
+import Skeleton from "@mui/material/Skeleton";
+import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
+import Breadcrumbs from "@mui/material/Breadcrumbs";
+import Link from "@mui/material/Link";
+import CircularProgress from "@mui/material/CircularProgress";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import Tooltip from "@mui/material/Tooltip";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import FlashOnIcon from "@mui/icons-material/FlashOn";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import {
-  Activity,
-  AlertOctagon,
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  Cpu,
-  FileCheck2,
-  Flame,
-  Gauge,
-  HelpCircle,
-  Radio,
-  RefreshCw,
-  Scale,
-  ShieldAlert,
-  ShieldCheck,
-  Truck,
-  Zap,
-} from "lucide-react";
-import { fetchLiveScada, ScadaLiveResponse, triggerAudit } from "@/app/lib/api";
+  LineChart, Line, XAxis, YAxis, Tooltip as RTooltip,
+  ResponsiveContainer, ReferenceLine,
+} from "recharts";
 
-export default function QuadCoreAuditPage() {
-  const [mode, setMode] = useState<"GENUINE" | "SPOOFED">("GENUINE");
-  const [streamPoints, setStreamPoints] = useState<number[]>([
-    45, 52, 58, 64, 59, 62, 55, 61, 58, 65, 60, 57, 63, 61, 56, 60, 58, 64, 62, 59,
-  ]);
+import { useAuditService } from "../lib/hooks/useServices";
+import { ApiError } from "../lib/services/base.service";
+import type { ScadaLiveResponse, AuditVerdict } from "../lib/types/audit.types";
 
-  const [liveData, setLiveData] = useState<ScadaLiveResponse | null>(null);
-  const [isAuditing, setIsAuditing] = useState(false);
-  const [auditResult, setAuditResult] = useState<any>(null);
+type SpoofMode = "GENUINE" | "RESISTIVE_SPOOF";
 
-  // Poll live SCADA telemetry from backend simulator
-  useEffect(() => {
-    const poll = async () => {
-      const data = await fetchLiveScada(mode === "GENUINE" ? "GENUINE" : "RESISTIVE_SPOOF");
-      if (data) {
-        setLiveData(data);
-        const tVal = data.physics.torque_nm;
-        setStreamPoints((prev) => [...prev.slice(1), Math.round(tVal + (Math.random() * 4 - 2))]);
-      } else {
-        // Fallback generator
-        const nextVal =
-          mode === "GENUINE"
-            ? Math.round(55 + Math.random() * 18 - 9)
-            : Math.round(1.5 + Math.random() * 1.5);
-        setStreamPoints((prev) => [...prev.slice(1), nextVal]);
-      }
-    };
+function GaugeCard({ label, value, unit, warning, good }: {
+  label: string; value: number | null; unit: string; warning?: string; good?: boolean;
+}) {
+  const color = value == null ? "text.secondary" : good ? "success.main" : "error.main";
+  return (
+    <Card sx={{ height: "100%" }}>
+      <CardContent>
+        <Typography variant="caption" textTransform="uppercase" letterSpacing="0.06em" color="text.secondary" fontWeight={600}>
+          {label}
+        </Typography>
+        {value == null ? (
+          <Skeleton variant="text" width="50%" height={40} sx={{ mt: 1 }} />
+        ) : (
+          <Typography variant="h4" fontWeight={700} fontFamily="monospace" sx={{ mt: 1, color }}>
+            {value} <Typography component="span" variant="body2" color="text.secondary">{unit}</Typography>
+          </Typography>
+        )}
+        {warning && value != null && (
+          <Typography variant="caption" color={good ? "success.main" : "error.main"} fontWeight={600} display="flex" alignItems="center" gap={0.5} mt={0.5}>
+            {good ? <CheckCircleIcon fontSize="inherit" /> : <WarningAmberIcon fontSize="inherit" />} {warning}
+          </Typography>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
-    poll();
-    const interval = setInterval(poll, 1200);
-    return () => clearInterval(interval);
-  }, [mode]);
+export default function AuditPage() {
+  const router = useRouter();
+  const auditSvc = useAuditService();
 
-  const isGenuine = mode === "GENUINE";
-  const torque = liveData?.physics.torque_nm ?? (isGenuine ? 57.7 : 1.8);
-  const powerFactor = liveData?.physics.power_factor ?? (isGenuine ? 0.871 : 0.994);
-  const activePower = liveData?.physics.active_power_kw ?? (isGenuine ? 95.0 : 82.5);
-  const meltRate = liveData?.physics.melt_rate_kg_h ?? (isGenuine ? 248.6 : 0.0);
-  const jevVerdict = liveData?.jev_evaluation.verdict ?? (isGenuine ? "APPROVED" : "REJECTED");
-  const jevConfidence = liveData?.jev_evaluation.confidence_score
-    ? Math.round(liveData.jev_evaluation.confidence_score * 100)
-    : isGenuine
-    ? 96.5
-    : 12.0;
+  const [mode, setMode]                 = useState<SpoofMode>("GENUINE");
+  const [liveData, setLiveData]         = useState<ScadaLiveResponse | null>(null);
+  const [streamPoints, setStreamPoints] = useState<{ t: number; nm: number }[]>([]);
+  const [pollErrors, setPollErrors]     = useState(0);
+  const [streamAlert, setStreamAlert]   = useState<string | null>(null);
 
-  const handleRunAudit = async () => {
-    setIsAuditing(true);
+  // Dynamic audit inputs (zero hardcoding)
+  const [recyclerId, setRecyclerId]     = useState("RECYC-DELHI-01");
+  const [plantId, setPlantId]           = useState("PLANT-OKHLA-2");
+  const [category, setCategory]         = useState("cat_i_rigid");
+  const [volumeTons, setVolumeTons]     = useState("250");
+
+  const [auditing, setAuditing]         = useState(false);
+  const [auditResult, setAuditResult]   = useState<AuditVerdict | null>(null);
+  const [auditError, setAuditError]     = useState<string | null>(null);
+  const [verdicts, setVerdicts]         = useState<AuditVerdict[]>([]);
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sampleIndex = useRef(0);
+
+  const fetchVerdicts = useCallback(async () => {
     try {
-      const res = await triggerAudit({
-        recycler_id: "RECYC-DELHI-01",
-        plant_id: "PLANT-OKHLA-2",
-        category: "cat_i_rigid",
-        volume_tons: 250.0,
-        simulate_spoof: mode === "SPOOFED",
+      const v = await auditSvc.listVerdicts();
+      setVerdicts(v);
+    } catch {
+      // non-critical
+    }
+  }, [auditSvc]);
+
+  // Poll real SCADA telemetry directly from API
+  const pollScada = useCallback(async () => {
+    try {
+      const data = await auditSvc.getLiveScada(mode);
+      setLiveData(data);
+      if (streamAlert) setStreamAlert(null);
+
+      // True raw telemetry from API
+      const torque = data.physics.torque_nm;
+      sampleIndex.current += 1;
+      setStreamPoints((prev) => {
+        const next = [...prev, { t: sampleIndex.current, nm: Math.round(torque * 10) / 10 }];
+        return next.length > 25 ? next.slice(next.length - 25) : next;
+      });
+    } catch {
+      setPollErrors((p) => p + 1);
+      setStreamAlert("SCADA telemetry stream offline or disconnected");
+    }
+  }, [mode, auditSvc, streamAlert]);
+
+  useEffect(() => {
+    setStreamPoints([]);
+    sampleIndex.current = 0;
+    setStreamAlert(null);
+    setPollErrors(0);
+
+    pollScada();
+    fetchVerdicts();
+    pollRef.current = setInterval(pollScada, 1200);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [mode, pollScada, fetchVerdicts]);
+
+  const handleAudit = async () => {
+    setAuditing(true);
+    setAuditError(null);
+    setAuditResult(null);
+    try {
+      const res = await auditSvc.triggerAudit({
+        recycler_id: recyclerId.trim(),
+        plant_id: plantId.trim(),
+        category,
+        volume_tons: parseFloat(volumeTons) || 250.0,
+        simulate_spoof: mode === "RESISTIVE_SPOOF",
       });
       setAuditResult(res);
-    } catch {
-      setAuditResult({
-        audit_id: `AUD-${Date.now()}`,
-        audit_verdict: mode === "SPOOFED" ? "REJECTED" : "APPROVED",
-        audit_hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        confidence_score: mode === "SPOOFED" ? 0.12 : 0.965,
-      });
+      fetchVerdicts();
+    } catch (e) {
+      setAuditError(e instanceof ApiError ? e.message : "Audit failed");
     } finally {
-      setIsAuditing(false);
+      setAuditing(false);
     }
   };
 
+  const torqueNm    = liveData?.physics.torque_nm ?? null;
+  const powerFactor = liveData?.physics.power_factor ?? null;
+  const activePower = liveData?.physics.active_power_kw ?? null;
+  const vfdFreq     = liveData?.physics.vfd_frequency_hz ?? null;
+
+  const pfGood     = powerFactor != null ? powerFactor >= 0.78 && powerFactor <= 0.96 : undefined;
+  const torqueGood = torqueNm != null ? torqueNm >= 8.0 : undefined;
+  const isGenuine  = liveData ? !liveData.jev_evaluation.is_spoofed : mode === "GENUINE";
+  const chartColor = isGenuine ? "#06b6d4" : "#f43f5e";
+
   return (
-    <div className="space-y-8 pb-12">
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+      <Breadcrumbs>
+        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>
+          Executive Hub
+        </Link>
+        <Typography color="primary.light" fontWeight={600}>
+          Workflow 3 — Quad-Core Fraud Audit
+        </Typography>
+      </Breadcrumbs>
+
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2 text-xs text-slate-400 mb-1">
-            <Link href="/" className="hover:text-slate-200">Executive Hub</Link>
-            <span>/</span>
-            <span className="text-cyan-400 font-medium">Workflow 3: Quad-Core Fraud Audit</span>
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
-            <Activity className="w-6 h-6 text-cyan-400" />
-            Quad-Core Fraud Audit: SCADA VFD Physics Visualizer
-          </h2>
-          <p className="text-sm text-slate-400">
-            TypeSafe Jev System 1 Reflex: Mathematically proving polymer melting vs IoT resistance heater spoofing
-          </p>
-        </div>
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "flex-start", justifyContent: "space-between" }}>
+        <Box>
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 0.5 }}>
+            <Typography variant="h5" fontWeight={700}>Quad-Core Fraud Audit & Live SCADA Telemetry</Typography>
+            <Chip label="Workflow 3" size="small" color="primary" />
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            Continuous real-time VFD telemetry inspection: VFD shaft torque, power factor physics, GST e-Way bills, and TypeSafe Jev reflexes.
+          </Typography>
+        </Box>
 
-        {/* Live Simulation Mode Toggle & Audit Trigger */}
-        <div className="flex items-center gap-3 self-start flex-wrap">
-          <div className="flex items-center gap-2 p-1.5 rounded-xl bg-slate-900 border border-slate-800">
-            <button
-              onClick={() => setMode("GENUINE")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                isGenuine
-                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Genuine Melt Signal
-            </button>
-            <button
-              onClick={() => setMode("SPOOFED")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                !isGenuine
-                  ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <AlertOctagon className="w-3.5 h-3.5" />
-              Inject Fake Heaters (Spoof)
-            </button>
-          </div>
-
-          <button
-            onClick={handleRunAudit}
-            disabled={isAuditing}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 flex items-center space-x-1.5 shadow-md shadow-indigo-600/30 transition disabled:opacity-50"
+        {/* Telemetry Stream Mode Switcher */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={600}>Telemetry Input Mode:</Typography>
+          <ToggleButtonGroup
+            value={mode}
+            exclusive
+            onChange={(_, val) => val && setMode(val)}
+            size="small"
           >
-            <ShieldCheck className="w-4 h-4" />
-            <span>{isAuditing ? "Auditing Stream..." : "Run Quad-Core Audit"}</span>
-          </button>
-        </div>
-      </div>
+            <ToggleButton value="GENUINE" sx={{ px: 2, fontSize: "0.75rem", fontWeight: 700 }}>
+              Genuine Extrusion
+            </ToggleButton>
+            <ToggleButton value="RESISTIVE_SPOOF" sx={{ px: 2, fontSize: "0.75rem", fontWeight: 700, color: "error.main" }}>
+              Resistive Spoof (Heaters)
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+      </Box>
 
-      {/* Audit Hash Output Badge if Run */}
-      {auditResult && (
-        <div
-          className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs ${
-            auditResult.audit_verdict === "APPROVED"
-              ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-200"
-              : "bg-rose-950/40 border-rose-500/50 text-rose-200"
-          }`}
-        >
-          <div className="flex items-center space-x-2">
-            {auditResult.audit_verdict === "APPROVED" ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+      {streamAlert && <Alert severity="warning">{streamAlert}</Alert>}
+
+      {mode === "RESISTIVE_SPOOF" && (
+        <Alert severity="error" icon={<ErrorIcon />}>
+          <strong>Fraud Injection Mode Active:</strong> Simulating uncoupled motor or space heaters attempting to generate fraudulent CPCB credits without physical polymer melting.
+        </Alert>
+      )}
+
+      {/* Real-Time Physical Sensor Gauges */}
+      <Grid container spacing={2}>
+        <Grid item xs={12} sm={6} md={3}>
+          <GaugeCard
+            label="Viscous Screw Torque"
+            value={torqueNm}
+            unit="Nm"
+            warning={torqueGood ? "Viscous Polymer Load Verified" : "Torque Below Threshold (≥8.0 Nm)"}
+            good={torqueGood}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <GaugeCard
+            label="Motor Power Factor"
+            value={powerFactor}
+            unit="cos φ"
+            warning={pfGood ? "Inductive Motor Range (0.78–0.96)" : "Near-Unity / Resistive Spoof"}
+            good={pfGood}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <GaugeCard
+            label="Active Electrical Power"
+            value={activePower}
+            unit="kW"
+            warning={activePower != null && activePower > 5 ? "Load Active" : "No Power"}
+            good={activePower != null && activePower > 5}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <GaugeCard
+            label="VFD Output Frequency"
+            value={vfdFreq}
+            unit="Hz"
+            warning="Line Synchronized"
+            good={true}
+          />
+        </Grid>
+      </Grid>
+
+      {/* Real-Time Oscilloscope */}
+      <Card variant="outlined">
+        <CardContent>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  bgcolor: isGenuine ? "secondary.main" : "error.main",
+                  boxShadow: `0 0 8px ${isGenuine ? "#06b6d4" : "#f43f5e"}`,
+                }}
+              />
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700} fontFamily="monospace">
+                  Live SCADA Extruder Screw Torque Telemetry (Nm)
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  High-frequency physical load sensor feed · Minimum verification threshold: 8.0 Nm
+                </Typography>
+              </Box>
+            </Box>
+            <Chip
+              label={isGenuine ? "GENUINE MECHANICAL MELT" : "SUSPICIOUS RESISTIVE LOAD"}
+              size="small"
+              color={isGenuine ? "success" : "error"}
+              sx={{ fontFamily: "monospace", fontSize: "0.7rem", fontWeight: 700 }}
+            />
+          </Box>
+
+          <Box sx={{ height: 220, bgcolor: "#030712", border: "1px solid rgba(148,163,184,0.15)", borderRadius: 2, p: 1 }}>
+            {streamPoints.length === 0 ? (
+              <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <CircularProgress size={24} color="secondary" />
+              </Box>
             ) : (
-              <AlertOctagon className="w-4 h-4 text-rose-400" />
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={streamPoints}>
+                  <XAxis dataKey="t" hide />
+                  <YAxis domain={[0, 100]} tick={{ fill: "#475569", fontSize: 10 }} width={32} />
+                  <RTooltip
+                    contentStyle={{ background: "#0f172a", border: "1px solid rgba(148,163,184,0.12)", borderRadius: 6, fontSize: 11 }}
+                    formatter={(v: any) => [`${v} Nm`, "Torque"]}
+                    labelFormatter={() => ""}
+                  />
+                  <ReferenceLine y={8} stroke="#f43f5e" strokeDasharray="3 3" label={{ value: "Min Threshold (8 Nm)", fill: "#f43f5e", fontSize: 10, position: "insideTopRight" }} />
+                  <Line type="monotone" dataKey="nm" stroke={chartColor} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
             )}
-            <span>
-              <strong>Verdict: {auditResult.audit_verdict}</strong> (Audit ID: {auditResult.audit_id})
-            </span>
-          </div>
-          <div className="font-mono text-[11px] text-slate-300 truncate max-w-md">
-            SHA-256: {auditResult.audit_hash}
-          </div>
-        </div>
-      )}
+          </Box>
+        </CardContent>
+      </Card>
 
-      {/* Alert Banner if Spoofed */}
-      {!isGenuine && (
-        <div className="p-5 rounded-2xl bg-rose-950/40 border border-rose-500/60 text-rose-200 space-y-2 glow-rose animate-fadeIn">
-          <div className="flex items-center space-x-2 text-rose-400 font-bold text-base">
-            <AlertOctagon className="w-6 h-6 shrink-0 animate-bounce" />
-            <span>CRITICAL AUDIT ALERT: IOT MECHANICAL FRAUD DETECTED</span>
-          </div>
-          <p className="text-xs text-rose-300/90 leading-relaxed">
-            <strong>Physics Anomaly:</strong> Active electrical power draw is {activePower} kW with near-unity power factor ({powerFactor}), but mechanical screw torque is only {torque} Nm. The plant has connected static resistive heating elements to simulate energy consumption without running viscous polymer extruders. <strong>Compliance credit issuance blocked.</strong>
-          </p>
-        </div>
-      )}
+      {/* Audit Trigger & Verdicts */}
+      <Grid container spacing={3}>
+        {/* Trigger Panel */}
+        <Grid item xs={12} md={5}>
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="subtitle1" fontWeight={700} mb={1}>
+                Trigger Quad-Core Fraud Audit
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+                Run instantaneous zero-trust validation across SCADA, GST e-Way, and thermodynamic energy balance.
+              </Typography>
 
-      {/* Oscilloscope & Live VFD Waveform */}
-      <div className="p-6 rounded-2xl glass-panel space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-3 h-3 rounded-full bg-cyan-400 animate-ping" />
-            <div>
-              <h3 className="text-base font-bold text-white font-mono flex items-center gap-2">
-                SCADA/VFD Real-Time Oscilloscope: Extruder Screw Torque (Nm)
-              </h3>
-              <p className="text-xs text-slate-400">
-                Plant: <strong className="text-slate-200">RECYC-DELHI-01 (Line 2)</strong> · Motor: 110kW 3-Phase Induction
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 font-mono text-xs">
-            <span className="text-slate-400">Sampling:</span>
-            <span className="text-cyan-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">50 Hz</span>
-          </div>
-        </div>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <TextField
+                  label="Recycler ID"
+                  value={recyclerId}
+                  onChange={(e) => setRecyclerId(e.target.value)}
+                  fullWidth
+                />
+                <TextField
+                  label="Plant ID / Extrusion Line"
+                  value={plantId}
+                  onChange={(e) => setPlantId(e.target.value)}
+                  fullWidth
+                />
+                <TextField
+                  select
+                  label="Plastic Category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="cat_i_rigid">Category I — Rigid Plastic</MenuItem>
+                  <MenuItem value="cat_ii_flexible">Category II — Flexible Plastic</MenuItem>
+                  <MenuItem value="cat_iii_mlp">Category III — Multi-Layer Plastic</MenuItem>
+                  <MenuItem value="cat_iv_compostable">Category IV — Compostable</MenuItem>
+                </TextField>
+                <TextField
+                  label="Claimed Melt Volume (Tons)"
+                  type="number"
+                  value={volumeTons}
+                  onChange={(e) => setVolumeTons(e.target.value)}
+                  fullWidth
+                />
 
-        {/* Oscilloscope Display */}
-        <div className="h-56 w-full rounded-xl bg-[#030712] border border-cyan-500/20 relative scada-grid flex flex-col justify-between p-4 overflow-hidden">
-          <div className="flex justify-between items-center text-[10px] font-mono text-slate-400 z-10">
-            <span>CH1: MOTOR TORQUE (Nm)</span>
-            <span className={isGenuine ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
-              {isGenuine ? "VISCOUS SHEAR DETECTED" : "UNLOADED / SPOOFED RESISTIVE"}
-            </span>
-          </div>
+                <Button
+                  variant="contained"
+                  color={mode === "RESISTIVE_SPOOF" ? "error" : "primary"}
+                  startIcon={auditing ? <CircularProgress size={14} color="inherit" /> : <FlashOnIcon />}
+                  onClick={handleAudit}
+                  disabled={auditing}
+                  sx={{ py: 1.2, fontWeight: 700 }}
+                >
+                  {auditing ? "Executing Quad-Core Forensic Audit…" : "Trigger Forensic Audit"}
+                </Button>
+              </Box>
 
-          {/* SVG Waveform Curve */}
-          <div className="absolute inset-0 flex items-center px-4 pt-6 pb-4">
-            <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
-              <defs>
-                <linearGradient id="waveformGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor={isGenuine ? "#06b6d4" : "#f43f5e"} stopOpacity="0.4" />
-                  <stop offset="100%" stopColor={isGenuine ? "#06b6d4" : "#f43f5e"} stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-
-              {/* Area under curve */}
-              <polygon
-                points={`0,100 ${streamPoints
-                  .map((val, idx) => `${(idx / (streamPoints.length - 1)) * 100},${100 - (val / 90) * 80}`)
-                  .join(" ")} 100,100`}
-                fill="url(#waveformGrad)"
-              />
-
-              {/* Line path */}
-              <polyline
-                fill="none"
-                stroke={isGenuine ? "#06b6d4" : "#f43f5e"}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={streamPoints
-                  .map((val, idx) => `${(idx / (streamPoints.length - 1)) * 100},${100 - (val / 90) * 80}`)
-                  .join(" ")}
-              />
-            </svg>
-          </div>
-
-          {/* Grid annotations */}
-          <div className="flex justify-between items-end text-[10px] font-mono text-slate-400 z-10">
-            <span>0 Nm</span>
-            <span className="text-slate-400">Current: {torque} Nm</span>
-            <span>100 Nm</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Physics Gauges & Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Gauge 1: Power Factor */}
-        <div className="p-5 rounded-2xl glass-card space-y-3">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-semibold uppercase">Power Factor (cos φ)</span>
-            <Zap className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold font-mono text-white">{powerFactor}</div>
-            <p className="text-xs mt-1">
-              {isGenuine ? (
-                <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> 0.85 Inductive Motor Work
-                </span>
-              ) : (
-                <span className="text-rose-400 font-semibold flex items-center gap-1">
-                  <AlertOctagon className="w-3.5 h-3.5" /> 0.99 Pure Resistive Heating
-                </span>
+              {auditError && <Alert severity="error" sx={{ mt: 2 }}>{auditError}</Alert>}
+              {auditResult && (
+                <Alert
+                  severity={auditResult.audit_verdict === "APPROVED" ? "success" : "error"}
+                  sx={{ mt: 2 }}
+                >
+                  <Typography variant="subtitle2" fontWeight={700}>
+                    Verdict: {auditResult.audit_verdict}
+                  </Typography>
+                  <Typography variant="caption" display="block" color="text.secondary">
+                    Audit ID: {auditResult.audit_id} · Confidence: {Math.round((auditResult.confidence_score ?? 0) * 100)}%
+                  </Typography>
+                  {auditResult.audit_hash && (
+                    <Typography variant="caption" display="block" fontFamily="monospace" sx={{ wordBreak: "break-all", mt: 0.5 }}>
+                      SHA-256: {auditResult.audit_hash}
+                    </Typography>
+                  )}
+                </Alert>
               )}
-            </p>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        {/* Gauge 2: Active Power Draw */}
-        <div className="p-5 rounded-2xl glass-card space-y-3">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-semibold uppercase">Active Power Draw</span>
-            <Flame className="w-4 h-4 text-amber-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold font-mono text-white">
-              {activePower} <span className="text-sm font-sans font-medium text-slate-400">kW</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Therm balance: {isGenuine ? "0.38 kWh/kg" : "N/A (No throughput)"}
-            </p>
-          </div>
-        </div>
+        {/* Audit Verdicts History */}
+        <Grid item xs={12} md={7}>
+          <Card variant="outlined" sx={{ height: "100%" }}>
+            <CardContent>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                <Typography variant="subtitle1" fontWeight={700}>
+                  Cryptographic Audit Verdict Ledger ({verdicts.length})
+                </Typography>
+                <Button size="small" variant="outlined" startIcon={<RefreshIcon />} onClick={fetchVerdicts}>
+                  Refresh
+                </Button>
+              </Box>
 
-        {/* Gauge 3: Extrusion Melt Rate */}
-        <div className="p-5 rounded-2xl glass-card space-y-3">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-semibold uppercase">Physical Melt Rate</span>
-            <Scale className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold font-mono text-cyan-400">
-              {meltRate} <span className="text-sm font-sans font-medium text-slate-400">kg/h</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              {isGenuine ? "Correlated to die pressure" : "Zero throughput detected"}
-            </p>
-          </div>
-        </div>
-
-        {/* Gauge 4: Jev Reflex Confidence */}
-        <div className="p-5 rounded-2xl glass-card space-y-3">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-semibold uppercase">Jev Reflex Confidence</span>
-            <Cpu className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold font-mono text-emerald-400">{jevConfidence}%</div>
-            <p className="text-xs text-slate-400 mt-1">
-              Status: <strong className={isGenuine ? "text-emerald-400" : "text-rose-400"}>{jevVerdict}</strong>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+              {verdicts.length === 0 ? (
+                <Alert severity="info">No forensic audits recorded yet. Trigger an audit to create a verifiable record.</Alert>
+              ) : (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  {verdicts.map((v) => {
+                    const approved = v.audit_verdict === "APPROVED";
+                    return (
+                      <Card
+                        key={v.audit_id}
+                        variant="outlined"
+                        sx={{
+                          p: 1.5,
+                          borderColor: approved ? "rgba(16,185,129,0.3)" : "rgba(244,63,94,0.3)",
+                          bgcolor: approved ? "rgba(16,185,129,0.03)" : "rgba(244,63,94,0.03)",
+                        }}
+                      >
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <Box>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              {approved ? <CheckCircleIcon color="success" fontSize="small" /> : <ErrorIcon color="error" fontSize="small" />}
+                              <Typography variant="subtitle2" fontWeight={700} fontFamily="monospace">
+                                {v.audit_id}
+                              </Typography>
+                            </Box>
+                            <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
+                              {v.recycler_id} · {v.plant_id} · {v.plastic_category} ({v.reported_volume_tons} T)
+                            </Typography>
+                          </Box>
+                          <Chip
+                            label={v.audit_verdict}
+                            size="small"
+                            color={approved ? "success" : "error"}
+                            sx={{ fontWeight: 700 }}
+                          />
+                        </Box>
+                        {v.audit_hash && (
+                          <Typography variant="caption" fontFamily="monospace" color="text.secondary" display="block" sx={{ wordBreak: "break-all", mt: 1 }}>
+                            Hash: {v.audit_hash}
+                          </Typography>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
   );
 }

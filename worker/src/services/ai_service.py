@@ -5,12 +5,17 @@ Real LLM integration for:
 - Auction bidding strategy evaluation
 - Brand liability optimization
 - Dynamic planning and reasoning
+
+Supports two modes:
+1. Vertex AI (Agent Platform) — uses ADC credentials, enterprise-grade endpoint
+2. Direct API Key — uses Google AI Studio API key (fallback for local dev)
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 import google.generativeai as genai
@@ -27,7 +32,12 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiAIService:
-    """Production-ready Gemini AI service with error handling and structured outputs."""
+    """Production-ready Gemini AI service with error handling and structured outputs.
+
+    Supports both Vertex AI (Agent Platform) and direct API key modes.
+    Vertex AI is preferred when GCP_PROJECT_ID is configured, as it provides
+    enterprise-grade endpoints with the same Gemini models at identical pricing.
+    """
 
     def __init__(
         self,
@@ -35,24 +45,57 @@ class GeminiAIService:
         model_name: str = "gemini-2.0-flash-exp",
         temperature: float = 0.2,
         max_tokens: int = 8192,
+        gcp_project_id: str | None = None,
+        gcp_region: str = "asia-south1",
     ) -> None:
         """Initialize Gemini service.
 
         Args:
-            api_key: Google AI Studio API key
+            api_key: Google AI Studio API key (used if Vertex AI not available)
             model_name: Gemini model identifier
             temperature: Sampling temperature (0.0-1.0)
             max_tokens: Maximum output tokens
+            gcp_project_id: GCP project ID for Vertex AI mode
+            gcp_region: GCP region for Vertex AI endpoint
         """
-        if not api_key or not api_key.strip():
-            raise ValueError(
-                "GEMINI_API_KEY is required. Get one at https://aistudio.google.com/app/apikey"
-            )
-
-        genai.configure(api_key=api_key)
         self.model_name = model_name
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.using_vertex = False
+
+        # Try Vertex AI first (enterprise-grade, uses ADC credentials)
+        if gcp_project_id:
+            try:
+                import vertexai
+                from vertexai.generative_models import GenerativeModel as VertexModel
+
+                vertexai.init(project=gcp_project_id, location=gcp_region)
+                self.using_vertex = True
+                self.gcp_project_id = gcp_project_id
+                self.gcp_region = gcp_region
+                logger.info(
+                    f"Initialized Vertex AI Gemini: project={gcp_project_id}, "
+                    f"region={gcp_region}, model={model_name}"
+                )
+            except ImportError:
+                logger.warning(
+                    "google-cloud-aiplatform not installed. "
+                    "Falling back to direct API key mode."
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Vertex AI init failed ({e}). Falling back to API key mode."
+                )
+
+        # Fallback to direct API key mode
+        if not self.using_vertex:
+            if not api_key or not api_key.strip():
+                raise ValueError(
+                    "GEMINI_API_KEY is required when Vertex AI is not available. "
+                    "Get one at https://aistudio.google.com/app/apikey"
+                )
+            genai.configure(api_key=api_key)
+            logger.info(f"Initialized Gemini (API key mode): model={model_name}")
 
         # Configure safety settings (less restrictive for business data)
         self.safety_settings = {
@@ -68,7 +111,8 @@ class GeminiAIService:
         )
 
         logger.info(
-            f"Initialized GeminiAIService with model={model_name}, temp={temperature}"
+            f"GeminiAIService ready: mode={'vertex_ai' if self.using_vertex else 'api_key'}, "
+            f"model={model_name}, temp={temperature}"
         )
 
     @retry(
@@ -339,20 +383,28 @@ def initialize_gemini_service(
     model_name: str = "gemini-2.0-flash-exp",
     temperature: float = 0.2,
     max_tokens: int = 8192,
+    gcp_project_id: str | None = None,
+    gcp_region: str = "asia-south1",
 ) -> GeminiAIService:
     """Initialize the global Gemini service instance.
 
     Args:
-        api_key: Google AI API key
+        api_key: Google AI API key (fallback when Vertex AI unavailable)
         model_name: Model identifier
         temperature: Sampling temperature
         max_tokens: Max output tokens
+        gcp_project_id: GCP project for Vertex AI mode
+        gcp_region: GCP region for Vertex AI endpoint
 
     Returns:
         Initialized GeminiAIService
     """
     global gemini_service
-    gemini_service = GeminiAIService(api_key, model_name, temperature, max_tokens)
+    gemini_service = GeminiAIService(
+        api_key, model_name, temperature, max_tokens,
+        gcp_project_id=gcp_project_id,
+        gcp_region=gcp_region,
+    )
     return gemini_service
 
 

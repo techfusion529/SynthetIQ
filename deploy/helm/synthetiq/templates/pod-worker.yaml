@@ -35,6 +35,16 @@ spec:
               value: {{ .Values.worker.env.MCP_SERVER_URL | quote }}
             - name: OLLAMA_HOST
               value: {{ .Values.worker.env.OLLAMA_HOST | quote }}
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: synthetiq-secrets
+                  key: GEMINI_API_KEY
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: synthetiq-secrets
+                  key: DATABASE_URL
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}
           livenessProbe:

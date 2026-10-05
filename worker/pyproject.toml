@@ -10,6 +10,7 @@ dependencies = [
     # Google AI & Cloud
     "google-adk>=1.0.0",
     "google-generativeai>=0.8.3",
+    "google-cloud-aiplatform>=1.70.0",
     "google-cloud-bigquery>=3.25.0",
     "google-cloud-pubsub>=2.23.0",
     "google-auth>=2.35.0",

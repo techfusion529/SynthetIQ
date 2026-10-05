@@ -13,8 +13,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.constants import API_V1_STR, CORS_ORIGINS, PROJECT_NAME
 from src.routes import (
+    agent_config_router,
     auctions_router,
     audit_router,
+    auth_router,
     companies_router,
     config_router,
     health_router,
@@ -23,6 +25,7 @@ from src.routes import (
     organizations_router,
     schedules_router,
     settlement_router,
+    users_router,
 )
 
 logger = logging.getLogger(__name__)
@@ -110,6 +113,7 @@ app.add_middleware(
 app.include_router(health_router)
 
 # ── Versioned API ─────────────────────────────────────────────────────────────
+app.include_router(auth_router,           prefix=API_V1_STR)
 app.include_router(health_router,       prefix=API_V1_STR)
 app.include_router(config_router,       prefix=API_V1_STR)
 app.include_router(orchestrator_router, prefix=API_V1_STR)
@@ -120,6 +124,8 @@ app.include_router(audit_router,        prefix=API_V1_STR)
 app.include_router(settlement_router,   prefix=API_V1_STR)
 app.include_router(schedules_router,    prefix=API_V1_STR)
 app.include_router(organizations_router, prefix=API_V1_STR)
+app.include_router(users_router,         prefix=API_V1_STR)
+app.include_router(agent_config_router,  prefix=API_V1_STR)
 
 if __name__ == "__main__":
     import uvicorn

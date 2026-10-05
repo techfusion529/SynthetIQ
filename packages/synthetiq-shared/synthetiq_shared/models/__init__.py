@@ -1,5 +1,10 @@
-"""Shared Pydantic domain models used by all SynthetIQ services."""
+"""Multi-tenant domain & ORM models — public exports."""
 
+# ORM Models (SQLAlchemy)
+from .agent_config import AgentConfiguration
+from .organization import DataSource, Organization, Schedule, User, WorkflowRun
+
+# Pydantic Domain Models
 from .company import CompanyERPConfig, CompanyProfile, OnboardedCompany
 from .regulatory import ConsentToOperate, ConversionFactor, GovernmentMandate
 from .liability import ERPSalesRecord, LiabilityReport, SourcingAllocation, SourcingPlan
@@ -8,6 +13,14 @@ from .audit import AuditVerdict, EWayBill, TelemetryReading, ThermodynamicSignat
 from .settlement import DigitalSignature, DispatchResult, EscrowPurchaseOrder, Form1
 
 __all__ = [
+    # ORM
+    "Organization",
+    "User",
+    "DataSource",
+    "AgentConfiguration",
+    "Schedule",
+    "WorkflowRun",
+    # Pydantic
     "OnboardedCompany",
     "CompanyProfile",
     "CompanyERPConfig",

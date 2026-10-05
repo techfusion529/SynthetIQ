@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Any
 
-from src.agents.base_adk import create_llm_agent, run_agent
+from .base_adk import create_llm_agent, run_agent
 
 logger = logging.getLogger(__name__)
 
@@ -15,19 +15,50 @@ logger = logging.getLogger(__name__)
 # Tool Functions
 # ---------------------------------------------------------------------------
 
-def query_erp_sales(company_id: str, fiscal_year: str) -> dict[str, Any]:
-    """Query ERP sales data for a company and fiscal year.
+async def _fetch_sales(company_id: str, fiscal_year: str) -> list[dict[str, Any]]:
+    from services.data_connector import get_connector_for_org
+    connector = await get_connector_for_org(company_id, purpose="erp_sales")
+    return await connector.query_sales_data(company_id, fiscal_year)
 
-    In production this calls the BigQuery / data-connector layer.
+
+def query_erp_sales(company_id: str, fiscal_year: str) -> dict[str, Any]:
+    """Query ERP sales data for a company and fiscal year via registered DataConnector.
 
     Args:
-        company_id: Company identifier
+        company_id: Company identifier (tenant key)
         fiscal_year: e.g. 'FY2026-27'
 
     Returns:
-        Dict with sales_records list
+        Dict with sales_records list and plastic categories
     """
-    # Placeholder — real implementation delegates to DataConnector (Phase 6)
+    try:
+        import asyncio
+        import concurrent.futures
+
+        # Check if already inside an active event loop
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, _fetch_sales(company_id, fiscal_year))
+                records = future.result(timeout=10.0)
+        else:
+            records = asyncio.run(_fetch_sales(company_id, fiscal_year))
+
+        if records:
+            return {
+                "company_id": company_id,
+                "fiscal_year": fiscal_year,
+                "sales_records": records,
+                "source": "dynamic_data_connector",
+                "currency": "INR",
+            }
+    except Exception as exc:
+        logger.warning(f"Could not load dynamic ERP sales via DataConnector ({exc}); using fallback seed")
+
     return {
         "company_id": company_id,
         "fiscal_year": fiscal_year,
@@ -37,6 +68,7 @@ def query_erp_sales(company_id: str, fiscal_year: str) -> dict[str, Any]:
             {"product_sku": "SKU-WRAP-MULTI",    "plastic_category": "cat_iii_mlp",       "plastic_weight_kg": 0.005, "units_sold": 500_000_000},
             {"product_sku": "SKU-COMPOST-BAG",   "plastic_category": "cat_iv_compostable","plastic_weight_kg": 0.020, "units_sold":  50_000_000},
         ],
+        "source": "fallback_seed",
         "currency": "INR",
     }
 

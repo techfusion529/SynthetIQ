@@ -1,502 +1,894 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Box from "@mui/material/Box";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import Alert from "@mui/material/Alert";
+import LinearProgress from "@mui/material/LinearProgress";
+import Skeleton from "@mui/material/Skeleton";
+import Divider from "@mui/material/Divider";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import Switch from "@mui/material/Switch";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import CircularProgress from "@mui/material/CircularProgress";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import ScaleIcon from "@mui/icons-material/Scale";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import MonetizationOnIcon from "@mui/icons-material/MonetizationOn";
+import SpeedIcon from "@mui/icons-material/Speed";
+import SecurityIcon from "@mui/icons-material/Security";
+import GavelIcon from "@mui/icons-material/Gavel";
+import DescriptionIcon from "@mui/icons-material/Description";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import HubIcon from "@mui/icons-material/Hub";
+
+import { useCompany } from "./lib/contexts/CompanyContext";
 import {
-  Activity,
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  ChevronRight,
-  Clock,
-  Coins,
-  Cpu,
-  Database,
-  ExternalLink,
-  Flame,
-  Layers,
-  Play,
-  RotateCw,
-  Scale,
-  ShieldAlert,
-  ShieldCheck,
-  TrendingUp,
-  XCircle,
-  Zap,
-} from "lucide-react";
-import {
-  E2ERunResult,
-  fetchAuditVerdicts,
-  fetchComplianceRuns,
-  fetchConfig,
-  fetchLiabilityReport,
-  runE2ECompliance,
-  SystemConfig,
-} from "@/app/lib/api";
+  useComplianceService,
+  useLiabilityService,
+  useAuditService,
+  useConfigService,
+  useAuctionService,
+  useSettlementService,
+} from "./lib/hooks/useServices";
+import { ApiError } from "./lib/services/base.service";
+import type { E2ERunResult, E2EStep } from "./lib/types/compliance.types";
+import type { LiabilityReport } from "./lib/types/liability.types";
+import type { AuditVerdict } from "./lib/types/audit.types";
+import type { SystemConfig } from "./lib/types/config.types";
+import type { Auction } from "./lib/types/auction.types";
+import type { EscrowPO } from "./lib/types/settlement.types";
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, Cell } from "recharts";
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+function KpiCard({
+  label,
+  value,
+  unit,
+  icon,
+  color,
+  loading,
+  error,
+  subtitle,
+}: {
+  label: string;
+  value?: string | number | null;
+  unit?: string;
+  icon: React.ReactNode;
+  color: string;
+  loading: boolean;
+  error?: string | null;
+  subtitle?: string;
+}) {
+  return (
+    <Card sx={{ height: "100%", position: "relative", overflow: "hidden" }}>
+      <CardContent sx={{ p: "20px !important" }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <Typography variant="caption" color="text.secondary" textTransform="uppercase" letterSpacing="0.08em" fontWeight={700}>
+            {label}
+          </Typography>
+          <Box sx={{ color, opacity: 0.9 }}>{icon}</Box>
+        </Box>
+        {loading ? (
+          <Skeleton variant="text" width="65%" height={48} sx={{ mt: 1 }} />
+        ) : error ? (
+          <Alert severity="error" sx={{ mt: 1, py: 0.5, fontSize: "0.75rem" }}>{error}</Alert>
+        ) : (
+          <>
+            <Typography variant="h4" fontWeight={700} sx={{ mt: 1.5, color }} fontFamily="monospace">
+              {value ?? "—"}
+              {unit && (
+                <Typography component="span" variant="body2" color="text.secondary" fontFamily="sans-serif" ml={0.75} fontWeight={500}>
+                  {unit}
+                </Typography>
+              )}
+            </Typography>
+            {subtitle && (
+              <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
+                {subtitle}
+              </Typography>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Stage Execution Badge ───────────────────────────────────────────────────
+function StageBadge({ step }: { step: E2EStep }) {
+  const isCompleted = step.status === "COMPLETED";
+  const isBlocked = step.status.includes("BLOCKED") || step.status.includes("HALTED") || step.status.includes("FAIL");
+  const color = isCompleted ? "success" : isBlocked ? "error" : "warning";
+
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        p: 1.5,
+        height: "100%",
+        bgcolor: isCompleted ? "rgba(16,185,129,0.03)" : isBlocked ? "rgba(244,63,94,0.04)" : "background.paper",
+        borderColor: isCompleted ? "rgba(16,185,129,0.3)" : isBlocked ? "rgba(244,63,94,0.3)" : "divider",
+      }}
+    >
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
+        <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase">
+          Stage {step.step}
+        </Typography>
+        <Chip label={step.status} size="small" color={color} sx={{ height: 18, fontSize: "0.65rem", fontWeight: 700 }} />
+      </Box>
+      <Typography variant="body2" fontWeight={700} noWrap>{step.name}</Typography>
+      <Typography variant="caption" color="text.secondary" display="block" noWrap>{step.service}</Typography>
+    </Card>
+  );
+}
+
+// ─── Dynamic Category Palettes ───────────────────────────────────────────────
+const CATEGORY_COLORS: Record<string, string> = {
+  cat_i_rigid: "#4f46e5",
+  cat_ii_flexible: "#06b6d4",
+  cat_iii_mlp: "#10b981",
+  cat_iv_compostable: "#f59e0b",
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  cat_i_rigid: "Cat I — Rigid Plastic",
+  cat_ii_flexible: "Cat II — Flexible Plastic",
+  cat_iii_mlp: "Cat III — Multi-Layer (MLP)",
+  cat_iv_compostable: "Cat IV — Compostable",
+};
 
 export default function ExecutiveOverviewPage() {
-  const [isRunning, setIsRunning] = useState(false);
+  const router = useRouter();
+  const { companyId, company } = useCompany();
+
+  // Service hooks
+  const complianceSvc = useComplianceService();
+  const liabilitySvc  = useLiabilityService();
+  const auditSvc      = useAuditService();
+  const configSvc     = useConfigService();
+  const auctionSvc    = useAuctionService();
+  const settlementSvc = useSettlementService();
+
+  // System & Engine state
+  const [config, setConfig] = useState<SystemConfig | null>(null);
+
+  // Form controls for E2E Run (Zero Hardcoding!)
+  const [category, setCategory]         = useState("cat_i_rigid");
+  const [volumeTons, setVolumeTons]     = useState("250");
+  const [fiscalYear, setFiscalYear]     = useState("FY2026-27");
   const [simulateSpoof, setSimulateSpoof] = useState(false);
-  const [latestRun, setLatestRun] = useState<E2ERunResult | null>(null);
-  const [allRuns, setAllRuns] = useState<E2ERunResult[]>([]);
-  const [engineConfig, setEngineConfig] = useState<SystemConfig | null>(null);
-  const [liabilityData, setLiabilityData] = useState<any>(null);
-  const [auditVerdicts, setAuditVerdicts] = useState<any[]>([]);
+
+  // Runtime Orchestrator execution state
+  const [running, setRunning]           = useState(false);
+  const [runError, setRunError]         = useState<string | null>(null);
+  const [latestRun, setLatestRun]       = useState<E2ERunResult | null>(null);
+  const [runs, setRuns]                 = useState<E2ERunResult[]>([]);
+  const [runsLoading, setRunsLoading]   = useState(true);
+
+  // Liability & Marketplace state
+  const [liability, setLiability]               = useState<LiabilityReport | null>(null);
+  const [liabilityLoading, setLiabilityLoading] = useState(true);
+  const [liabilityError, setLiabilityError]     = useState<string | null>(null);
+
+  const [auctions, setAuctions]                 = useState<Auction[]>([]);
+  const [pos, setPos]                           = useState<EscrowPO[]>([]);
+  const [audits, setAudits]                     = useState<AuditVerdict[]>([]);
+  const [auditsLoading, setAuditsLoading]       = useState(true);
+
+  const auditPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── 1. Fetch Engine Config ──────────────────────────────────────────────────
+  const fetchConfig = useCallback(async () => {
+    try {
+      const cfg = await configSvc.getConfig();
+      setConfig(cfg);
+    } catch {
+      // non-blocking
+    }
+  }, [configSvc]);
+
+  // ── 2. Fetch Liability Report ───────────────────────────────────────────────
+  const fetchLiability = useCallback(async () => {
+    if (!companyId) return;
+    setLiabilityLoading(true);
+    setLiabilityError(null);
+    try {
+      const r = await liabilitySvc.getReport(companyId, fiscalYear);
+      setLiability(r);
+    } catch (e) {
+      setLiabilityError(e instanceof ApiError ? e.message : "Failed to load corporate liability report");
+    } finally {
+      setLiabilityLoading(false);
+    }
+  }, [companyId, fiscalYear, liabilitySvc]);
+
+  // ── 3. Fetch Compliance Runs ────────────────────────────────────────────────
+  const fetchRuns = useCallback(async () => {
+    setRunsLoading(true);
+    try {
+      const runList = await complianceSvc.listRuns();
+      setRuns(runList);
+      if (runList.length > 0) {
+        setLatestRun(runList[0]);
+      }
+    } catch {
+      // non-blocking
+    } finally {
+      setRunsLoading(false);
+    }
+  }, [complianceSvc]);
+
+  // ── 4. Fetch Audits, Auctions, Settlement POs ───────────────────────────────
+  const fetchMarketAndAudits = useCallback(async () => {
+    setAuditsLoading(true);
+    try {
+      const [verdictList, auctionList, poList] = await Promise.all([
+        auditSvc.listVerdicts().catch(() => []),
+        auctionSvc.listAuctions().catch(() => []),
+        settlementSvc.listPOs().catch(() => []),
+      ]);
+      setAudits(verdictList);
+      setAuctions(auctionList);
+      setPos(poList);
+    } catch {
+      // non-blocking
+    } finally {
+      setAuditsLoading(false);
+    }
+  }, [auditSvc, auctionSvc, settlementSvc]);
+
+  // Initial loads & polling
+  useEffect(() => {
+    fetchConfig();
+  }, [fetchConfig]);
 
   useEffect(() => {
-    fetchConfig().then((cfg) => {
-      if (cfg) setEngineConfig(cfg);
-    });
-    fetchComplianceRuns().then((runs) => {
-      if (runs && runs.length > 0) {
-        setAllRuns(runs);
-        setLatestRun(runs[0]);
-      }
-    });
-    fetchLiabilityReport("COMP-IN-001").then((rep) => {
-      if (rep) setLiabilityData(rep);
-    });
-    fetchAuditVerdicts().then((verdicts) => {
-      if (verdicts) setAuditVerdicts(verdicts);
-    });
-  }, []);
+    fetchLiability();
+  }, [fetchLiability]);
 
-  const handleLaunchComplianceRun = async () => {
-    setIsRunning(true);
+  useEffect(() => {
+    fetchRuns();
+    fetchMarketAndAudits();
+    auditPollRef.current = setInterval(fetchMarketAndAudits, 20_000);
+    return () => {
+      if (auditPollRef.current) clearInterval(auditPollRef.current);
+    };
+  }, [fetchRuns, fetchMarketAndAudits]);
+
+  // ── Launch Full E2E Compliance Run ─────────────────────────────────────────
+  const handleLaunch = async () => {
+    if (!companyId) return;
+    setRunning(true);
+    setRunError(null);
     try {
-      const result = await runE2ECompliance({
-        company_id: "COMP-IN-001",
-        fiscal_year: "FY2026-27",
-        category: "cat_i_rigid",
-        volume_tons: 250.0,
+      const result = await complianceSvc.runE2E({
+        company_id: companyId,
+        fiscal_year: fiscalYear,
+        category,
+        volume_tons: parseFloat(volumeTons) || 250.0,
         simulate_spoof: simulateSpoof,
       });
       setLatestRun(result);
-      setAllRuns((prev) => [result, ...prev]);
-
-      // Refresh audits and liability
-      fetchAuditVerdicts().then((v) => v && setAuditVerdicts(v));
-      fetchLiabilityReport("COMP-IN-001").then((r) => r && setLiabilityData(r));
-    } catch (e: any) {
-      console.error("Compliance run error:", e);
+      fetchRuns();
+      fetchLiability();
+      fetchMarketAndAudits();
+    } catch (e) {
+      setRunError(e instanceof ApiError ? e.message : "Compliance execution failed");
     } finally {
-      setIsRunning(false);
+      setRunning(false);
     }
   };
 
-  const grossTons = liabilityData?.current_year_liability_tons || 18500;
-  const netDeficitTons = liabilityData?.net_liability_tons || 17200;
-  const amortizedDebtTons = liabilityData?.amortized_debt_tons || 1200;
-  const escrowCr = latestRun?.status === "SUCCESS_FULLY_COMPLIANT" ? "₹1.95" : "₹0.00";
-  const confidenceScore = latestRun?.steps?.[2]?.data?.confidence_score
-    ? `${Math.round(latestRun.steps[2].data.confidence_score * 100)}%`
-    : "96.5%";
+  // ── Derived dynamic KPI values directly from live API responses ─────────────
+  const grossTons       = liability?.current_year_liability_tons ?? null;
+  const netDeficit      = liability?.net_liability_tons ?? null;
+  const amortizedDebt   = liability?.amortized_debt_tons ?? null;
+
+  // Escrow volume calculated from active POs
+  const totalEscrowInr  = pos.reduce((sum, p) => sum + (p.total_amount_inr || 0), 0);
+
+  // Verification confidence from actual audits
+  const approvedAudits  = audits.filter((a) => a.audit_verdict === "APPROVED").length;
+  const auditApprovalPct = audits.length > 0 ? Math.round((approvedAudits / audits.length) * 100) : null;
+
+  // Dynamic Category Obligation Chart data from liability breakdown
+  const categoryData = liability?.breakdown_by_category
+    ? Object.entries(liability.breakdown_by_category).map(([key, tons]) => ({
+        key,
+        label: CATEGORY_LABELS[key] ?? key,
+        tons: typeof tons === "number" ? tons : parseFloat(String(tons)) || 0,
+        color: CATEGORY_COLORS[key] ?? "#6366f1",
+      }))
+    : [];
+
+  const runInProgress = running || latestRun?.status === "RUNNING";
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Hero Action Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl glass-panel relative overflow-hidden">
-        <div className="absolute -right-16 -top-16 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="space-y-1 z-10">
-          <div className="flex items-center space-x-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-              Autonomous Multi-Agent Orchestrator
-            </span>
-            <span className="text-xs text-slate-400">Enterprise PIBO Portal</span>
-            <span className="text-xs font-mono text-cyan-400 px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20">
-              {engineConfig ? `${engineConfig.gemini.model} • ${engineConfig.jev_mode.mode}` : "Temporal Worker Active"}
-            </span>
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight text-white">
-            EPR Compliance & Anti-Fraud Cockpit
-          </h2>
-          <p className="text-sm text-slate-400 max-w-2xl">
-            Temporal-orchestrated multi-agent pipeline executing across SAP sales records, double auctions,
-            and real-time 50Hz SCADA physics telemetry for statutory CPCB fulfillment.
-          </p>
-        </div>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 5 }}>
+      {/* ── Top System Engine Status Strip ──────────────────────────────────── */}
+      <Card variant="outlined" sx={{ bgcolor: "rgba(15,23,42,0.6)", backdropFilter: "blur(8px)" }}>
+        <CardContent sx={{ py: "12px !important", px: 2 }}>
+          <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+              <Chip
+                icon={<SecurityIcon fontSize="small" />}
+                label="Zero-Trust Architecture"
+                size="small"
+                color="primary"
+                sx={{ fontWeight: 700 }}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                System 2: <strong style={{ color: "#f1f5f9" }}>{config?.gemini?.model ?? "Gemini 3.8 Flash"}</strong>
+              </Typography>
+              <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
+              <Typography variant="caption" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                System 1: <strong style={{ color: "#06b6d4" }}>{config?.jev_mode?.mode ?? "Physics Ensemble"}</strong>
+              </Typography>
+              <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
+              <Typography variant="caption" color="text.secondary">
+                Torque Cutoff: ≥ {config?.jev_mode?.torque_threshold_nm ?? 8.0} Nm
+              </Typography>
+            </Box>
 
-        {/* Action Controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 z-10">
-          {/* Spoof injection toggle */}
-          <label className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-700/80 cursor-pointer select-none text-xs">
-            <input
-              type="checkbox"
-              checked={simulateSpoof}
-              onChange={(e) => setSimulateSpoof(e.target.checked)}
-              className="accent-rose-500 rounded"
-            />
-            <span className={simulateSpoof ? "text-rose-400 font-semibold" : "text-slate-400"}>
-              {simulateSpoof ? "Spoof Active (Space Heaters)" : "Simulate Spoof"}
-            </span>
-          </label>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  bgcolor: "success.main",
+                  boxShadow: "0 0 6px #10b981",
+                }}
+              />
+              <Typography variant="caption" color="success.light" fontWeight={600} fontFamily="monospace">
+                Temporal: {config?.endpoints?.temporal_host ?? "Connected (localhost:7233)"}
+              </Typography>
+            </Box>
+          </Box>
+        </CardContent>
+      </Card>
 
-          <button
-            onClick={handleLaunchComplianceRun}
-            disabled={isRunning}
-            className={`px-5 py-3 rounded-xl font-semibold text-sm flex items-center justify-center space-x-2 shadow-lg transition-all ${
-              isRunning
-                ? "bg-slate-800 text-slate-400 cursor-not-allowed"
-                : simulateSpoof
-                ? "bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white shadow-rose-900/30 cursor-pointer"
-                : "bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-600 hover:to-cyan-600 text-white shadow-indigo-500/25 hover:shadow-indigo-500/40 cursor-pointer"
-            }`}
-          >
-            {isRunning ? (
-              <>
-                <RotateCw className="w-4 h-4 animate-spin text-cyan-400" />
-                <span>Executing Temporal Workflow...</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4 fill-white" />
-                <span>{simulateSpoof ? "Run With Injected Fraud" : "Launch E2E Compliance Run"}</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+      {/* ── Enterprise Hero & Autonomous Run Orchestration Cockpit ──────────── */}
+      <Card
+        sx={{
+          background: "linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(30,27,75,0.4) 100%)",
+          border: "1px solid rgba(99,102,241,0.25)",
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
+          <Grid container spacing={3} alignItems="flex-start">
+            {/* Title & Organization Info */}
+            <Grid item xs={12} lg={6}>
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
+                <Chip label={company?.name ?? "Enterprise PIBO Portal"} color="primary" size="small" sx={{ fontWeight: 700 }} />
+                {company?.gstin && (
+                  <Chip label={`GSTIN: ${company.gstin}`} size="small" variant="outlined" sx={{ fontFamily: "monospace" }} />
+                )}
+                {company?.industry_sector && (
+                  <Chip label={company.industry_sector} size="small" variant="outlined" />
+                )}
+              </Box>
 
-      {/* Real-Time Live Execution Result Banner */}
-      {latestRun && (
-        <div
-          className={`p-5 rounded-2xl border transition-all animate-fadeIn ${
-            latestRun.status === "HALTED_DUE_TO_FRAUD"
-              ? "bg-rose-950/40 border-rose-600/50 text-rose-200"
-              : "bg-emerald-950/30 border-emerald-500/40 text-emerald-200"
-          }`}
+              <Typography variant="h4" fontWeight={800} letterSpacing="-0.02em">
+                Autonomous EPR Compliance & Anti-Fraud Engine
+              </Typography>
+              <Typography variant="body2" color="text.secondary" mt={1} sx={{ maxWidth: 560, lineHeight: 1.6 }}>
+                Full-lifecycle execution: SAP sales record ingestion, 1/3 statutory debt amortization,
+                continuous double auction matching, SCADA physics fraud detection, and CPCB Form-1 filing.
+              </Typography>
+
+              <Box sx={{ display: "flex", gap: 2, mt: 2.5, flexWrap: "wrap" }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<RefreshIcon />}
+                  onClick={() => {
+                    fetchLiability();
+                    fetchRuns();
+                    fetchMarketAndAudits();
+                  }}
+                >
+                  Sync ERP & Ledgers
+                </Button>
+                <Button
+                  variant="text"
+                  size="small"
+                  endIcon={<ArrowForwardIcon />}
+                  onClick={() => router.push("/agents")}
+                >
+                  Agent Diagnostics
+                </Button>
+              </Box>
+            </Grid>
+
+            {/* Interactive Run Configuration & Launch Controls */}
+            <Grid item xs={12} lg={6}>
+              <Card
+                variant="outlined"
+                sx={{
+                  bgcolor: "rgba(10,15,30,0.8)",
+                  p: 2.5,
+                  borderColor: simulateSpoof ? "rgba(244,63,94,0.4)" : "rgba(79,70,229,0.3)",
+                }}
+              >
+                <Typography variant="subtitle2" fontWeight={700} mb={1.5} color="text.primary">
+                  Launch Autonomous 5-Stage Compliance Pipeline
+                </Typography>
+
+                <Grid container spacing={1.5}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Plastic Category"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                    >
+                      <MenuItem value="cat_i_rigid">Cat I — Rigid Plastic</MenuItem>
+                      <MenuItem value="cat_ii_flexible">Cat II — Flexible Plastic</MenuItem>
+                      <MenuItem value="cat_iii_mlp">Cat III — Multi-Layer Plastic</MenuItem>
+                      <MenuItem value="cat_iv_compostable">Cat IV — Compostable Plastic</MenuItem>
+                    </TextField>
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Target Volume (Tons)"
+                      type="number"
+                      value={volumeTons}
+                      onChange={(e) => setVolumeTons(e.target.value)}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Fiscal Year"
+                      value={fiscalYear}
+                      onChange={(e) => setFiscalYear(e.target.value)}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <Box
+                      sx={{
+                        height: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        px: 1.5,
+                        border: "1px solid rgba(148,163,184,0.15)",
+                        borderRadius: 1.5,
+                        bgcolor: simulateSpoof ? "rgba(244,63,94,0.1)" : "transparent",
+                      }}
+                    >
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={simulateSpoof}
+                            onChange={(e) => setSimulateSpoof(e.target.checked)}
+                            color="error"
+                          />
+                        }
+                        label={
+                          <Typography variant="caption" fontWeight={700} color={simulateSpoof ? "error.light" : "text.secondary"}>
+                            {simulateSpoof ? "IoT Fraud Injected" : "Simulate SCADA Fraud"}
+                          </Typography>
+                        }
+                        sx={{ m: 0 }}
+                      />
+                    </Box>
+                  </Grid>
+                </Grid>
+
+                <Button
+                  fullWidth
+                  variant="contained"
+                  color={simulateSpoof ? "error" : "primary"}
+                  onClick={handleLaunch}
+                  disabled={runInProgress || !companyId}
+                  startIcon={runInProgress ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+                  sx={{ mt: 2, py: 1.2, fontWeight: 700, fontSize: "0.9rem" }}
+                >
+                  {runInProgress
+                    ? "Executing Multi-Agent Temporal Workflow…"
+                    : simulateSpoof
+                    ? "Execute E2E With Fraud Injection"
+                    : "Execute E2E Autonomous Compliance Run"}
+                </Button>
+
+                {runInProgress && <LinearProgress color={simulateSpoof ? "error" : "primary"} sx={{ mt: 1.5 }} />}
+                {runError && <Alert severity="error" sx={{ mt: 1.5 }}>{runError}</Alert>}
+              </Card>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* ── Latest Run Execution Banner ──────────────────────────────────────── */}
+      {runsLoading && !latestRun ? (
+        <Skeleton variant="rounded" height={130} />
+      ) : latestRun ? (
+        <Card
+          sx={{
+            borderColor: latestRun.status === "HALTED_DUE_TO_FRAUD" ? "error.main" : "success.dark",
+            borderWidth: 1,
+            borderStyle: "solid",
+          }}
         >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b pb-3 mb-3 border-white/10">
-            <div className="flex items-center space-x-3">
+          <CardContent sx={{ p: 2.5 }}>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "center", mb: 2 }}>
               {latestRun.status === "HALTED_DUE_TO_FRAUD" ? (
-                <ShieldAlert className="w-6 h-6 text-rose-400 shrink-0" />
+                <ErrorIcon color="error" />
               ) : (
-                <ShieldCheck className="w-6 h-6 text-emerald-400 shrink-0" />
+                <CheckCircleIcon color="success" />
               )}
-              <div>
-                <h4 className="font-bold text-sm text-white flex items-center space-x-2">
-                  <span>Run ID: {latestRun.run_id}</span>
-                  <span
-                    className={`text-[10px] font-mono px-2 py-0.5 rounded-full uppercase ${
-                      latestRun.status === "HALTED_DUE_TO_FRAUD"
-                        ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                        : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                    }`}
-                  >
-                    {latestRun.status}
-                  </span>
-                </h4>
-                <p className="text-xs text-slate-300 mt-0.5">{latestRun.message}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3 text-xs font-mono text-slate-300 flex-wrap gap-y-2">
-              <span>Duration: {latestRun.duration_seconds}s</span>
+              <Typography fontWeight={700} fontFamily="monospace" variant="subtitle1">
+                {latestRun.run_id}
+              </Typography>
+              <Chip
+                label={latestRun.status}
+                size="small"
+                color={latestRun.status === "HALTED_DUE_TO_FRAUD" ? "error" : "success"}
+                sx={{ fontWeight: 700 }}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ ml: "auto" }}>
+                Execution Time: {latestRun.duration_seconds}s
+              </Typography>
               {latestRun.portal_ack_number && (
-                <span className="text-cyan-300 font-bold bg-cyan-950/60 px-2 py-1 rounded border border-cyan-800">
-                  CPCB: {latestRun.portal_ack_number}
-                </span>
+                <Chip
+                  label={`CPCB ACK: ${latestRun.portal_ack_number}`}
+                  size="small"
+                  color="secondary"
+                  variant="outlined"
+                  sx={{ fontFamily: "monospace", fontSize: "0.7rem", fontWeight: 700 }}
+                />
               )}
-              {/* Direct Link to Temporal Web UI */}
-              <a
-                href="http://localhost:8080/namespaces/default/workflows"
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-400/40 text-indigo-200 font-semibold flex items-center space-x-1.5 transition"
+              <Tooltip title="Inspect in Temporal UI">
+                <IconButton size="small" href="http://localhost:8080/namespaces/default/workflows" target="_blank">
+                  <OpenInNewIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              {latestRun.message}
+            </Typography>
+
+            {/* Stages Grid */}
+            <Grid container spacing={1.5}>
+              {latestRun.steps?.map((s) => (
+                <Grid item xs={12} sm={6} md={12 / Math.max(latestRun.steps.length, 1)} key={s.step}>
+                  <StageBadge step={s} />
+                </Grid>
+              ))}
+            </Grid>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* ── KPI Metrics Strip ─────────────────────────────────────────────────── */}
+      <Grid container spacing={2}>
+        <Grid item xs={12} sm={6} lg={3}>
+          <KpiCard
+            label="Gross Packaging Ingestion"
+            value={grossTons != null ? grossTons.toLocaleString() : null}
+            unit="Tons"
+            subtitle={`${fiscalYear} ERP Sales Total`}
+            icon={<ScaleIcon />}
+            color="#4f46e5"
+            loading={liabilityLoading}
+            error={liabilityError}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} lg={3}>
+          <KpiCard
+            label="Net EPR Digital Deficit"
+            value={netDeficit != null ? netDeficit.toLocaleString() : null}
+            unit="Tons"
+            subtitle="Obligation required under CPCB"
+            icon={<WarningAmberIcon />}
+            color="#f59e0b"
+            loading={liabilityLoading}
+            error={liabilityError}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} lg={3}>
+          <KpiCard
+            label="80/20 Escrow Commitments"
+            value={totalEscrowInr > 0 ? `₹${(totalEscrowInr / 100000).toFixed(2)}` : "₹0"}
+            unit="Lakhs"
+            subtitle={`${pos.length} Escrow Purchase Orders`}
+            icon={<MonetizationOnIcon />}
+            color="#10b981"
+            loading={false}
+            error={null}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} lg={3}>
+          <KpiCard
+            label="SCADA Physics Verification"
+            value={auditApprovalPct != null ? `${auditApprovalPct}%` : "—"}
+            subtitle={`${approvedAudits} of ${audits.length} Audits Approved`}
+            icon={<SpeedIcon />}
+            color="#06b6d4"
+            loading={auditsLoading}
+            error={null}
+          />
+        </Grid>
+      </Grid>
+
+      {/* ── Category Breakdown & Live Audit Ledger ───────────────────────────── */}
+      <Grid container spacing={2}>
+        {/* Category Breakdown Chart */}
+        <Grid item xs={12} lg={8}>
+          <Card sx={{ height: "100%" }}>
+            <CardContent sx={{ p: 2.5 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    CPCB Obligation Breakdown by Plastic Category
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Calculated live under Plastic Waste Management Amendment Rules 2026
+                  </Typography>
+                </Box>
+                <Button size="small" variant="outlined" onClick={() => router.push("/liability")}>
+                  Full Liability Model →
+                </Button>
+              </Box>
+
+              {liabilityLoading ? (
+                <Skeleton variant="rounded" height={220} />
+              ) : liabilityError ? (
+                <Alert severity="error">{liabilityError}</Alert>
+              ) : categoryData.length === 0 ? (
+                <Alert severity="info">No category data returned by ERP liability service.</Alert>
+              ) : (
+                <>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={categoryData} margin={{ left: -10, right: 10 }}>
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                      <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                      <RTooltip
+                        contentStyle={{ background: "#0f172a", border: "1px solid rgba(148,163,184,0.12)", borderRadius: 8, fontSize: 12 }}
+                        formatter={(v: any) => [`${Number(v).toLocaleString()} Tons`, "Obligation"]}
+                      />
+                      <Bar dataKey="tons" radius={[4, 4, 0, 0]}>
+                        {categoryData.map((entry) => (
+                          <Cell key={entry.key} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+
+                  <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
+                    {categoryData.map((cat) => {
+                      const total = categoryData.reduce((s, c) => s + c.tons, 0) || 1;
+                      const pct = Math.round((cat.tons / total) * 100);
+                      return (
+                        <Box key={cat.key}>
+                          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                            <Typography variant="caption" fontWeight={600}>{cat.label}</Typography>
+                            <Typography variant="caption" color="text.secondary" fontFamily="monospace">
+                              {cat.tons.toLocaleString()} Tons · {pct}%
+                            </Typography>
+                          </Box>
+                          <LinearProgress
+                            variant="determinate"
+                            value={pct}
+                            sx={{
+                              mt: 0.5,
+                              bgcolor: "rgba(255,255,255,0.06)",
+                              "& .MuiLinearProgress-bar": { bgcolor: cat.color },
+                            }}
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Live Audit Verdicts Ledger */}
+        <Grid item xs={12} lg={4}>
+          <Card sx={{ height: "100%" }}>
+            <CardContent sx={{ p: 2.5 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    SCADA Telemetry & Forensic Audits
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Cryptographic proofs · Real-time feed
+                  </Typography>
+                </Box>
+                <Tooltip title="Refresh ledger">
+                  <IconButton size="small" onClick={fetchMarketAndAudits}>
+                    <RefreshIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+
+              <Divider sx={{ mb: 2 }} />
+
+              {auditsLoading && audits.length === 0 ? (
+                [1, 2, 3].map((i) => <Skeleton key={i} variant="rounded" height={60} sx={{ mb: 1.5 }} />)
+              ) : audits.length === 0 ? (
+                <Alert severity="info" sx={{ fontSize: "0.8rem" }}>
+                  No forensic audits recorded yet.
+                </Alert>
+              ) : (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  {audits.slice(0, 4).map((a) => {
+                    const approved = a.audit_verdict === "APPROVED";
+                    return (
+                      <Card
+                        key={a.audit_id}
+                        variant="outlined"
+                        sx={{
+                          p: 1.5,
+                          borderColor: approved ? "rgba(16,185,129,0.25)" : "rgba(244,63,94,0.25)",
+                        }}
+                      >
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
+                          <Typography variant="caption" fontFamily="monospace" fontWeight={700}>
+                            {a.audit_id}
+                          </Typography>
+                          <Chip
+                            label={a.audit_verdict}
+                            size="small"
+                            color={approved ? "success" : "error"}
+                            sx={{ height: 18, fontSize: "0.65rem", fontWeight: 700 }}
+                          />
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {a.recycler_id} · {a.plant_id}
+                        </Typography>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.75 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Confidence: {Math.round((a.confidence_score ?? 0) * 100)}%
+                          </Typography>
+                          <Typography variant="caption" color={approved ? "success.light" : "error.light"} fontWeight={600}>
+                            {approved ? "Physical Melt Verified" : "Flagged Suspicious"}
+                          </Typography>
+                        </Box>
+                      </Card>
+                    );
+                  })}
+                </Box>
+              )}
+
+              <Button
+                fullWidth
+                size="small"
+                variant="outlined"
+                sx={{ mt: 2 }}
+                onClick={() => router.push("/audit")}
               >
-                <span>Temporal UI</span>
-                <ExternalLink className="w-3.5 h-3.5 text-indigo-300" />
-              </a>
-            </div>
-          </div>
+                Open SCADA Oscilloscope Hub →
+              </Button>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
-          {/* Sequential Step Progression */}
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 pt-1">
-            {latestRun.steps.map((st) => (
-              <div
-                key={st.step}
-                className={`p-2.5 rounded-xl border text-xs ${
-                  st.status === "BLOCKED_BY_JEV"
-                    ? "bg-rose-900/40 border-rose-500 text-rose-200"
-                    : st.status === "COMPLETED"
-                    ? "bg-slate-900/60 border-emerald-500/40 text-slate-200"
-                    : "bg-slate-900/40 border-slate-800 text-slate-400"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-bold text-[10px] text-slate-400 uppercase">Stage {st.step}</span>
-                  {st.status === "COMPLETED" ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : st.status === "BLOCKED_BY_JEV" ? (
-                    <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                  ) : (
-                    <Clock className="w-3.5 h-3.5 text-slate-500" />
-                  )}
-                </div>
-                <p className="font-semibold truncate">{st.name}</p>
-                <p className="text-[10px] text-slate-400 truncate">{st.service}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ── Autonomous Workflow Gateway ──────────────────────────────────────── */}
+      <Card variant="outlined">
+        <CardContent sx={{ p: 2.5 }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700}>
+                Autonomous EPR Workflow Infrastructure
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Durable micro-orchestrations executing through Temporal state machines
+              </Typography>
+            </Box>
+            <Chip label="4 Core Workflows" size="small" color="primary" variant="outlined" />
+          </Box>
 
-      {/* Top Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric 1 */}
-        <div className="p-5 rounded-2xl glass-card space-y-3">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-medium uppercase tracking-wider">Gross Packaging</span>
-            <Scale className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-white font-mono">
-              {grossTons.toLocaleString()} <span className="text-sm font-sans font-medium text-slate-400">Tons</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-              <span className="text-indigo-400 font-semibold">+4.2%</span> YoY FMCG packaging sales
-            </p>
-          </div>
-        </div>
-
-        {/* Metric 2 */}
-        <div className="p-5 rounded-2xl glass-card space-y-3">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-medium uppercase tracking-wider">Net EPR Deficit</span>
-            <AlertTriangle className="w-4 h-4 text-amber-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-amber-400 font-mono">
-              {netDeficitTons.toLocaleString()} <span className="text-sm font-sans font-medium text-slate-400">Tons</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Incl. <strong className="text-slate-200">{amortizedDebtTons.toLocaleString()} T</strong> (1/3rd debt amortization)
-            </p>
-          </div>
-        </div>
-
-        {/* Metric 3 */}
-        <div className="p-5 rounded-2xl glass-card space-y-3">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-medium uppercase tracking-wider">80/20 Escrow Volume</span>
-            <Coins className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-white font-mono">
-              {escrowCr} <span className="text-sm font-sans font-medium text-slate-400">Cr</span>
-            </div>
-            <p className="text-xs text-emerald-400 mt-1 font-semibold flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> 80% Advance released on melt proof
-            </p>
-          </div>
-        </div>
-
-        {/* Metric 4 */}
-        <div className="p-5 rounded-2xl glass-card space-y-3">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-medium uppercase tracking-wider">Physics Melt Verified</span>
-            <Activity className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-cyan-400 font-mono">
-              {confidenceScore} <span className="text-xs font-sans text-slate-400">Confidence</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-              TypeSafe Jev: Zero resistive spoofing
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* 4-Workflow End-to-End Orchestration Stepper */}
-      <div className="p-6 rounded-2xl glass-panel space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Layers className="w-4 h-4 text-indigo-400" />
-              Autonomous Multi-Agent Workflow Pipeline
-            </h3>
-            <p className="text-xs text-slate-400">
-              Temporal durable orchestration connecting SAP ERP, continuous auctions, Jev SCADA audit, and CPCB Form-1
-            </p>
-          </div>
-          <a
-            href="http://localhost:8080/namespaces/default/workflows"
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs font-mono text-indigo-300 hover:text-white px-2.5 py-1 rounded-md bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 flex items-center space-x-1"
-          >
-            <span>Temporal Web UI</span>
-            <ExternalLink className="w-3 h-3 ml-1" />
-          </a>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Step 1 */}
-          <Link href="/liability" className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-indigo-500/40 transition-all group">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold text-slate-500 group-hover:text-indigo-400 uppercase">Workflow 1</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            </div>
-            <h4 className="text-sm font-semibold text-slate-200 group-hover:text-white">Upstream Liability</h4>
-            <p className="text-xs text-slate-400 mt-1">1/3rd debt amortization & category mapping</p>
-            <div className="mt-3 flex items-center text-xs text-indigo-400 font-medium">
-              View Matrix <ChevronRight className="w-3.5 h-3.5 ml-1" />
-            </div>
-          </Link>
-
-          {/* Step 2 */}
-          <Link href="/auction" className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-indigo-500/40 transition-all group">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold text-slate-500 group-hover:text-indigo-400 uppercase">Workflow 2</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            </div>
-            <h4 className="text-sm font-semibold text-slate-200 group-hover:text-white">Double Auction Room</h4>
-            <p className="text-xs text-slate-400 mt-1">30%-100% statutory price corridor</p>
-            <div className="mt-3 flex items-center text-xs text-indigo-400 font-medium">
-              Open Order Book <ChevronRight className="w-3.5 h-3.5 ml-1" />
-            </div>
-          </Link>
-
-          {/* Step 3 */}
-          <Link href="/audit" className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-indigo-500/40 transition-all group relative overflow-hidden">
-            <div className="absolute -right-6 -bottom-6 w-20 h-20 bg-cyan-500/10 rounded-full blur-xl pointer-events-none" />
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold text-cyan-400 uppercase">Workflow 3</span>
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-            </div>
-            <h4 className="text-sm font-semibold text-slate-200 group-hover:text-white">Quad-Core Fraud Audit</h4>
-            <p className="text-xs text-slate-400 mt-1">50Hz SCADA torque & resistive spoof detector</p>
-            <div className="mt-3 flex items-center text-xs text-cyan-400 font-medium">
-              Launch Oscilloscope <ChevronRight className="w-3.5 h-3.5 ml-1" />
-            </div>
-          </Link>
-
-          {/* Step 4 */}
-          <Link href="/settlement" className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-indigo-500/40 transition-all group">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold text-slate-500 group-hover:text-indigo-400 uppercase">Workflow 4</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            </div>
-            <h4 className="text-sm font-semibold text-slate-200 group-hover:text-white">80/20 Escrow & Form-1</h4>
-            <p className="text-xs text-slate-400 mt-1">Dual-signature release & CPCB filing</p>
-            <div className="mt-3 flex items-center text-xs text-indigo-400 font-medium">
-              Review Escrow POs <ChevronRight className="w-3.5 h-3.5 ml-1" />
-            </div>
-          </Link>
-        </div>
-      </div>
-
-      {/* Categories Breakdown & Live Jev Audit Ledger */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Category Breakdown (2 Cols) */}
-        <div className="lg:col-span-2 p-6 rounded-2xl glass-panel space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-white">CPCB Category Obligation & Fulfillment</h3>
-              <p className="text-xs text-slate-400">Current fulfillment status under PWM Amendment Rules 2026</p>
-            </div>
-            <Link href="/liability" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold">
-              Manage Targets <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          <div className="space-y-4 pt-1">
+          <Grid container spacing={2}>
             {[
               {
-                cat: "Category I: Rigid Plastic",
-                target: liabilityData?.breakdown_by_category?.cat_i_rigid || 7500,
-                fulfilled: 6200,
-                color: "bg-indigo-500",
-                cf: "1.00",
+                id: 1,
+                title: "Upstream Liability & Sourcing",
+                desc: "1/3 historical debt amortization, ERP sales ingestion, and CPCB category allocation.",
+                href: "/liability",
+                metric: `${grossTons?.toLocaleString() ?? "—"} Tons Gross`,
+                icon: <ScaleIcon color="primary" />,
               },
               {
-                cat: "Category II: Flexible Plastic",
-                target: liabilityData?.breakdown_by_category?.cat_ii_flexible || 6200,
-                fulfilled: 4800,
-                color: "bg-cyan-500",
-                cf: "0.80",
+                id: 2,
+                title: "Continuous Double Auction",
+                desc: "Autonomous treasury bids matching within 30%–100% statutory price corridor.",
+                href: "/auction",
+                metric: `${auctions.length} Active Market Auctions`,
+                icon: <GavelIcon color="secondary" />,
               },
               {
-                cat: "Category III: Multi-Layered (MLP)",
-                target: liabilityData?.breakdown_by_category?.cat_iii_mlp || 2500,
-                fulfilled: 2100,
-                color: "bg-emerald-500",
-                cf: "0.50",
+                id: 3,
+                title: "Quad-Core Fraud Audit",
+                desc: "High-frequency SCADA/VFD torque analysis, energy enthalpy, and Jev reflex verification.",
+                href: "/audit",
+                metric: `${audits.length} Cryptographic Proofs`,
+                icon: <SpeedIcon sx={{ color: "#10b981" }} />,
               },
               {
-                cat: "Category IV: Compostable",
-                target: liabilityData?.breakdown_by_category?.cat_iv_compostable || 1000,
-                fulfilled: 950,
-                color: "bg-amber-500",
-                cf: "1.00",
+                id: 4,
+                title: "80/20 Escrow & CPCB Form-1",
+                desc: "Two-stage escrow gate: 80% advance upon audit, 20% release with CPCB ACK & DSC signature.",
+                href: "/settlement",
+                metric: `${pos.length} Escrow Purchase Orders`,
+                icon: <DescriptionIcon sx={{ color: "#f59e0b" }} />,
               },
-            ].map((item) => {
-              const pct = Math.min(100, Math.round((item.fulfilled / item.target) * 100));
-              return (
-                <div key={item.cat} className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-semibold text-slate-200">{item.cat}</span>
-                    <span className="text-slate-400 font-mono">
-                      {item.fulfilled.toLocaleString()} / {item.target.toLocaleString()} T ({pct}%) • Cf: {item.cf}
-                    </span>
-                  </div>
-                  <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                    <div className={`h-full ${item.color} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+            ].map((wf) => (
+              <Grid item xs={12} sm={6} md={3} key={wf.id}>
+                <Card
+                  variant="outlined"
+                  onClick={() => router.push(wf.href)}
+                  sx={{
+                    cursor: "pointer",
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      borderColor: "primary.main",
+                      transform: "translateY(-2px)",
+                      boxShadow: "0 6px 20px rgba(0,0,0,0.4)",
+                    },
+                  }}
+                >
+                  <CardContent sx={{ p: 2 }}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        {wf.icon}
+                        <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase">
+                          Workflow {wf.id}
+                        </Typography>
+                      </Box>
+                      <ArrowForwardIcon fontSize="small" sx={{ color: "text.disabled" }} />
+                    </Box>
 
-        {/* Live Jev Audit Activity Ledger (1 Col) */}
-        <div className="p-6 rounded-2xl glass-panel space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <Cpu className="w-4 h-4 text-cyan-400" />
-                Live Jev Audit Activity
-              </h3>
-              <p className="text-[11px] text-slate-400">Zero-trust cryptographic proofs</p>
-            </div>
-            <Link href="/audit" className="text-xs text-cyan-400 hover:text-cyan-300">
-              Audit Hub
-            </Link>
-          </div>
+                    <Typography variant="body2" fontWeight={700} mb={0.5}>
+                      {wf.title}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+                      {wf.desc}
+                    </Typography>
 
-          <div className="space-y-3">
-            {auditVerdicts.length > 0 ? (
-              auditVerdicts.slice(0, 3).map((aud) => (
-                <div key={aud.audit_id} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-bold text-slate-300">{aud.audit_id}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                        aud.audit_verdict === "APPROVED"
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                          : "bg-rose-500/10 text-rose-400 border-rose-500/30"
-                      }`}
-                    >
-                      {aud.audit_verdict}
-                    </span>
-                  </div>
-                  <p className="text-slate-400 truncate">{aud.recycler_id} • {aud.plant_id}</p>
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                    <span>Torque: {aud.physics?.torque_nm || 42.6} Nm</span>
-                    <span>Conf: {Math.round((aud.confidence_score || 0.965) * 100)}%</span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-4 text-center text-xs text-slate-500 font-mono">
-                No audits logged yet. Launch a run to generate live verdicts.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+                    <Chip
+                      label={wf.metric}
+                      size="small"
+                      variant="outlined"
+                      sx={{ fontSize: "0.7rem", fontWeight: 600, width: "100%" }}
+                    />
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </CardContent>
+      </Card>
+    </Box>
   );
 }

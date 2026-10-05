@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # SynthetIQ — Full Local Development Stack
 # Usage: docker compose up -d
 # ============================================================
@@ -18,11 +18,18 @@ services:
       - MCP_URL=http://mcp:8001
       - SIMULATOR_URL=http://simulator:9091
       - MOCKS_URL=http://mocks:8002
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - JEV_MODE=${JEV_MODE:-NIMBLE_PRIMARY}
       - DATABASE_URL=postgresql+asyncpg://synthetiq:synthetiq@app-db:5432/synthetiq
       - REDIS_URL=redis://redis:6379/0
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-synthetiq-dev}
+      - GCP_REGION=${GCP_REGION:-asia-south1}
+      - BIGQUERY_DATASET_ID=${BIGQUERY_DATASET_ID:-epr_compliance}
+      - BIGQUERY_SALES_TABLE=${BIGQUERY_SALES_TABLE:-sales_data}
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp/application_default_credentials.json
+    volumes:
+      - ${APPDATA}/gcloud/application_default_credentials.json:/gcp/application_default_credentials.json:ro
     depends_on:
       - temporal-server
       - mcp
@@ -42,12 +49,20 @@ services:
       - TEMPORAL_HOST=temporal-server:7233
       - MCP_URL=http://mcp:8001
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
       - JEV_MODE=${JEV_MODE:-NIMBLE_PRIMARY}
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_ENABLE_PII_SCRUBBING=${OLLAMA_ENABLE_PII_SCRUBBING:-false}
       - DATABASE_URL=postgresql+asyncpg://synthetiq:synthetiq@app-db:5432/synthetiq
       - REDIS_URL=redis://redis:6379/0
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-synthetiq-dev}
+      - GCP_REGION=${GCP_REGION:-asia-south1}
+      - BIGQUERY_DATASET_ID=${BIGQUERY_DATASET_ID:-epr_compliance}
+      - PUBSUB_SCADA_TOPIC=${PUBSUB_SCADA_TOPIC:-scada-telemetry-stream}
+      - PUBSUB_SCADA_SUBSCRIPTION=${PUBSUB_SCADA_SUBSCRIPTION:-scada-telemetry-sub}
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp/application_default_credentials.json
+    volumes:
+      - ${APPDATA}/gcloud/application_default_credentials.json:/gcp/application_default_credentials.json:ro
     depends_on:
       - temporal-server
       - mcp
@@ -63,8 +78,15 @@ services:
       - "8001:8001"
     environment:
       - DEV_MODE=true
-      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
-      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-synthetiq-dev}
+      - GCP_REGION=${GCP_REGION:-asia-south1}
+      - BIGQUERY_DATASET_ID=${BIGQUERY_DATASET_ID:-epr_compliance}
+      - BIGQUERY_SALES_TABLE=${BIGQUERY_SALES_TABLE:-sales_data}
+      - PUBSUB_SCADA_TOPIC=${PUBSUB_SCADA_TOPIC:-scada-telemetry-stream}
+      - PUBSUB_SCADA_SUBSCRIPTION=${PUBSUB_SCADA_SUBSCRIPTION:-scada-telemetry-sub}
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp/application_default_credentials.json
+    volumes:
+      - ${APPDATA}/gcloud/application_default_credentials.json:/gcp/application_default_credentials.json:ro
 
   simulator:
     build:
@@ -123,8 +145,11 @@ services:
       - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
+    # Pull gemma2:2b on startup (PII scrubbing).
+    # nimble requires a newer Ollama — pull it manually once the image updates:
+    #   docker exec synthetiq-ollama ollama pull nimble
     entrypoint: ["/bin/bash", "-c",
-      "ollama serve & sleep 8 && ollama pull gemma2:2b && ollama pull nimble && wait"]
+      "ollama serve & sleep 8 && ollama pull gemma2:2b && wait"]
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
       interval: 30s
@@ -143,6 +168,12 @@ services:
       - "5432:5432"
     volumes:
       - temporal-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   # --- Temporal Workflow Engine ---
   temporal-server:
@@ -157,7 +188,8 @@ services:
       - POSTGRES_PWD=temporal
       - POSTGRES_SEEDS=temporal-db
     depends_on:
-      - temporal-db
+      temporal-db:
+        condition: service_healthy
 
   temporal-ui:
     image: temporalio/ui:latest

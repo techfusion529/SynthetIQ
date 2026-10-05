@@ -41,6 +41,22 @@ def get_session_service() -> InMemorySessionService:
 # ---------------------------------------------------------------------------
 
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+_GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
+_GCP_REGION = os.getenv("GCP_REGION", "asia-south1")
+
+# Initialize Vertex AI if GCP project is configured (Agent Platform mode)
+if _GCP_PROJECT_ID:
+    try:
+        import vertexai
+        vertexai.init(project=_GCP_PROJECT_ID, location=_GCP_REGION)
+        logger.info(
+            f"ADK Vertex AI initialized: project={_GCP_PROJECT_ID}, "
+            f"region={_GCP_REGION}, model={DEFAULT_MODEL}"
+        )
+    except ImportError:
+        logger.warning("google-cloud-aiplatform not installed. ADK using API key mode.")
+    except Exception as e:
+        logger.warning(f"Vertex AI ADK init failed ({e}). Using API key mode.")
 
 
 def create_llm_agent(

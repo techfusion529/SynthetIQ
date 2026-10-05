@@ -1,79 +1,106 @@
-"""Thin shim so the API can use DataConnectors without importing the full worker.
-
-Tries to import from the worker package first; falls back to a local
-re-export that only depends on packages available in the API container.
-"""
+"""Data connector shim for the API gateway to use real DataConnectors."""
 
 from __future__ import annotations
 
+import logging
+import os
+import sys
+from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
+# Ensure worker/src is reachable to import the full DataConnector implementations
+worker_src = str(Path(__file__).resolve().parent.parent.parent.parent / "worker" / "src")
+if worker_src not in sys.path:
+    sys.path.insert(0, worker_src)
+
 try:
-    # When API and worker share PYTHONPATH (single-process dev / Docker)
-    from services.data_connector import (  # type: ignore[import-not-found]
-        DataConnector,
+    from services.data_connector import (
         BigQueryConnector,
+        CSVFileConnector,
+        DataConnector,
         PostgreSQLConnector,
         RESTAPIConnector,
-        CSVFileConnector,
         create_connector,
         get_connector_for_org,
     )
 except ImportError:
-    # Minimal re-implementation of create_connector for the API container
-    import logging
-    import os
+    # Minimal fallback implementation
+    import csv
     import httpx
 
-    logger = logging.getLogger(__name__)
-
     class DataConnector:  # type: ignore[no-redef]
-        """Minimal base for API-side health-checks."""
         def __init__(self, org_id: str, config: dict[str, Any]) -> None:
             self.org_id = org_id
             self.config = config
+            self.connector_type = "abstract"
+
+        async def query_sales_data(self, company_id: str, fiscal_year: str) -> list[dict[str, Any]]:
+            return []
+
+        async def query_telemetry(self, plant_id: str, time_range_hours: int = 24) -> list[dict[str, Any]]:
+            return []
+
         async def health_check(self) -> bool:
-            return False
+            return True
+
+    class CSVFileConnector(DataConnector):  # type: ignore[no-redef]
+        def __init__(self, org_id: str, config: dict[str, Any]) -> None:
+            super().__init__(org_id, config)
+            self.connector_type = "csv"
+            self.path = config.get("sales_file_path", "./data/seed/sales.csv")
+
+        async def query_sales_data(self, company_id: str, fiscal_year: str) -> list[dict[str, Any]]:
+            if not os.path.exists(self.path):
+                return []
+            records = []
+            with open(self.path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    records.append(dict(row))
+            return records
+
+        async def health_check(self) -> bool:
+            return os.path.exists(self.path)
 
     class RESTAPIConnector(DataConnector):  # type: ignore[no-redef]
         def __init__(self, org_id: str, config: dict[str, Any]) -> None:
             super().__init__(org_id, config)
+            self.connector_type = "rest_api"
             self.base_url = config.get("base_url", "").rstrip("/")
 
         async def health_check(self) -> bool:
             if not self.base_url:
                 return False
             try:
-                async with httpx.AsyncClient(timeout=5.0) as c:
-                    resp = await c.get(f"{self.base_url}/health")
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    resp = await client.get(f"{self.base_url}/health")
                     return resp.status_code < 400
             except Exception:
                 return False
-
-    class CSVFileConnector(DataConnector):  # type: ignore[no-redef]
-        async def health_check(self) -> bool:
-            path = self.config.get("sales_file_path", "")
-            return bool(path) and os.path.exists(path)
 
     def create_connector(  # type: ignore[no-redef]
         connector_type: str,
         org_id: str,
         config: dict[str, Any],
     ) -> DataConnector:
-        mapping = {
-            "rest_api": RESTAPIConnector,
-            "rest": RESTAPIConnector,
-            "csv": CSVFileConnector,
-            "file": CSVFileConnector,
-        }
-        cls = mapping.get(connector_type.lower(), DataConnector)
-        return cls(org_id=org_id, config=config)
+        if connector_type.lower() in ("csv", "file"):
+            return CSVFileConnector(org_id, config)
+        if connector_type.lower() in ("rest_api", "rest"):
+            return RESTAPIConnector(org_id, config)
+        return DataConnector(org_id, config)
 
     async def get_connector_for_org(org_id: str, purpose: str = "erp_sales") -> DataConnector:  # type: ignore[no-redef]
-        return DataConnector(org_id=org_id, config={})
+        return CSVFileConnector(org_id, {"sales_file_path": "./data/seed/sales.csv"})
+
 
 __all__ = [
     "DataConnector",
+    "BigQueryConnector",
+    "PostgreSQLConnector",
+    "RESTAPIConnector",
+    "CSVFileConnector",
     "create_connector",
     "get_connector_for_org",
 ]

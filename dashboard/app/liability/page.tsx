@@ -1,237 +1,269 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Calculator,
-  CheckCircle2,
-  HelpCircle,
-  Info,
-  Layers,
-  Percent,
-  RefreshCw,
-  Scale,
-  Sparkles,
-  TrendingDown,
-} from "lucide-react";
-import { calculateLiability, fetchLiabilityReport } from "@/app/lib/api";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Box from "@mui/material/Box";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Alert from "@mui/material/Alert";
+import Skeleton from "@mui/material/Skeleton";
+import Slider from "@mui/material/Slider";
+import Table from "@mui/material/Table";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import TableCell from "@mui/material/TableCell";
+import TableBody from "@mui/material/TableBody";
+import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
+import Breadcrumbs from "@mui/material/Breadcrumbs";
+import Link from "@mui/material/Link";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import ScaleIcon from "@mui/icons-material/Scale";
+import CalculateIcon from "@mui/icons-material/Calculate";
 
-export default function LiabilitySourcingPage() {
-  const [historicDebt, setHistoricDebt] = useState<number>(3600);
-  const [currentYearBase, setCurrentYearBase] = useState<number>(18500);
-  const [alreadyFulfilled, setAlreadyFulfilled] = useState<number>(2500);
-  const [categoryBreakdown, setCategoryBreakdown] = useState<Record<string, number>>({
-    cat_i_rigid: 7500.0,
-    cat_ii_flexible: 6200.0,
-    cat_iii_mlp: 2500.0,
-    cat_iv_compostable: 1000.0,
-  });
-  const [isRecalculating, setIsRecalculating] = useState(false);
+import { useCompany } from "../lib/contexts/CompanyContext";
+import { useLiabilityService } from "../lib/hooks/useServices";
+import { ApiError } from "../lib/services/base.service";
+import type { LiabilityReport } from "../lib/types/liability.types";
 
-  useEffect(() => {
-    fetchLiabilityReport("COMP-IN-001").then((report) => {
-      if (report) {
-        setCurrentYearBase(report.current_year_liability_tons || 18500);
-        setHistoricDebt(report.historic_debt_tons || 3600);
-        setAlreadyFulfilled(report.already_fulfilled_tons || 2500);
-        if (report.breakdown_by_category) {
-          setCategoryBreakdown(report.breakdown_by_category);
-        }
-      }
-    });
-  }, []);
+const CATEGORY_META: Record<string, { label: string; color: "primary" | "secondary" | "success" | "warning" }> = {
+  cat_i_rigid:        { label: "Category I — Rigid Plastic",       color: "primary" },
+  cat_ii_flexible:    { label: "Category II — Flexible Plastic",   color: "secondary" },
+  cat_iii_mlp:        { label: "Category III — Multi-Layer (MLP)", color: "success" },
+  cat_iv_compostable: { label: "Category IV — Compostable",        color: "warning" },
+};
 
-  // CPCB 1/3 amortization formula
-  const amortizedDebt = Math.round(historicDebt / 3);
-  const netLiability = currentYearBase + amortizedDebt - alreadyFulfilled;
+function StatCard({ label, value, unit, color }: { label: string; value: number | null; unit?: string; color?: string }) {
+  return (
+    <Card sx={{ height: "100%" }}>
+      <CardContent>
+        <Typography variant="caption" textTransform="uppercase" letterSpacing="0.06em" color="text.secondary" fontWeight={600}>{label}</Typography>
+        <Typography variant="h4" fontWeight={700} fontFamily="monospace" sx={{ mt: 1, color: color ?? "text.primary" }}>
+          {value != null ? value.toLocaleString() : "—"}
+          {unit && <Typography component="span" variant="body2" color="text.secondary" ml={0.5}>{unit}</Typography>}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+}
 
-  const handleRecalculate = async () => {
-    setIsRecalculating(true);
+export default function LiabilityPage() {
+  const router = useRouter();
+  const { companyId } = useCompany();
+  const liabilitySvc = useLiabilityService();
+
+  const [report, setReport]         = useState<LiabilityReport | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
+
+  // Slider state
+  const [sliderDebt, setSliderDebt] = useState<number>(0);
+  const [recalcLoading, setRecalcLoading] = useState(false);
+  const [recalcError, setRecalcError]     = useState<string | null>(null);
+  const [recalcResult, setRecalcResult]   = useState<LiabilityReport | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Displayed net liability — from recalc result if available, else from original report
+  const displayed = recalcResult ?? report;
+
+  const fetchReport = useCallback(async () => {
+    if (!companyId) return;
+    setLoading(true);
+    setError(null);
     try {
-      const res = await calculateLiability({
-        company_id: "COMP-IN-001",
-        fiscal_year: "FY2026-27",
-        historic_debt_tons: historicDebt,
-      });
-      if (res && res.details) {
-        // API updated
+      const r = await liabilitySvc.getReport(companyId);
+      setReport(r);
+      setSliderDebt(r.historic_debt_tons ?? 0);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        setError("No liability report found for this company.");
+      } else {
+        setError(e instanceof ApiError ? e.message : "Failed to load liability report");
       }
-    } catch {
-      // keep state
     } finally {
-      setIsRecalculating(false);
+      setLoading(false);
     }
-  };
+  }, [companyId, liabilitySvc]);
+
+  useEffect(() => { fetchReport(); }, [fetchReport]);
+
+  // Debounced recalculate on slider change (500 ms, useEffect-based to avoid stale closure)
+  useEffect(() => {
+    if (!companyId || !report) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setRecalcLoading(true);
+      setRecalcError(null);
+      try {
+        const res = await liabilitySvc.calculate({ company_id: companyId, fiscal_year: "FY2026-27", historic_debt_tons: sliderDebt });
+        // Merge result into displayed report
+        setRecalcResult({
+          ...(report),
+          historic_debt_tons: sliderDebt,
+          amortized_debt_tons: res.amortized_debt_tons,
+          net_liability_tons: res.net_liability_tons,
+          current_year_liability_tons: res.current_year_liability_tons,
+          already_fulfilled_tons: res.already_fulfilled_tons,
+        });
+      } catch (e) {
+        const msg = e instanceof ApiError ? e.message : "Recalculation failed";
+        setRecalcError(`Recalculation failed: ${msg}`);
+        // Preserve previous values on error
+      } finally {
+        setRecalcLoading(false);
+      }
+    }, 500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [sliderDebt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const skeletonRowCount = report ? Object.keys(report.breakdown_by_category ?? {}).length : 4;
 
   return (
-    <div className="space-y-8 pb-12">
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+      {/* Breadcrumb */}
+      <Breadcrumbs>
+        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>Executive Hub</Link>
+        <Typography color="primary.light" fontWeight={600}>Workflow 1 — Liability & Sourcing</Typography>
+      </Breadcrumbs>
+
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2 text-xs text-slate-400 mb-1">
-            <Link href="/" className="hover:text-slate-200">Executive Hub</Link>
-            <span>/</span>
-            <span className="text-indigo-400 font-medium">Workflow 1: Liability & Sourcing</span>
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
-            <Scale className="w-6 h-6 text-indigo-400" />
-            Plastic Liability & 1/3rd Debt Amortization Matrix
-          </h2>
-          <p className="text-sm text-slate-400">
-            CPCB EPR Guidelines 2026: Mathematical debt amortization and statutory conversion factors ($C_f$)
-          </p>
-        </div>
+      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
+        <Box>
+          <Typography variant="h5" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <ScaleIcon color="primary" /> Plastic Liability & 1/3 Debt Amortization Matrix
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            CPCB EPR Guidelines 2026 — mathematical debt amortization and statutory conversion factors (Cf)
+          </Typography>
+        </Box>
+        <Button variant="contained" endIcon={<ArrowForwardIcon />} onClick={() => router.push("/auction")}>
+          Proceed to Auction Room
+        </Button>
+      </Box>
 
-        <Link
-          href="/auction"
-          className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm flex items-center gap-2 self-start shadow-md shadow-indigo-600/20"
-        >
-          <span>Proceed to Auction Room</span>
-          <ArrowRight className="w-4 h-4" />
-        </Link>
-      </div>
+      {error && <Alert severity={error.includes("No liability") ? "warning" : "error"}>{error}</Alert>}
 
-      {/* Interactive 1/3rd Debt Amortization Calculator */}
-      <div className="p-6 rounded-2xl glass-panel space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Calculator className="w-4 h-4 text-cyan-400" />
-              Statutory 1/3rd Historic Debt Amortization Engine
-            </h3>
-            <p className="text-xs text-slate-400">
-              Rule 13(2): Past deficits amortized in equal 33.33% fractions over 3 rolling fiscal years
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="px-3 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-xs font-mono">
-              Net = Current + (Debt / 3) − Fulfilled
-            </div>
-            <button
-              onClick={handleRecalculate}
-              disabled={isRecalculating}
-              className="px-3 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-semibold flex items-center gap-1 transition"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRecalculating ? "animate-spin" : ""}`} />
-              <span>Sync Server</span>
-            </button>
-          </div>
-        </div>
+      {/* KPI row */}
+      <Grid container spacing={2}>
+        <Grid item xs={12} sm={6} md={3}>
+          {loading ? <Skeleton variant="rounded" height={100} /> : <StatCard label="Current Year Base" value={displayed?.current_year_liability_tons ?? null} unit="Tons" />}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          {loading ? <Skeleton variant="rounded" height={100} /> : <StatCard label="Historic Debt" value={sliderDebt} unit="Tons" color="#f59e0b" />}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          {loading ? <Skeleton variant="rounded" height={100} /> : <StatCard label="Amortized 1/3" value={displayed?.amortized_debt_tons ?? null} unit="Tons" color="#4f46e5" />}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          {loading ? <Skeleton variant="rounded" height={100} /> : <StatCard label="Net Obligation" value={displayed?.net_liability_tons ?? null} unit="Tons" color="#10b981" />}
+        </Grid>
+      </Grid>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-          {/* Slider control */}
-          <div className="space-y-3 md:col-span-1 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-400 font-medium">Historic Carryover Debt</span>
-              <span className="font-mono text-amber-400 font-bold text-sm">{historicDebt.toLocaleString()} Tons</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="9000"
-              step="300"
-              value={historicDebt}
-              onChange={(e) => setHistoricDebt(Number(e.target.value))}
-              className="w-full accent-indigo-500 cursor-pointer"
+      {/* Amortization slider */}
+      <Card>
+        <CardContent>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+            <CalculateIcon color="secondary" />
+            <Typography variant="subtitle1" fontWeight={700}>Statutory 1/3 Historic Debt Amortization Engine</Typography>
+            {recalcLoading && <Chip label="Recalculating…" size="small" color="primary" variant="outlined" sx={{ ml: "auto" }} />}
+          </Box>
+          <Typography variant="caption" color="text.secondary">
+            Rule 13(2): Past deficits amortized in equal 33.33% fractions over 3 rolling fiscal years
+          </Typography>
+          <Box sx={{ px: 1, mt: 2 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+              <Typography variant="body2" color="text.secondary">Historic Carryover Debt</Typography>
+              <Typography variant="body2" fontWeight={700} fontFamily="monospace" color="warning.main">
+                {sliderDebt.toLocaleString()} Tons
+              </Typography>
+            </Box>
+            <Slider
+              value={sliderDebt}
+              min={0} max={9000} step={100}
+              onChange={(_, v) => setSliderDebt(v as number)}
+              color="primary"
+              marks={[{ value: 0, label: "0" }, { value: 4500, label: "4,500" }, { value: 9000, label: "9,000" }]}
             />
-            <div className="flex justify-between text-[10px] text-slate-400">
-              <span>0 T</span>
-              <span>4,500 T</span>
-              <span>9,000 T</span>
-            </div>
-          </div>
+          </Box>
+          {recalcError && <Alert severity="error" sx={{ mt: 1 }}>{recalcError}</Alert>}
+          <Box sx={{ mt: 2, p: 1.5, bgcolor: "rgba(79,70,229,0.07)", borderRadius: 2, border: "1px solid rgba(79,70,229,0.15)" }}>
+            <Typography variant="caption" color="primary.light" fontFamily="monospace">
+              Net = Current ({displayed?.current_year_liability_tons?.toLocaleString() ?? "…"}) + Amortized (
+              {displayed?.amortized_debt_tons?.toLocaleString() ?? "…"}) − Fulfilled (
+              {displayed?.already_fulfilled_tons?.toLocaleString() ?? "…"}) ={" "}
+              <strong>{displayed?.net_liability_tons?.toLocaleString() ?? "…"} Tons</strong>
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
 
-          {/* Breakdown cards */}
-          <div className="grid grid-cols-3 gap-3 md:col-span-2">
-            <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800">
-              <span className="text-[11px] text-slate-400 uppercase font-medium">Current Base</span>
-              <div className="text-xl font-bold font-mono text-white mt-1">{currentYearBase.toLocaleString()} T</div>
-              <p className="text-[10px] text-slate-400 mt-0.5">FY26 Sales Ingestion</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
-              <span className="text-[11px] text-amber-300 uppercase font-medium">Amortized 1/3rd</span>
-              <div className="text-xl font-bold font-mono text-amber-400 mt-1">+{amortizedDebt.toLocaleString()} T</div>
-              <p className="text-[10px] text-amber-300/80 mt-0.5">33.3% Annual Tranche</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-              <span className="text-[11px] text-indigo-300 uppercase font-medium">Net Obligation</span>
-              <div className="text-xl font-bold font-mono text-indigo-400 mt-1">{netLiability.toLocaleString()} T</div>
-              <p className="text-[10px] text-indigo-300/80 mt-0.5">Less {alreadyFulfilled.toLocaleString()}T Done</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Statutory Category Conversion Factor ($C_f$) Table */}
-      <div className="p-6 rounded-2xl glass-panel space-y-4">
-        <div className="border-b border-slate-800/80 pb-3">
-          <h3 className="text-base font-bold text-white">Statutory Conversion Factor ($C_f$) Matrix</h3>
-          <p className="text-xs text-slate-400">
-            CPCB Weight Multipliers for physical credit calculation: Credit = Physical Tons × $C_f$
-          </p>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
-                <th className="py-3 px-4">Plastic Category</th>
-                <th className="py-3 px-4">Description</th>
-                <th className="py-3 px-4">Target (Tons)</th>
-                <th className="py-3 px-4 text-center">Mechanical $C_f$</th>
-                <th className="py-3 px-4 text-center">Waste-to-Energy $C_f$</th>
-                <th className="py-3 px-4 text-right">Net Statutory Target</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
-              <tr className="hover:bg-slate-900/40">
-                <td className="py-3 px-4 font-bold text-indigo-300">Category I</td>
-                <td className="py-3 px-4 font-sans text-slate-300">Rigid Plastic Packaging</td>
-                <td className="py-3 px-4 text-slate-200">{(categoryBreakdown.cat_i_rigid || 7500).toLocaleString()}</td>
-                <td className="py-3 px-4 text-center text-emerald-400 font-bold">1.00</td>
-                <td className="py-3 px-4 text-center text-slate-400">0.70</td>
-                <td className="py-3 px-4 text-right font-bold text-white">
-                  {(categoryBreakdown.cat_i_rigid || 7500).toLocaleString()} Credits
-                </td>
-              </tr>
-              <tr className="hover:bg-slate-900/40">
-                <td className="py-3 px-4 font-bold text-cyan-300">Category II</td>
-                <td className="py-3 px-4 font-sans text-slate-300">Flexible Single/Multi-Layer</td>
-                <td className="py-3 px-4 text-slate-200">{(categoryBreakdown.cat_ii_flexible || 6200).toLocaleString()}</td>
-                <td className="py-3 px-4 text-center text-emerald-400 font-bold">0.80</td>
-                <td className="py-3 px-4 text-center text-slate-400">0.60</td>
-                <td className="py-3 px-4 text-right font-bold text-white">
-                  {Math.round((categoryBreakdown.cat_ii_flexible || 6200) * 0.8).toLocaleString()} Credits
-                </td>
-              </tr>
-              <tr className="hover:bg-slate-900/40">
-                <td className="py-3 px-4 font-bold text-emerald-300">Category III</td>
-                <td className="py-3 px-4 font-sans text-slate-300">Multi-Layered Plastic (MLP)</td>
-                <td className="py-3 px-4 text-slate-200">{(categoryBreakdown.cat_iii_mlp || 2500).toLocaleString()}</td>
-                <td className="py-3 px-4 text-center text-emerald-400 font-bold">0.50</td>
-                <td className="py-3 px-4 text-center text-cyan-400 font-bold">0.90</td>
-                <td className="py-3 px-4 text-right font-bold text-white">
-                  {Math.round((categoryBreakdown.cat_iii_mlp || 2500) * 0.5).toLocaleString()} Credits
-                </td>
-              </tr>
-              <tr className="hover:bg-slate-900/40">
-                <td className="py-3 px-4 font-bold text-amber-300">Category IV</td>
-                <td className="py-3 px-4 font-sans text-slate-300">Compostable Plastics</td>
-                <td className="py-3 px-4 text-slate-200">{(categoryBreakdown.cat_iv_compostable || 1000).toLocaleString()}</td>
-                <td className="py-3 px-4 text-center text-emerald-400 font-bold">1.00</td>
-                <td className="py-3 px-4 text-center text-slate-400">0.80</td>
-                <td className="py-3 px-4 text-right font-bold text-white">
-                  {(categoryBreakdown.cat_iv_compostable || 1000).toLocaleString()} Credits
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+      {/* Conversion Factor (Cf) Table */}
+      <Card>
+        <CardContent>
+          <Typography variant="subtitle1" fontWeight={700} mb={0.5}>Statutory Conversion Factor (Cf) Matrix</Typography>
+          <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+            CPCB weight multipliers: Credits = Physical Tons × Cf
+          </Typography>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Plastic Category</TableCell>
+                <TableCell align="right">Liability (Tons)</TableCell>
+                <TableCell align="center">Mechanical Cf</TableCell>
+                <TableCell align="center">Co-processing Cf</TableCell>
+                <TableCell align="right">Net Credits</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading
+                ? Array.from({ length: skeletonRowCount }).map((_, i) => (
+                    <TableRow key={i}>
+                      {[1, 2, 3, 4, 5].map((c) => (
+                        <TableCell key={c}><Skeleton variant="text" width="80%" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                : report?.breakdown_by_category
+                  ? Object.entries(report.breakdown_by_category).map(([key, tons]) => {
+                      const meta = CATEGORY_META[key] ?? { label: key, color: "primary" as const };
+                      const cf = report.conversion_factors?.[key];
+                      const mechCf  = cf?.mechanical  ?? null;
+                      const coProcCf = cf?.co_processing ?? null;
+                      return (
+                        <TableRow key={key} hover>
+                          <TableCell>
+                            <Chip label={meta.label} size="small" color={meta.color} variant="outlined" />
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontFamily: "monospace", fontWeight: 600 }}>
+                            {(tons as number).toLocaleString()}
+                          </TableCell>
+                          <TableCell align="center" sx={{ fontFamily: "monospace", color: "success.main", fontWeight: 700 }}>
+                            {mechCf != null ? mechCf.toFixed(2) : "N/A"}
+                          </TableCell>
+                          <TableCell align="center" sx={{ fontFamily: "monospace", color: "text.secondary" }}>
+                            {coProcCf != null ? coProcCf.toFixed(2) : "N/A"}
+                          </TableCell>
+                          <TableCell align="right" sx={{ fontFamily: "monospace", fontWeight: 700 }}>
+                            {mechCf != null ? Math.round((tons as number) * mechCf).toLocaleString() : "N/A"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  : (
+                    <TableRow>
+                      <TableCell colSpan={5}>
+                        <Alert severity="info">No breakdown data available.</Alert>
+                      </TableCell>
+                    </TableRow>
+                  )
+              }
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </Box>
   );
 }

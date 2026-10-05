@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Any
 
-from src.agents.base_adk import create_llm_agent, run_agent
+from .base_adk import create_llm_agent, run_agent
 
 logger = logging.getLogger(__name__)
 

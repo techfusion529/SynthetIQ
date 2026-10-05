@@ -1,283 +1,313 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import {
-  ArrowLeft,
-  ArrowRight,
-  CheckCircle2,
-  DollarSign,
-  Gavel,
-  Lock,
-  Plus,
-  Radio,
-  RefreshCw,
-  RotateCw,
-  Scale,
-  Shield,
-  TrendingUp,
-  Users,
-} from "lucide-react";
-import { broadcastRfp, fetchAuctions } from "@/app/lib/api";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Box from "@mui/material/Box";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Alert from "@mui/material/Alert";
+import Skeleton from "@mui/material/Skeleton";
+import Chip from "@mui/material/Chip";
+import Table from "@mui/material/Table";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import TableCell from "@mui/material/TableCell";
+import TableBody from "@mui/material/TableBody";
+import CircularProgress from "@mui/material/CircularProgress";
+import Breadcrumbs from "@mui/material/Breadcrumbs";
+import Link from "@mui/material/Link";
+import Divider from "@mui/material/Divider";
+import Tooltip from "@mui/material/Tooltip";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import IconButton from "@mui/material/IconButton";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import GavelIcon from "@mui/icons-material/Gavel";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import AddIcon from "@mui/icons-material/Add";
+import SignalCellularAltIcon from "@mui/icons-material/SignalCellularAlt";
 
-interface Bid {
-  id: string;
-  recycler: string;
-  plant: string;
-  category: string;
-  tons: number;
-  pricePerKg: number;
-  status: "MATCHED" | "BIDDING" | "OUT_OF_CORRIDOR";
-  timestamp: string;
+import { useCompany } from "../lib/contexts/CompanyContext";
+import { useAuctionService } from "../lib/hooks/useServices";
+import { ApiError } from "../lib/services/base.service";
+import type { Auction, Bid } from "../lib/types/auction.types";
+
+const STATUS_COLOR: Record<string, "success" | "warning" | "error" | "default"> = {
+  MATCHED: "success",
+  BIDDING: "warning",
+  OUT_OF_CORRIDOR: "error",
+};
+
+function CorridorVisualizer({ auction }: { auction: Auction | null }) {
+  if (!auction) return <Skeleton variant="rounded" height={60} />;
+  const { floor_price_inr: floor, ceiling_price_inr: ceiling, clearing_price_inr: clearing } = auction;
+  // Clearing marker position within the 30–100% band (0–100%)
+  const pct = ceiling > floor ? Math.round(((clearing - floor) / (ceiling - floor)) * 100) : 50;
+  return (
+    <Box>
+      <Box sx={{ position: "relative", height: 40, borderRadius: 2, overflow: "hidden", display: "flex" }}>
+        {/* Below floor — rejected zone */}
+        <Box sx={{ width: "30%", bgcolor: "rgba(244,63,94,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Typography variant="caption" color="error" fontWeight={700} sx={{ fontSize: "0.65rem" }}>Banned (&lt;30%)</Typography>
+        </Box>
+        {/* Statutory corridor */}
+        <Box sx={{ width: "70%", bgcolor: "rgba(16,185,129,0.12)", display: "flex", alignItems: "center", px: 1.5, position: "relative" }}>
+          <Typography variant="caption" color="success.light" fontWeight={600} fontSize="0.7rem">₹{floor.toFixed(2)}</Typography>
+          {/* Clearing price marker */}
+          <Box sx={{ position: "absolute", left: `${pct * 0.7}%`, top: 0, bottom: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <Chip label={`₹${clearing.toFixed(2)}/kg`} size="small" color="secondary" sx={{ fontSize: "0.65rem", fontWeight: 700, height: 20 }} />
+          </Box>
+          <Typography variant="caption" color="success.light" fontWeight={600} fontSize="0.7rem" sx={{ ml: "auto" }}>₹{ceiling.toFixed(2)}</Typography>
+        </Box>
+      </Box>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.5 }}>
+        <Typography variant="caption" color="text.disabled">₹0</Typography>
+        <Typography variant="caption" color="text.secondary" fontSize="0.65rem">
+          Corridor active: ₹{floor.toFixed(2)} — ₹{ceiling.toFixed(2)} (30–100% of ₹{auction.statutory_rate_per_kg}/kg base rate)
+        </Typography>
+        <Typography variant="caption" color="text.disabled">₹{(ceiling * 1.2).toFixed(2)}+</Typography>
+      </Box>
+    </Box>
+  );
 }
 
-export default function DoubleAuctionPage() {
-  const [bids, setBids] = useState<Bid[]>([
-    {
-      id: "BID-DEL-101",
-      recycler: "EcoMelt Solutions Ltd",
-      plant: "Okhla Industrial Plant 2",
-      category: "Cat-I Rigid",
-      tons: 3000,
-      pricePerKg: 7.8,
-      status: "MATCHED",
-      timestamp: "11:24:02",
-    },
-    {
-      id: "BID-GUJ-204",
-      recycler: "Gujarat Poly-Recyclers",
-      plant: "Surat GIDC Extrusion Facility",
-      category: "Cat-I Rigid",
-      tons: 2000,
-      pricePerKg: 7.8,
-      status: "MATCHED",
-      timestamp: "11:24:08",
-    },
-    {
-      id: "BID-MAH-309",
-      recycler: "Deccan Circular Plastics",
-      plant: "Pune Chakan Line 1",
-      category: "Cat-I Rigid",
-      tons: 2500,
-      pricePerKg: 8.4,
-      status: "BIDDING",
-      timestamp: "11:24:15",
-    },
-    {
-      id: "BID-TN-412",
-      recycler: "Chennai EcoProcessors",
-      plant: "Sriperumbudur Hub",
-      category: "Cat-I Rigid",
-      tons: 1500,
-      pricePerKg: 13.5,
-      status: "OUT_OF_CORRIDOR",
-      timestamp: "11:24:20",
-    },
-  ]);
-  const [targetTons, setTargetTons] = useState(5000);
-  const [clearingPrice, setClearingPrice] = useState(7.8);
-  const [isBroadcasting, setIsBroadcasting] = useState(false);
-  const [broadcastResult, setBroadcastResult] = useState<any>(null);
+export default function AuctionPage() {
+  const router = useRouter();
+  const { companyId } = useCompany();
+  const auctionSvc = useAuctionService();
 
-  const statutoryFloor = 3.6; // 30% of ₹12/kg base rate
-  const statutoryCeiling = 12.0; // 100% of ₹12/kg base rate
+  const [auctions, setAuctions]         = useState<Auction[]>([]);
+  const [activeAuction, setActiveAuction] = useState<Auction | null>(null);
+  const [bids, setBids]                 = useState<Bid[]>([]);
+  const [loadingAuctions, setLoadingAuctions] = useState(true);
+  const [loadingBids, setLoadingBids]   = useState(false);
+  const [auctionsError, setAuctionsError] = useState<string | null>(null);
+  const [bidsError, setBidsError]       = useState<string | null>(null);
+  const [broadcasting, setBroadcasting] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
+  const [targetTons, setTargetTons]     = useState("1000");
+  const [category, setCategory]         = useState("cat_i_rigid");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    fetchAuctions().then((aucs) => {
-      if (aucs && aucs.length > 0) {
-        const top = aucs[0];
-        if (top.target_tons) setTargetTons(top.target_tons);
-        if (top.clearing_price_inr) setClearingPrice(top.clearing_price_inr);
-      }
-    });
-  }, []);
-
-  const handleBroadcastRfp = async () => {
-    setIsBroadcasting(true);
+  // ── fetch auctions (initial) ───────────────────────────────────────────────
+  const fetchAuctions = useCallback(async () => {
+    setLoadingAuctions(true);
+    setAuctionsError(null);
     try {
-      const res = await broadcastRfp({
-        company_id: "COMP-IN-001",
-        category: "cat_i_rigid",
-        target_tons: targetTons,
-      });
-      setBroadcastResult(res);
-      // Append a newly matched bid
-      const newBid: Bid = {
-        id: `BID-RFP-${Date.now().toString().slice(-4)}`,
-        recycler: "EcoMelt Solutions Ltd",
-        plant: "Okhla Line 2",
-        category: "Cat-I Rigid",
-        tons: targetTons,
-        pricePerKg: clearingPrice,
-        status: "MATCHED",
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      setBids((prev) => [newBid, ...prev]);
-    } catch {
-      // Keep UI responsive
+      const list = await auctionSvc.listAuctions();
+      setAuctions(list);
+      if (list.length > 0) setActiveAuction(list[0]);
+    } catch (e) {
+      setAuctionsError(e instanceof ApiError ? e.message : "Failed to load auctions");
     } finally {
-      setIsBroadcasting(false);
+      setLoadingAuctions(false);
+    }
+  }, [auctionSvc]);
+
+  // ── fetch bids for active auction ─────────────────────────────────────────
+  const fetchBids = useCallback(async (auctionId: string) => {
+    setLoadingBids(true);
+    setBidsError(null);
+    try {
+      const b = await auctionSvc.getBids(auctionId);
+      setBids(b);
+    } catch (e) {
+      setBidsError(e instanceof ApiError ? e.message : "Failed to load bids");
+    } finally {
+      setLoadingBids(false);
+    }
+  }, [auctionSvc]);
+
+  useEffect(() => { fetchAuctions(); }, [fetchAuctions]);
+
+  // ── poll bids every 10 s ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!activeAuction) return;
+    fetchBids(activeAuction.id);
+    pollRef.current = setInterval(() => fetchBids(activeAuction.id), 10_000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [activeAuction, fetchBids]);
+
+  // ── broadcast RFP ─────────────────────────────────────────────────────────
+  const handleBroadcast = async () => {
+    if (!companyId) return;
+    setBroadcasting(true);
+    setBroadcastResult(null);
+    try {
+      const res = await auctionSvc.broadcastRfp({ company_id: companyId, category, target_tons: Number(targetTons) });
+      setBroadcastResult(`Auction ${res.auction_id} created — Temporal workflow ${res.workflow_id}`);
+      await fetchAuctions();
+    } catch (e) {
+      setBroadcastResult(`Error: ${e instanceof ApiError ? e.message : "Broadcast failed"}`);
+    } finally {
+      setBroadcasting(false);
     }
   };
 
   return (
-    <div className="space-y-8 pb-12">
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+      <Breadcrumbs>
+        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>Executive Hub</Link>
+        <Typography color="primary.light" fontWeight={600}>Workflow 2 — Double Auction</Typography>
+      </Breadcrumbs>
+
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2 text-xs text-slate-400 mb-1">
-            <Link href="/" className="hover:text-slate-200">Executive Hub</Link>
-            <span>/</span>
-            <span className="text-indigo-400 font-medium">Workflow 2: Liquidity & Auction</span>
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
-            <Gavel className="w-6 h-6 text-indigo-400" />
-            Continuous Double Auction Room
-          </h2>
-          <p className="text-sm text-slate-400">
-            Treasury Agent autonomous matching locked within statutory corridor ($30\% - 100\%$)
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3 self-start flex-wrap">
-          <button
-            onClick={handleBroadcastRfp}
-            disabled={isBroadcasting}
-            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/30 transition disabled:opacity-50"
+      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
+        <Box>
+          <Typography variant="h5" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <GavelIcon color="primary" /> Continuous Double Auction Room
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Treasury Agent autonomous matching locked within statutory 30%–100% price corridor
+          </Typography>
+        </Box>
+        <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+          <TextField
+            select
+            size="small"
+            label="Category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            sx={{ width: 170 }}
           >
-            {isBroadcasting ? (
-              <>
-                <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Broadcasting to Temporal...</span>
-              </>
-            ) : (
-              <>
-                <Plus className="w-3.5 h-3.5" />
-                <span>Broadcast RFP to Liquidity Pool</span>
-              </>
-            )}
-          </button>
-
-          <Link
-            href="/audit"
-            className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white font-semibold text-xs flex items-center gap-1.5 transition"
+            <MenuItem value="cat_i_rigid">Cat I — Rigid</MenuItem>
+            <MenuItem value="cat_ii_flexible">Cat II — Flexible</MenuItem>
+            <MenuItem value="cat_iii_mlp">Cat III — MLP</MenuItem>
+            <MenuItem value="cat_iv_compostable">Cat IV — Compostable</MenuItem>
+          </TextField>
+          <TextField
+            size="small" label="Target Tons" value={targetTons}
+            onChange={(e) => setTargetTons(e.target.value)}
+            sx={{ width: 120 }}
+            type="number"
+          />
+          <Button
+            variant="contained" startIcon={broadcasting ? <CircularProgress size={14} color="inherit" /> : <AddIcon />}
+            onClick={handleBroadcast} disabled={broadcasting || !companyId}
           >
-            <span>Proceed to Fraud Audit</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </div>
+            Broadcast RFP
+          </Button>
+          <Button variant="outlined" endIcon={<ArrowForwardIcon />} onClick={() => router.push("/audit")}>
+            Proceed to Audit
+          </Button>
+        </Box>
+      </Box>
 
       {broadcastResult && (
-        <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/50 text-emerald-200 text-xs flex items-center justify-between animate-fadeIn">
-          <div className="flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>
-              <strong>Temporal Workflow Dispatched:</strong> {broadcastResult.workflow_id} on task queue <code className="font-mono bg-emerald-900/60 px-1 py-0.5 rounded">synthetiq-main</code>.
-            </span>
-          </div>
-          <span className="font-mono text-[11px] text-slate-300">Status: {broadcastResult.status}</span>
-        </div>
+        <Alert severity={broadcastResult.startsWith("Error") ? "error" : "success"}>{broadcastResult}</Alert>
       )}
 
-      {/* Statutory Price Corridor Visualizer Banner */}
-      <div className="p-6 rounded-2xl glass-panel space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Shield className="w-4 h-4 text-indigo-400" />
-              Statutory 30% - 100% Price Corridor Rule
-            </h3>
-            <p className="text-xs text-slate-400">
-              Transactions outside corridor are automatically rejected by smart contract rules to prevent predatory pricing
-            </p>
-          </div>
-          <div className="text-xs font-mono text-indigo-300">
-            Base Statutory Penalty Rate: <strong className="text-white">₹12.00 / kg</strong>
-          </div>
-        </div>
+      {auctionsError && <Alert severity="error">{auctionsError}</Alert>}
 
-        {/* Corridor Graphic */}
-        <div className="space-y-2 pt-2">
-          <div className="relative h-10 w-full rounded-xl bg-slate-900 border border-slate-800 flex items-center overflow-hidden">
-            {/* Out-of-bounds left */}
-            <div className="h-full bg-rose-500/10 border-r border-rose-500/30 flex items-center justify-center text-[10px] text-rose-400 font-bold" style={{ width: "30%" }}>
-              Banned (&lt;30%)
-            </div>
+      {/* Corridor Visualizer */}
+      <Card>
+        <CardContent>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700}>Statutory 30%–100% Price Corridor Rule</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Transactions outside corridor are automatically rejected. Base rate: ₹{activeAuction?.statutory_rate_per_kg ?? "—"}/kg
+              </Typography>
+            </Box>
+            {loadingAuctions && <CircularProgress size={20} />}
+          </Box>
+          <CorridorVisualizer auction={activeAuction} />
+        </CardContent>
+      </Card>
 
-            {/* Statutory Corridor (30% to 100%) */}
-            <div className="h-full bg-emerald-500/10 flex items-center justify-between px-3 text-xs font-bold text-emerald-300 relative" style={{ width: "70%" }}>
-              <span>Floor: ₹{statutoryFloor.toFixed(2)}</span>
-              {/* Marker for Clearing Price */}
-              <div className="absolute left-[35%] -top-1 bottom-0 flex flex-col items-center justify-center">
-                <span className="px-2 py-0.5 rounded bg-cyan-400 text-slate-950 font-mono text-[10px] font-bold shadow-md shadow-cyan-400/50">
-                  Clearing: ₹{clearingPrice.toFixed(2)}/kg
-                </span>
-              </div>
-              <span>Ceiling: ₹{statutoryCeiling.toFixed(2)}</span>
-            </div>
-          </div>
-          <div className="flex justify-between text-[11px] text-slate-400 font-mono px-1">
-            <span>₹0.00</span>
-            <span>Corridor Active: Trades match within ₹3.60 to ₹12.00</span>
-            <span>₹14.00+</span>
-          </div>
-        </div>
-      </div>
+      {/* Auction selector */}
+      {!loadingAuctions && auctions.length === 0 ? (
+        <Alert severity="info">No auctions found. Broadcast an RFP to create one.</Alert>
+      ) : (
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          {auctions.map((a) => (
+            <Chip
+              key={a.id}
+              label={`${a.auction_id} · ${a.category} · ${a.status}`}
+              onClick={() => setActiveAuction(a)}
+              color={activeAuction?.id === a.id ? "primary" : "default"}
+              variant={activeAuction?.id === a.id ? "filled" : "outlined"}
+              size="small"
+            />
+          ))}
+        </Box>
+      )}
 
-      {/* Live Order Book Table */}
-      <div className="p-6 rounded-2xl glass-panel space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-          <div className="flex items-center space-x-2">
-            <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-            <h3 className="text-base font-bold text-white">Live Double Auction Order Book (Continuous Matching)</h3>
-          </div>
-          <span className="text-xs font-mono text-slate-400">Total Matched: 5,000 / 5,000 Tons</span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
-                <th className="py-3 px-4">Bid ID</th>
-                <th className="py-3 px-4">Recycler Name</th>
-                <th className="py-3 px-4">Plant Location</th>
-                <th className="py-3 px-4">Category</th>
-                <th className="py-3 px-4 text-right">Volume (Tons)</th>
-                <th className="py-3 px-4 text-right">Offer (₹/kg)</th>
-                <th className="py-3 px-4 text-center">Corridor Status</th>
-                <th className="py-3 px-4 text-right">Timestamp</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
-              {bids.map((bid) => (
-                <tr key={bid.id} className="hover:bg-slate-900/40">
-                  <td className="py-3 px-4 font-bold text-indigo-300">{bid.id}</td>
-                  <td className="py-3 px-4 font-sans text-slate-200">{bid.recycler}</td>
-                  <td className="py-3 px-4 font-sans text-slate-400">{bid.plant}</td>
-                  <td className="py-3 px-4 font-sans text-slate-300">{bid.category}</td>
-                  <td className="py-3 px-4 text-right text-slate-100">{bid.tons.toLocaleString()}</td>
-                  <td className="py-3 px-4 text-right font-bold text-white">₹{bid.pricePerKg.toFixed(2)}</td>
-                  <td className="py-3 px-4 text-center">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                        bid.status === "MATCHED"
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                          : bid.status === "BIDDING"
-                          ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/30"
-                          : "bg-rose-500/10 text-rose-400 border-rose-500/30"
-                      }`}
-                    >
-                      {bid.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right text-slate-500 text-[11px]">{bid.timestamp}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+      {/* Live Order Book */}
+      <Card>
+        <CardContent>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <SignalCellularAltIcon color="success" fontSize="small" />
+              <Typography variant="subtitle1" fontWeight={700}>Live Double Auction Order Book</Typography>
+              <Chip label="10s refresh" size="small" variant="outlined" color="secondary" sx={{ fontSize: "0.65rem" }} />
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography variant="caption" color="text.secondary" fontFamily="monospace">
+                Matched: {bids.filter((b) => b.status === "MATCHED").reduce((s, b) => s + b.volume_tons, 0).toLocaleString()} T
+              </Typography>
+              <Tooltip title="Refresh bids">
+                <IconButton size="small" onClick={() => activeAuction && fetchBids(activeAuction.id)}>
+                  <RefreshIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+          <Divider sx={{ mb: 1 }} />
+          {bidsError && <Alert severity="error" sx={{ mb: 1 }}>{bidsError}</Alert>}
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Bid ID</TableCell>
+                <TableCell>Recycler</TableCell>
+                <TableCell>Plant</TableCell>
+                <TableCell>Category</TableCell>
+                <TableCell align="right">Volume (T)</TableCell>
+                <TableCell align="right">Offer (₹/kg)</TableCell>
+                <TableCell align="center">Status</TableCell>
+                <TableCell align="right">Timestamp</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loadingBids
+                ? Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: 8 }).map((__, j) => (
+                        <TableCell key={j}><Skeleton variant="text" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                : bids.length === 0
+                  ? (
+                    <TableRow>
+                      <TableCell colSpan={8}>
+                        <Alert severity="info">No bids received yet for this auction.</Alert>
+                      </TableCell>
+                    </TableRow>
+                  )
+                  : bids.map((bid) => (
+                    <TableRow key={bid.bid_id} hover>
+                      <TableCell sx={{ fontFamily: "monospace", fontWeight: 700, color: "primary.light" }}>{bid.bid_id}</TableCell>
+                      <TableCell>{bid.recycler_name}</TableCell>
+                      <TableCell sx={{ color: "text.secondary" }}>{bid.plant_name}</TableCell>
+                      <TableCell>{bid.category}</TableCell>
+                      <TableCell align="right" sx={{ fontFamily: "monospace" }}>{bid.volume_tons.toLocaleString()}</TableCell>
+                      <TableCell align="right" sx={{ fontFamily: "monospace", fontWeight: 700 }}>₹{bid.price_per_kg.toFixed(2)}</TableCell>
+                      <TableCell align="center">
+                        <Chip label={bid.status} size="small" color={STATUS_COLOR[bid.status] ?? "default"} sx={{ fontSize: "0.65rem" }} />
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontFamily: "monospace", fontSize: "0.7rem", color: "text.secondary" }}>
+                        {new Date(bid.timestamp).toLocaleTimeString()}
+                      </TableCell>
+                    </TableRow>
+                  ))
+              }
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </Box>
   );
 }

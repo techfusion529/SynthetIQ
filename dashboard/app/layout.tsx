@@ -1,29 +1,27 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
-import Header from "@/components/Header";
+import ThemeRegistry from "./lib/ThemeRegistry";
+import { SessionProvider } from "./lib/contexts/SessionContext";
+import { CompanyProvider } from "./lib/contexts/CompanyContext";
+import AppShell from "../components/AppShell";
 
 export const metadata: Metadata = {
   title: "SynthetIQ — Autonomous EPR Compliance & Anti-Fraud Engine",
   description:
-    "Zero-trust multi-agent compliance platform integrating BigQuery ERP audits, continuous double auctions, SCADA VFD fraud detection, and CPCB Form-1 statutory dispatch.",
+    "Zero-trust multi-agent compliance platform: BigQuery ERP audits, continuous double auctions, SCADA VFD fraud detection, and CPCB Form-1 dispatch.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-[#060913] text-slate-100 flex min-h-screen antialiased">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0">
-          <Header />
-          <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl w-full mx-auto">
-            {children}
-          </main>
-        </div>
+    <html lang="en">
+      <body>
+        <ThemeRegistry>
+          <SessionProvider>
+            <CompanyProvider>
+              <AppShell>{children}</AppShell>
+            </CompanyProvider>
+          </SessionProvider>
+        </ThemeRegistry>
       </body>
     </html>
   );

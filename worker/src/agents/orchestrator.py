@@ -19,18 +19,18 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from src.agents.base_adk import (
+from .base_adk import (
     create_parallel_group,
     create_sequential_pipeline,
     run_agent,
 )
-from src.agents.brand_liability_agent import brand_liability_agent
-from src.agents.regulatory_agent import regulatory_agent
-from src.agents.treasury_agent import treasury_agent
-from src.agents.logistics_agent import logistics_agent
-from src.agents.auditor_agent import auditor_agent
-from src.agents.erp_agent import erp_agent
-from src.agents.legal_agent import legal_agent
+from .brand_liability_agent import brand_liability_agent
+from .regulatory_agent import regulatory_agent
+from .treasury_agent import treasury_agent
+from .logistics_agent import logistics_agent
+from .auditor_agent import auditor_agent
+from .erp_agent import erp_agent
+from .legal_agent import legal_agent
 
 logger = logging.getLogger(__name__)
 

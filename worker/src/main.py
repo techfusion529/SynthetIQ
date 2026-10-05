@@ -68,6 +68,35 @@ async def initialize_services() -> None:
         logger.error("GEMINI_API_KEY not configured. Cannot start worker.")
         raise RuntimeError("Gemini API key required")
 
+    # Set GCP project context for BigQuery / Pub/Sub
+    if config.gcp.project_id:
+        os.environ["GCP_PROJECT_ID"] = config.gcp.project_id
+        os.environ["GCP_REGION"] = config.gcp.region
+        os.environ["GOOGLE_CLOUD_PROJECT"] = config.gcp.project_id
+        if os.getenv("USE_VERTEX_AI", "false").lower() == "true":
+            os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+            os.environ["GOOGLE_CLOUD_LOCATION"] = os.getenv("VERTEX_LOCATION", "us-central1")
+        else:
+            os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
+        logger.info(
+            f"✓ GCP Platform configured: project={config.gcp.project_id}, "
+            f"region={config.gcp.region}"
+        )
+    else:
+        logger.warning("GCP_PROJECT_ID not set — Vertex AI / BigQuery / Pub/Sub disabled")
+
+    # Initialize Gemini AI service (dual-mode: Vertex AI + API key fallback)
+    from services.ai_service import initialize_gemini_service
+    initialize_gemini_service(
+        api_key=config.gemini.api_key,
+        model_name=config.gemini.model,
+        temperature=config.gemini.temperature,
+        max_tokens=config.gemini.max_tokens,
+        gcp_project_id=config.gcp.project_id if config.gcp.project_id else None,
+        gcp_region=config.gcp.region,
+    )
+    logger.info("✓ Gemini AI service initialized")
+
     # Initialize ADK session service
     from agents.base_adk import get_session_service
     get_session_service()
@@ -111,9 +140,34 @@ async def initialize_services() -> None:
     logger.info("All services initialized successfully!")
 
 
+async def _start_health_server(port: int = 9090):
+    """Run a lightweight HTTP health check responder on port 9090."""
+    async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        try:
+            await reader.read(1024)
+            resp = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nOK"
+            writer.write(resp)
+            await writer.drain()
+        except Exception:
+            pass
+        finally:
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+
+    server = await asyncio.start_server(_handle_client, "0.0.0.0", port)
+    logger.info(f"✓ Health check server listening on port {port}")
+    return server
+
+
 async def main() -> None:
     """Start Temporal worker with all workflows and activities."""
     config = get_config()
+
+    # Start health check server
+    health_server = await _start_health_server(9090)
 
     # Initialize AI services
     await initialize_services()

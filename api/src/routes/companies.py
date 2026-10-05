@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.middleware.auth import CurrentUser
 from src.middleware.rbac import require_permission
@@ -35,9 +35,13 @@ _COMPANIES_DB: dict[str, dict[str, Any]] = {
 async def list_companies(
     user: CurrentUser,
     _: Any = Depends(require_permission("orgs:read")),
+    company_id: str | None = Query(default=None, description="Filter by company_id"),
 ) -> list[dict[str, Any]]:
-    """Lists all onboarded enterprise companies."""
-    return list(_COMPANIES_DB.values())
+    """Lists all onboarded enterprise companies, optionally filtered by company_id."""
+    companies = list(_COMPANIES_DB.values())
+    if company_id:
+        companies = [c for c in companies if c.get("company_id") == company_id]
+    return companies
 
 
 @router.get("/{company_id}")

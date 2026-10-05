@@ -4,7 +4,7 @@
 
 global:
   environment: prod
-  imageRegistry: ghcr.io/techfusion529/synthetiq
+  imageRegistry: asia-south1-docker.pkg.dev/synthetiq-dev/synthetiq-docker-repo
   imagePullPolicy: Always
 
 dashboard:

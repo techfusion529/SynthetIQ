@@ -4,10 +4,16 @@
 
 global:
   environment: dev
-  imageRegistry: ghcr.io/techfusion529/synthetiq
+  imageRegistry: asia-south1-docker.pkg.dev/synthetiq-dev/synthetiq-docker-repo
   imageTag: latest
   imagePullPolicy: IfNotPresent
   namespace: synthetiq
+
+# ---- Secrets Configuration ----
+secrets:
+  geminiApiKey: ""
+  databaseUrl: "postgresql+asyncpg://synthetiq:synthetiq@synthetiq-postgres:5432/synthetiq"
+  jwtSecret: "synthetiq-dev-jwt-secret-key"
 
 # ---- Next.js Executive Dashboard ----
 dashboard:

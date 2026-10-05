@@ -1,7 +1,9 @@
 """API route modules — public re-exports."""
 
+from .agent_config import router as agent_config_router
 from .auctions import router as auctions_router
 from .audit import router as audit_router
+from .auth import router as auth_router
 from .companies import router as companies_router
 from .config import router as config_router
 from .health import router as health_router
@@ -10,9 +12,11 @@ from .orchestrator import router as orchestrator_router
 from .organizations import router as organizations_router
 from .schedules import router as schedules_router
 from .settlement import router as settlement_router
+from .users import router as users_router
 
 __all__ = [
     "health_router",
+    "auth_router",
     "companies_router",
     "liability_router",
     "auctions_router",
@@ -22,4 +26,6 @@ __all__ = [
     "orchestrator_router",
     "schedules_router",
     "organizations_router",
+    "users_router",
+    "agent_config_router",
 ]

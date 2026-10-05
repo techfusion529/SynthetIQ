@@ -95,11 +95,26 @@ class AuthService:
                 return self._dev_user()
             raise ValueError("Empty authorization token")
 
-        # Dev mode: accept any token with mock claims
+        # 1. First check if it is our signed local HS256 JWT
+        try:
+            from src.services.jwt_utils import decode_access_token
+            decoded = decode_access_token(clean_token)
+            return {
+                "uid": decoded.get("uid", ""),
+                "email": decoded.get("email", ""),
+                "display_name": decoded.get("display_name", ""),
+                "role": decoded.get("role", "viewer"),
+                "org_id": decoded.get("org_id", ""),
+                "authorized": True,
+            }
+        except Exception:
+            pass
+
+        # 2. Dev mode: accept dev token or fallback
         if self.dev_mode:
             return self._dev_user(clean_token)
 
-        # Production: verify with Firebase Admin SDK
+        # 3. Production: verify with Firebase Admin SDK
         try:
             decoded = firebase_auth.verify_id_token(clean_token)
 

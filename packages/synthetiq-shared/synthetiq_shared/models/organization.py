@@ -22,7 +22,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.database import Base
+from synthetiq_shared.database import Base
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +59,7 @@ class Organization(Base):
     # Relationships
     users: Mapped[list[User]] = relationship(back_populates="organization", cascade="all, delete-orphan")
     data_sources: Mapped[list[DataSource]] = relationship(back_populates="organization", cascade="all, delete-orphan")
+    agent_configurations: Mapped[list[Any]] = relationship("AgentConfiguration", back_populates="organization", cascade="all, delete-orphan")
     schedules: Mapped[list[Schedule]] = relationship(back_populates="organization", cascade="all, delete-orphan")
     workflow_runs: Mapped[list[WorkflowRun]] = relationship(back_populates="organization", cascade="all, delete-orphan")
 
@@ -82,6 +83,7 @@ class User(Base):
         String(64), primary_key=True, default=lambda: f"USR-{uuid.uuid4().hex[:8].upper()}"
     )
     email: Mapped[str] = mapped_column(String(256), nullable=False, unique=True)
+    password_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
     display_name: Mapped[str] = mapped_column(String(256), default="")
     firebase_uid: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
 
@@ -145,6 +147,7 @@ class DataSource(Base):
 
     # Relationships
     organization: Mapped[Organization] = relationship(back_populates="data_sources")
+    agent_configurations: Mapped[list[Any]] = relationship("AgentConfiguration", back_populates="data_source")
 
     def __repr__(self) -> str:
         return f"DataSource(source_id={self.source_id!r}, type={self.source_type!r}, purpose={self.purpose!r})"

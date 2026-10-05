@@ -9,12 +9,13 @@ RBAC:
 from __future__ import annotations
 
 import hashlib
+import logging
 import time
 import uuid
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.constants import MCP_URL, MOCKS_URL, SIMULATOR_URL
 from src.middleware.auth import CurrentUser
@@ -23,6 +24,7 @@ from src.routes.config import get_runtime_config
 from src.services.temporal_service import temporal_service
 
 router = APIRouter(prefix="/compliance", tags=["Autonomous End-to-End Orchestrator"])
+logger = logging.getLogger(__name__)
 
 # In-memory run history (replaced by WorkflowRun ORM in Phase 6)
 _RUNS_DB: list[dict[str, Any]] = []
@@ -45,7 +47,8 @@ async def execute_e2e_compliance_run(
     """
     config = get_runtime_config()
     p = payload or {}
-    company_id = p.get("company_id", "COMP-IN-001")
+    org_id = user.get("org_id") or p.get("company_id", "ORG-DEV-001")
+    company_id = p.get("company_id") or org_id
     fiscal_year = p.get("fiscal_year", "FY2026-27")
     category = p.get("category", "cat_i_rigid")
     volume_tons = float(p.get("volume_tons", 250.0))
@@ -65,20 +68,35 @@ async def execute_e2e_compliance_run(
     )
 
     # -------------------------------------------------------------
-    # STAGE 1: Upstream Liability & ERP Sales Batch Ingestion
+    # STAGE 1: Upstream Liability & ERP Sales Batch Ingestion (Dynamic Data)
     # -------------------------------------------------------------
     erp_data = None
+    data_source_label = "Simulator Feed"
+
+    # Query tenant's dynamic data connector
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(f"{config.simulator_url.rstrip('/')}/erp/sales")
-            if resp.status_code == 200:
-                erp_data = resp.json()
-    except Exception:
-        pass
+        from src.services.data_connector_shim import get_connector_for_org
+        connector = await get_connector_for_org(org_id, purpose="erp_sales")
+        sales_records = await connector.query_sales_data(company_id, fiscal_year)
+        if sales_records:
+            erp_data = sales_records
+            data_source_label = f"Dynamic Connector ({connector.connector_type})"
+    except Exception as exc:
+        logger.warning(f"Could not query dynamic connector ({exc}); trying simulator")
+
+    # Fallback to simulator if connector returned nothing
+    if not erp_data:
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.get(f"{config.simulator_url.rstrip('/')}/erp/sales")
+                if resp.status_code == 200:
+                    erp_data = resp.json()
+        except Exception:
+            pass
 
     if isinstance(erp_data, list) and erp_data:
         erp_batch_id = erp_data[0].get("invoice_number", f"ERP-BAT-{uuid.uuid4().hex[:6]}")
-        total_sales_kg = sum(float(x.get("quantity_kg", 0)) for x in erp_data) or (volume_tons * 1000 * 12)
+        total_sales_kg = sum(float(x.get("quantity_kg", float(x.get("plastic_weight_kg", 0.025)) * float(x.get("units_sold", 1000)))) for x in erp_data) or (volume_tons * 1000 * 12)
     elif isinstance(erp_data, dict):
         erp_batch_id = erp_data.get("batch_id", f"ERP-BAT-{uuid.uuid4().hex[:6]}")
         total_sales_kg = float(erp_data.get("total_sales_kg", volume_tons * 1000 * 12))
@@ -297,6 +315,29 @@ async def execute_e2e_compliance_run(
         "steps": steps_log,
     }
     _RUNS_DB.insert(0, final_result)
+
+    # Persist into PostgreSQL WorkflowRun
+    try:
+        from datetime import datetime, timezone
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models import WorkflowRun
+        async with get_db_session() as session:
+            run_rec = WorkflowRun(
+                run_id=run_id,
+                workflow_type="master_e2e_compliance",
+                temporal_workflow_id=workflow_id,
+                org_id=org_id,
+                status=final_result.get("status", "SUCCESS_FULLY_COMPLIANT"),
+                result=final_result,
+                triggered_by=user["email"],
+                started_at=datetime.fromtimestamp(started_at, tz=timezone.utc),
+                completed_at=datetime.now(timezone.utc),
+                duration_seconds=final_result.get("duration_seconds", 0.0),
+            )
+            session.add(run_rec)
+    except Exception as exc:
+        logger.warning(f"Could not persist WorkflowRun to DB ({exc}); cached in memory")
+
     return final_result
 
 
@@ -305,8 +346,48 @@ async def list_compliance_runs(
     user: CurrentUser,
     _: Any = Depends(require_permission("workflows:read")),
 ) -> list[dict[str, Any]]:
-    """Returns list of previous autonomous compliance runs."""
+    """Returns list of previous autonomous compliance runs scoped by tenant."""
+    org_id = user.get("org_id", "")
+    try:
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models import WorkflowRun
+        from sqlalchemy import select
+        async with get_db_session() as session:
+            query = select(WorkflowRun).order_by(WorkflowRun.started_at.desc())
+            if user.get("role") != "admin" and org_id:
+                query = query.where(WorkflowRun.org_id == org_id)
+            res = await session.execute(query)
+            db_runs = res.scalars().all()
+            if db_runs:
+                return [
+                    {
+                        "run_id": r.run_id,
+                        "temporal_workflow_id": r.temporal_workflow_id,
+                        "org_id": r.org_id,
+                        "status": r.status,
+                        "duration_seconds": r.duration_seconds,
+                        "triggered_by": r.triggered_by,
+                        **(r.result or {}),
+                    }
+                    for r in db_runs
+                ]
+    except Exception:
+        pass
     return _RUNS_DB
+
+
+@router.get("/runs/{run_id}/steps")
+async def get_compliance_run_steps(
+    run_id: str,
+    user: CurrentUser,
+    _: Any = Depends(require_permission("workflows:read")),
+) -> list[dict[str, Any]]:
+    """Returns the ordered step list for a specific compliance run."""
+    for r in _RUNS_DB:
+        if r.get("run_id") == run_id:
+            steps = r.get("steps", [])
+            return sorted(steps, key=lambda s: s.get("step", 0))
+    raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
 
 
 @router.get("/runs/{run_id}")
@@ -319,4 +400,4 @@ async def get_compliance_run(
     for r in _RUNS_DB:
         if r.get("run_id") == run_id:
             return r
-    return {"run_id": run_id, "status": "NOT_FOUND"}
+    raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")

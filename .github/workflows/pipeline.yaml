@@ -101,14 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate GCP Credentials Secret
-        if: ${{ secrets.GCP_SA_KEY == '' && secrets.GKE_SA_KEY == '' }}
-        run: |
-          echo "::error::GCP_SA_KEY secret is missing! Please configure 'GCP_SA_KEY' in GitHub repository Settings -> Secrets and variables -> Actions -> Secrets."
-          exit 1
-
       - name: Authenticate to Google Cloud
-        if: ${{ secrets.GCP_SA_KEY != '' || secrets.GKE_SA_KEY != '' }}
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY || secrets.GKE_SA_KEY }}
@@ -145,14 +138,7 @@ jobs:
         with:
           version: "3.14.0"
 
-      - name: Validate GCP Credentials Secret
-        if: ${{ secrets.GCP_SA_KEY == '' && secrets.GKE_SA_KEY == '' }}
-        run: |
-          echo "::error::GCP_SA_KEY secret is missing! Please configure 'GCP_SA_KEY' in GitHub repository Settings -> Secrets and variables -> Actions -> Secrets."
-          exit 1
-
       - name: Authenticate to Google Cloud
-        if: ${{ secrets.GCP_SA_KEY != '' || secrets.GKE_SA_KEY != '' }}
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY || secrets.GKE_SA_KEY }}

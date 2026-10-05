@@ -121,7 +121,7 @@ jobs:
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ${{ matrix.service == 'dashboard' && './dashboard' || '.' }}
           file: ${{ matrix.service }}/Dockerfile
           push: true
           tags: |

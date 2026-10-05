@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["Build & Push Docker Images to Google Artifact Registry"]
     types: [completed]
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
     inputs:
       image_tag:
@@ -14,7 +14,7 @@ on:
 
 env:
   HELM_CHART_PATH: deploy/helm/synthetiq
-  PROJECT_ID: synthetiq-dev
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'synthetiq-dev' }}
   GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME || 'synthetiq-cluster' }}
   GKE_LOCATION: ${{ vars.GKE_CLUSTER_ZONE || 'asia-south1-a' }}
 

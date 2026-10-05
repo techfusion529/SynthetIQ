@@ -2,7 +2,7 @@ name: Build & Push Docker Images to Google Artifact Registry
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - "packages/**"
       - "api/**"
@@ -16,9 +16,9 @@ on:
 
 env:
   REGISTRY: asia-south1-docker.pkg.dev
-  PROJECT_ID: synthetiq-dev
-  REPOSITORY: synthetiq-docker-repo
-  IMAGE_PREFIX: asia-south1-docker.pkg.dev/synthetiq-dev/synthetiq-docker-repo
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'synthetiq-dev' }}
+  REPOSITORY: ${{ vars.ARTIFACT_REPOSITORY || 'synthetiq-docker-repo' }}
+  IMAGE_PREFIX: asia-south1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID || 'synthetiq-dev' }}/${{ vars.ARTIFACT_REPOSITORY || 'synthetiq-docker-repo' }}
 
 jobs:
   detect-changes:

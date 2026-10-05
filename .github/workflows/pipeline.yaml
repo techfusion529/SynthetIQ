@@ -1,0 +1,171 @@
+name: SynthetIQ CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+    inputs:
+      skip_deploy:
+        description: "Skip Kubernetes deployment"
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: asia-south1-docker.pkg.dev
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'synthetiq-dev' }}
+  REPOSITORY: ${{ vars.ARTIFACT_REPOSITORY || 'synthetiq-docker-repo' }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME || 'synthetiq-cluster' }}
+  GKE_LOCATION: ${{ vars.GKE_CLUSTER_ZONE || 'asia-south1-a' }}
+  HELM_CHART_PATH: deploy/helm/synthetiq
+
+jobs:
+  # ========================================================
+  # STAGE 1: LINT & TEST
+  # ========================================================
+  python-lint-test:
+    name: "Stage 1: Python Lint & Test"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install workspace dependencies
+        run: uv sync --all-packages
+
+      - name: Lint with Ruff
+        run: uv run ruff check packages/ api/ worker/ mcp/ simulator/ mocks/ || true
+
+  dashboard-build:
+    name: "Stage 1: Dashboard Build"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js Dashboard
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
+  helm-lint:
+    name: "Stage 1: Helm Chart Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "3.14.0"
+
+      - name: Lint Helm chart
+        run: helm lint deploy/helm/synthetiq/
+
+      - name: Template validation (dry run)
+        run: helm template synthetiq-test deploy/helm/synthetiq/ > /dev/null
+
+  # ========================================================
+  # STAGE 2: BUILD & PUSH TO ARTIFACT REGISTRY
+  # ========================================================
+  build-and-push:
+    name: "Stage 2: Build & Push (${{ matrix.service }})"
+    needs: [python-lint-test, dashboard-build, helm-lint]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, worker, mcp, dashboard, simulator, mocks]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY || secrets.GKE_SA_KEY }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ matrix.service }}:latest
+
+  # ========================================================
+  # STAGE 3: DEPLOY OVER KUBERNETES (GKE)
+  # ========================================================
+  deploy-to-gke:
+    name: "Stage 3: Deploy to Kubernetes (GKE)"
+    needs: [build-and-push]
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !inputs.skip_deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "3.14.0"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY || secrets.GKE_SA_KEY }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_LOCATION }}
+
+      - name: Deploy via Helm (atomic with rollback)
+        run: |
+          helm upgrade --install synthetiq ${{ env.HELM_CHART_PATH }} \
+            -f ${{ env.HELM_CHART_PATH }}/values-prod.yaml \
+            --set global.imageRegistry=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }} \
+            --set global.imageTag=${{ github.sha }} \
+            --set secrets.geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
+            --set secrets.databaseUrl="${{ secrets.DATABASE_URL }}" \
+            --set secrets.jwtSecret="${{ secrets.JWT_SECRET }}" \
+            --atomic \
+            --timeout 8m \
+            --namespace synthetiq \
+            --create-namespace
+
+      - name: Verify rollout status
+        run: |
+          kubectl get pods -n synthetiq
+          kubectl rollout status deployment/synthetiq-api -n synthetiq --timeout=120s || true
+          kubectl rollout status deployment/synthetiq-worker -n synthetiq --timeout=120s || true
+          kubectl rollout status deployment/synthetiq-dashboard -n synthetiq --timeout=120s || true

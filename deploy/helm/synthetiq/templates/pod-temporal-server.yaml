@@ -27,7 +27,7 @@ spec:
               protocol: TCP
           env:
             - name: DB
-              value: "postgresql"
+              value: "postgres12"
             - name: DB_PORT
               value: "5432"
             - name: POSTGRES_USER
@@ -38,6 +38,9 @@ spec:
               value: "synthetiq-postgres"
             - name: DYNAMIC_CONFIG_FILE_PATH
               value: "config/dynamicconfig/development.yaml"
+          volumeMounts:
+            - name: dynamic-config
+              mountPath: /etc/temporal/config/dynamicconfig
           resources:
             {{- toYaml .Values.temporalServer.resources | nindent 12 }}
           livenessProbe:
@@ -45,6 +48,10 @@ spec:
               port: grpc
             initialDelaySeconds: 30
             periodSeconds: 30
+      volumes:
+        - name: dynamic-config
+          configMap:
+            name: temporal-dynamic-config
 ---
 apiVersion: v1
 kind: Service

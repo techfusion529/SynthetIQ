@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: temporal-dynamic-config
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+data:
+  development.yaml: |
+    # empty dynamic config for development/production

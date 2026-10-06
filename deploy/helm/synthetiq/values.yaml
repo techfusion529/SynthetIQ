@@ -15,6 +15,22 @@ secrets:
   databaseUrl: "postgresql+asyncpg://synthetiq:synthetiq@synthetiq-postgres:5432/synthetiq"
   jwtSecret: "synthetiq-dev-jwt-secret-key"
 
+# ---- PostgreSQL Database ----
+postgres:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: postgres
+    tag: "15-alpine"
+
+# ---- Redis Cache ----
+redis:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: redis
+    tag: "7-alpine"
+
 # ---- Next.js Executive Dashboard ----
 dashboard:
   enabled: true

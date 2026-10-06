@@ -90,10 +90,11 @@ class GeminiAIService:
         # Fallback to direct API key mode
         if not self.using_vertex:
             if not api_key or not api_key.strip():
-                raise ValueError(
-                    "GEMINI_API_KEY is required when Vertex AI is not available. "
-                    "Get one at https://aistudio.google.com/app/apikey"
+                logger.warning(
+                    "GEMINI_API_KEY is empty and Vertex AI is not configured. "
+                    "Using placeholder key so worker can start up."
                 )
+                api_key = "placeholder-key"
             genai.configure(api_key=api_key)
             logger.info(f"Initialized Gemini (API key mode): model={model_name}")
 

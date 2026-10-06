@@ -29,9 +29,13 @@ spec:
           env:
             - name: TEMPORAL_ADDRESS
               value: {{ .Values.worker.env.TEMPORAL_ADDRESS | quote }}
+            - name: TEMPORAL_HOST
+              value: {{ .Values.worker.env.TEMPORAL_ADDRESS | quote }}
             - name: TEMPORAL_TASK_QUEUE
               value: {{ .Values.worker.env.TEMPORAL_TASK_QUEUE | quote }}
             - name: MCP_SERVER_URL
+              value: {{ .Values.worker.env.MCP_SERVER_URL | quote }}
+            - name: MCP_URL
               value: {{ .Values.worker.env.MCP_SERVER_URL | quote }}
             - name: OLLAMA_HOST
               value: {{ .Values.worker.env.OLLAMA_HOST | quote }}

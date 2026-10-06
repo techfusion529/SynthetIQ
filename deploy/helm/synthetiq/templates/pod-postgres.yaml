@@ -1,0 +1,67 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synthetiq-postgres
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+    {{- include "synthetiq.selectorLabels" (dict "component" "postgres" "root" .) | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "synthetiq.selectorLabels" (dict "component" "postgres" "root" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "synthetiq.selectorLabels" (dict "component" "postgres" "root" .) | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: 5432
+              name: postgres
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              value: "synthetiq"
+            - name: POSTGRES_USER
+              value: "synthetiq"
+            - name: POSTGRES_PASSWORD
+              value: "synthetiq"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - synthetiq
+                - -d
+                - synthetiq
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: synthetiq-postgres
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: postgres
+      protocol: TCP
+      name: postgres
+  selector:
+    {{- include "synthetiq.selectorLabels" (dict "component" "postgres" "root" .) | nindent 4 }}
+{{- end }}

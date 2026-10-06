@@ -185,7 +185,7 @@ jobs:
           kubectl get all -n synthetiq
 
   deploy-service:
-    name: "Stage 3: Deploy (${{ matrix.service }})"
+    name: "Stage 3: Deploy (${{ matrix.name }})"
     needs: [deploy-base-infra]
     runs-on: ubuntu-latest
     env:
@@ -193,7 +193,40 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [api, worker, dashboard, mcp, simulator]
+        include:
+          - name: "PostgreSQL Database"
+            deployment: "synthetiq-postgres"
+            component: "postgres"
+          - name: "Redis Cache"
+            deployment: "synthetiq-redis"
+            component: "redis"
+          - name: "Temporal Server"
+            deployment: "temporal-server"
+            component: "temporal-server"
+          - name: "Temporal Web UI"
+            deployment: "temporal-ui"
+            component: "temporal-ui"
+          - name: "FastAPI Gateway"
+            deployment: "synthetiq-api"
+            component: "api"
+          - name: "AI Temporal Worker"
+            deployment: "synthetiq-worker"
+            component: "worker"
+          - name: "Next.js Dashboard"
+            deployment: "synthetiq-dashboard"
+            component: "dashboard"
+          - name: "MCP Tool Gateway"
+            deployment: "synthetiq-mcp"
+            component: "mcp"
+          - name: "SCADA Simulator"
+            deployment: "synthetiq-simulator"
+            component: "simulator"
+          - name: "Prometheus Monitoring"
+            deployment: "prometheus"
+            component: "prometheus"
+          - name: "Grafana Dashboards"
+            deployment: "grafana"
+            component: "grafana"
     permissions:
       contents: read
       id-token: write
@@ -213,18 +246,18 @@ jobs:
 
       - name: Track Deployment Rollout Status
         run: |
-          echo "Monitoring rollout status for deployment synthetiq-${{ matrix.service }}..."
-          kubectl rollout status deployment/synthetiq-${{ matrix.service }} -n synthetiq --timeout=180s || true
+          echo "Monitoring rollout status for deployment ${{ matrix.deployment }}..."
+          kubectl rollout status deployment/${{ matrix.deployment }} -n synthetiq --timeout=180s || true
 
       - name: Display Pod Details & Status
         run: |
-          echo "=== Pods for ${{ matrix.service }} ==="
-          kubectl get pods -n synthetiq -l app.kubernetes.io/component=${{ matrix.service }} -o wide
+          echo "=== Pods for ${{ matrix.name }} (${{ matrix.component }}) ==="
+          kubectl get pods -n synthetiq -l app.kubernetes.io/component=${{ matrix.component }} -o wide
           echo "=== Recent Events ==="
-          kubectl get events -n synthetiq --field-selector involvedObject.name=synthetiq-${{ matrix.service }} --sort-by='.metadata.creationTimestamp' | tail -n 20 || true
+          kubectl get events -n synthetiq --field-selector involvedObject.name=${{ matrix.deployment }} --sort-by='.metadata.creationTimestamp' | tail -n 20 || true
 
       - name: Print Pod Logs
         if: always()
         run: |
           echo "=== Container Logs (last 50 lines) ==="
-          kubectl logs -n synthetiq -l app.kubernetes.io/component=${{ matrix.service }} --tail=50 || true
+          kubectl logs -n synthetiq -l app.kubernetes.io/component=${{ matrix.component }} --tail=50 || true

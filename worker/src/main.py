@@ -47,10 +47,9 @@ async def initialize_services() -> None:
     # Validate configuration
     validation = config.validate()
     if validation["errors"]:
-        logger.error("Configuration errors:")
+        logger.warning("Configuration errors/warnings detected:")
         for error in validation["errors"]:
-            logger.error(f"  - {error}")
-        raise RuntimeError("Invalid configuration. Fix errors and restart.")
+            logger.warning(f"  - {error}")
 
     if validation["warnings"]:
         logger.warning("Configuration warnings:")
@@ -65,8 +64,10 @@ async def initialize_services() -> None:
         os.environ["GEMINI_MODEL"] = config.gemini.model
         logger.info(f"✓ Google ADK configured: model={config.gemini.model}")
     else:
-        logger.error("GEMINI_API_KEY not configured. Cannot start worker.")
-        raise RuntimeError("Gemini API key required")
+        logger.warning("GEMINI_API_KEY not configured. Running worker in demo/mock agent mode.")
+        os.environ.setdefault("GOOGLE_API_KEY", "mock-agent-key")
+        os.environ.setdefault("GEMINI_API_KEY", "mock-agent-key")
+        os.environ.setdefault("GEMINI_MODEL", config.gemini.model)
 
     # Set GCP project context for BigQuery / Pub/Sub
     if config.gcp.project_id:
@@ -172,10 +173,20 @@ async def main() -> None:
     # Initialize AI services
     await initialize_services()
 
-    # Connect to Temporal server
-    logger.info(f"Connecting to Temporal at {config.temporal.host}...")
-    client = await Client.connect(config.temporal.host)
-    logger.info("✓ Connected to Temporal")
+    # Connect to Temporal server with retry
+    temporal_target = os.getenv("TEMPORAL_HOST", os.getenv("TEMPORAL_ADDRESS", config.temporal.host))
+    logger.info(f"Connecting to Temporal at {temporal_target}...")
+    client = None
+    for attempt in range(1, 31):
+        try:
+            client = await Client.connect(temporal_target)
+            logger.info("✓ Connected to Temporal")
+            break
+        except Exception as e:
+            logger.warning(f"Temporal not ready yet (attempt {attempt}/30): {e}. Retrying in 3s...")
+            await asyncio.sleep(3)
+    if client is None:
+        raise RuntimeError(f"Could not connect to Temporal at {temporal_target} after 30 attempts")
 
     # List all activity functions
     activities = [

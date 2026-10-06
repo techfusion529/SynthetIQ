@@ -59,7 +59,7 @@ dashboard:
       cpu: 500m
       memory: 512Mi
   env:
-    NEXT_PUBLIC_API_URL: "http://synthetiq-api:8000"
+    NEXT_PUBLIC_API_URL: ""
   telemetry:
     scrape: true
     path: "/api/metrics"
@@ -240,24 +240,28 @@ prometheus:
       cpu: 500m
       memory: 1Gi
 
-# ---- Ingress ----
+# ---- Ingress Configuration ----
 ingress:
   enabled: true
   className: nginx
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-  hosts:
-    - host: synthetiq.local
-      paths:
-        - path: /
-          service: dashboard
-          port: 3000
-        - path: /api
-          service: api
-          port: 8000
-        - path: /grafana
-          service: grafana
-          port: 3000
-        - path: /temporal
-          service: temporal-ui
-          port: 8080
+  dashboard:
+    enabled: true
+    host: ""
+    path: /
+    annotations: {}
+  api:
+    enabled: true
+    host: ""
+    path: /api
+    annotations: {}
+  temporal:
+    enabled: true
+    host: ""
+    path: /temporal
+    annotations: {}
+  grafana:
+    enabled: true
+    host: ""
+    path: /grafana
+    annotations: {}
+

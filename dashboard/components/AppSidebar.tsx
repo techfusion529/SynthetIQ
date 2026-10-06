@@ -22,6 +22,7 @@ import ScheduleIcon from "@mui/icons-material/Schedule";
 import MemoryIcon from "@mui/icons-material/Memory";
 import StorageIcon from "@mui/icons-material/Storage";
 import TuneIcon from "@mui/icons-material/Tune";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "../app/lib/contexts/SessionContext";
 
@@ -98,6 +99,72 @@ function SidebarContent({ drawerWidth, onClose }: { drawerWidth: number; onClose
             </ListItemButton>
           </ListItem>
         ))}
+      </List>
+      <Divider />
+      {/* Ingress Web Gateways */}
+      <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
+        <Typography
+          variant="caption"
+          sx={{ fontWeight: 700, letterSpacing: "0.1em", color: "text.secondary", textTransform: "uppercase", fontSize: "0.7rem" }}
+        >
+          Web Ingress Control
+        </Typography>
+      </Box>
+      <List sx={{ px: 1, pb: 1 }}>
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            component="a"
+            href="/temporal"
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{ borderRadius: 2, "&:hover": { bgcolor: "rgba(255,255,255,0.05)" } }}
+          >
+            <ListItemIcon sx={{ minWidth: 36, color: "secondary.light" }}>
+              <MemoryIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary="Temporal UI"
+              primaryTypographyProps={{ fontSize: "0.82rem", fontWeight: 500 }}
+            />
+            <OpenInNewIcon sx={{ fontSize: "0.9rem", color: "text.secondary" }} />
+          </ListItemButton>
+        </ListItem>
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            component="a"
+            href="/grafana"
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{ borderRadius: 2, "&:hover": { bgcolor: "rgba(255,255,255,0.05)" } }}
+          >
+            <ListItemIcon sx={{ minWidth: 36, color: "warning.light" }}>
+              <RadarIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary="Grafana Metrics"
+              primaryTypographyProps={{ fontSize: "0.82rem", fontWeight: 500 }}
+            />
+            <OpenInNewIcon sx={{ fontSize: "0.9rem", color: "text.secondary" }} />
+          </ListItemButton>
+        </ListItem>
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            component="a"
+            href="/api/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{ borderRadius: 2, "&:hover": { bgcolor: "rgba(255,255,255,0.05)" } }}
+          >
+            <ListItemIcon sx={{ minWidth: 36, color: "success.light" }}>
+              <DescriptionIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary="FastAPI Docs"
+              primaryTypographyProps={{ fontSize: "0.82rem", fontWeight: 500 }}
+            />
+            <OpenInNewIcon sx={{ fontSize: "0.9rem", color: "text.secondary" }} />
+          </ListItemButton>
+        </ListItem>
       </List>
       <Divider />
       <Box sx={{ p: 2 }}>

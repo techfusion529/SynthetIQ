@@ -28,11 +28,12 @@ spec:
           env:
             - name: TEMPORAL_ADDRESS
               value: {{ .Values.temporalUi.env.TEMPORAL_ADDRESS | quote }}
+            - name: TEMPORAL_UI_PUBLIC_PATH
+              value: "/temporal"
           resources:
             {{- toYaml .Values.temporalUi.resources | nindent 12 }}
           livenessProbe:
-            httpGet:
-              path: /
+            tcpSocket:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 30

@@ -29,7 +29,12 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { useRouter } from "next/navigation";
 import { useSession } from "../../lib/contexts/SessionContext";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL !== undefined
+    ? (process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1` : "/api/v1")
+    : typeof window !== "undefined"
+    ? "/api/v1"
+    : "http://localhost:8000/api/v1";
 
 interface AgentConfig {
   config_id: string;

@@ -278,7 +278,7 @@ export default function AgentsPage() {
                       size="small"
                       variant="outlined"
                       endIcon={<OpenInNewIcon fontSize="small" />}
-                      href="http://localhost:8080/namespaces/default/workflows"
+                      href="/temporal/namespaces/default/workflows"
                       target="_blank"
                     >
                       Temporal UI

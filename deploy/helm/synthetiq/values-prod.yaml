@@ -63,6 +63,8 @@ temporalUi:
 dashboard:
   enabled: true
   replicaCount: 1
+  env:
+    NEXT_PUBLIC_API_URL: ""
   resources:
     requests:
       cpu: 100m
@@ -157,3 +159,11 @@ ollama:
 ingress:
   enabled: true
   className: nginx
+  dashboard:
+    enabled: true
+  api:
+    enabled: true
+  temporal:
+    enabled: true
+  grafana:
+    enabled: true

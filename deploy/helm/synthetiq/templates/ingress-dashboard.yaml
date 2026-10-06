@@ -1,0 +1,29 @@
+{{- if and .Values.ingress.enabled (dig "dashboard" "enabled" true .Values.ingress) }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: synthetiq-ingress-dashboard
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dashboard
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    {{- if and .Values.ingress.dashboard .Values.ingress.dashboard.annotations }}
+    {{- toYaml .Values.ingress.dashboard.annotations | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | default "nginx" }}
+  rules:
+    - {{- if and .Values.ingress.dashboard .Values.ingress.dashboard.host }}
+      host: {{ .Values.ingress.dashboard.host | quote }}
+      {{- end }}
+      http:
+        paths:
+          - path: {{ dig "dashboard" "path" "/" .Values.ingress }}
+            pathType: Prefix
+            backend:
+              service:
+                name: synthetiq-dashboard
+                port:
+                  number: {{ .Values.dashboard.port | default 3000 }}
+{{- end }}

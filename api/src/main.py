@@ -99,6 +99,9 @@ app = FastAPI(
     description="Zero-Trust Multi-Agent Autonomous EPR Compliance & Anti-Fraud Engine",
     version="0.2.0",
     lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
 )
 
 app.add_middleware(
@@ -111,6 +114,7 @@ app.add_middleware(
 
 # ── Root (unauthenticated) ────────────────────────────────────────────────────
 app.include_router(health_router)
+app.include_router(health_router, prefix="/api")
 
 # ── Versioned API ─────────────────────────────────────────────────────────────
 app.include_router(auth_router,           prefix=API_V1_STR)

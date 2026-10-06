@@ -559,7 +559,7 @@ export default function ExecutiveOverviewPage() {
                 />
               )}
               <Tooltip title="Inspect in Temporal UI">
-                <IconButton size="small" href="http://localhost:8080/namespaces/default/workflows" target="_blank">
+                <IconButton size="small" href="/temporal/namespaces/default/workflows" target="_blank">
                   <OpenInNewIcon fontSize="small" />
                 </IconButton>
               </Tooltip>

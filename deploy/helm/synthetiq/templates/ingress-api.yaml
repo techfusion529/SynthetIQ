@@ -1,0 +1,30 @@
+{{- if and .Values.ingress.enabled (dig "api" "enabled" true .Values.ingress) }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: synthetiq-ingress-api
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    {{- if and .Values.ingress.api .Values.ingress.api.annotations }}
+    {{- toYaml .Values.ingress.api.annotations | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | default "nginx" }}
+  rules:
+    - {{- if and .Values.ingress.api .Values.ingress.api.host }}
+      host: {{ .Values.ingress.api.host | quote }}
+      {{- end }}
+      http:
+        paths:
+          - path: {{ dig "api" "path" "/api" .Values.ingress }}
+            pathType: Prefix
+            backend:
+              service:
+                name: synthetiq-api
+                port:
+                  number: {{ .Values.api.port | default 8000 }}
+{{- end }}

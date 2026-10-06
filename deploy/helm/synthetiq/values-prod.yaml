@@ -155,4 +155,5 @@ ollama:
   enabled: false
 
 ingress:
-  enabled: false
+  enabled: true
+  className: nginx

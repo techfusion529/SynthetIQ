@@ -169,6 +169,12 @@ jobs:
           cluster_name: ${{ env.GKE_CLUSTER_NAME }}
           location: ${{ env.GKE_LOCATION }}
 
+      - name: Prepare Cluster for Helm Adoption
+        run: |
+          echo "Cleaning unmanaged out-of-band resources so Helm can cleanly adopt and manage them..."
+          kubectl delete configmap temporal-dynamic-config -n synthetiq --ignore-not-found
+          kubectl delete ingress synthetiq-ingress -n synthetiq --ignore-not-found
+
       - name: Apply Helm Release & Cluster Resources
         run: |
           helm upgrade --install synthetiq ${{ env.HELM_CHART_PATH }} \

@@ -13,6 +13,18 @@ secrets:
   databaseUrl: "postgresql+asyncpg://synthetiq:synthetiq@synthetiq-postgres:5432/synthetiq"
   jwtSecret: "synthetiq-dev-jwt-secret-key"
 
+# ---- Application Variables Configuration ----
+config:
+  gcpProjectId: "synthetiq-dev"
+  gcpRegion: "asia-south1"
+  geminiModel: "gemini-3.8-flash"
+  bigqueryDatasetId: "epr_compliance"
+  bigquerySalesTable: "sales_data"
+  bigqueryLocation: "asia-south1"
+  pubsubScadaTopic: "scada-telemetry-stream"
+  pubsubScadaSubscription: "scada-telemetry-sub"
+  jevMode: "NIMBLE_PRIMARY"
+
 # ---- Application Database ----
 postgres:
   enabled: true

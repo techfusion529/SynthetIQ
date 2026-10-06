@@ -25,7 +25,9 @@ spec:
           ports:
             - containerPort: {{ .Values.worker.telemetry.port }}
               name: metrics
-              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: synthetiq-config
           env:
             - name: TEMPORAL_ADDRESS
               value: {{ .Values.worker.env.TEMPORAL_ADDRESS | quote }}

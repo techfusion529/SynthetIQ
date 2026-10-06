@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: synthetiq-config
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+data:
+  GCP_PROJECT_ID: {{ .Values.config.gcpProjectId | default "synthetiq-dev" | quote }}
+  GCP_REGION: {{ .Values.config.gcpRegion | default "asia-south1" | quote }}
+  GEMINI_MODEL: {{ .Values.config.geminiModel | default "gemini-3.8-flash" | quote }}
+  BIGQUERY_DATASET_ID: {{ .Values.config.bigqueryDatasetId | default "epr_compliance" | quote }}
+  BIGQUERY_SALES_TABLE: {{ .Values.config.bigquerySalesTable | default "sales_data" | quote }}
+  BIGQUERY_LOCATION: {{ .Values.config.bigqueryLocation | default "asia-south1" | quote }}
+  PUBSUB_SCADA_TOPIC: {{ .Values.config.pubsubScadaTopic | default "scada-telemetry-stream" | quote }}
+  PUBSUB_SCADA_SUBSCRIPTION: {{ .Values.config.pubsubScadaSubscription | default "scada-telemetry-sub" | quote }}
+  JEV_MODE: {{ .Values.config.jevMode | default "NIMBLE_PRIMARY" | quote }}
+  ENVIRONMENT: {{ .Values.global.environment | default "dev" | quote }}

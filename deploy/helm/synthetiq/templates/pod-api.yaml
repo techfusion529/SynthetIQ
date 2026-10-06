@@ -26,6 +26,9 @@ spec:
             - containerPort: {{ .Values.api.port }}
               name: http
               protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: synthetiq-config
           env:
             - name: TEMPORAL_ADDRESS
               value: {{ .Values.api.env.TEMPORAL_ADDRESS | quote }}

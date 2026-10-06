@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -210,6 +210,32 @@ class ObservabilityConfig(BaseSettings):
     )
     prometheus_port: int = Field(default=9090, alias="PROMETHEUS_PORT")
     grafana_port: int = Field(default=3001, alias="GRAFANA_PORT")
+
+    @field_validator("prometheus_port", mode="before")
+    @classmethod
+    def sanitize_prometheus_port(cls, v: Any) -> int:
+        if isinstance(v, str) and "://" in v:
+            try:
+                return int(v.split(":")[-1])
+            except ValueError:
+                return 9090
+        try:
+            return int(v) if v is not None else 9090
+        except (ValueError, TypeError):
+            return 9090
+
+    @field_validator("grafana_port", mode="before")
+    @classmethod
+    def sanitize_grafana_port(cls, v: Any) -> int:
+        if isinstance(v, str) and "://" in v:
+            try:
+                return int(v.split(":")[-1])
+            except ValueError:
+                return 3001
+        try:
+            return int(v) if v is not None else 3001
+        except (ValueError, TypeError):
+            return 3001
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

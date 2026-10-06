@@ -16,6 +16,7 @@ spec:
       labels:
         {{- include "synthetiq.selectorLabels" (dict "component" "temporal-ui" "root" .) | nindent 8 }}
     spec:
+      enableServiceLinks: false
       containers:
         - name: temporal-ui
           image: "{{ .Values.temporalUi.image.repository }}:{{ .Values.temporalUi.image.tag }}"

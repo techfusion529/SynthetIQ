@@ -16,6 +16,7 @@ spec:
       labels:
         {{- include "synthetiq.selectorLabels" (dict "component" "temporal-server" "root" .) | nindent 8 }}
     spec:
+      enableServiceLinks: false
       containers:
         - name: temporal-server
           image: "{{ .Values.temporalServer.image.repository }}:{{ .Values.temporalServer.image.tag }}"
@@ -26,7 +27,15 @@ spec:
               protocol: TCP
           env:
             - name: DB
-              value: "sqlite"
+              value: "postgresql"
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: "synthetiq"
+            - name: POSTGRES_PWD
+              value: "synthetiq"
+            - name: POSTGRES_SEEDS
+              value: "synthetiq-postgres"
             - name: DYNAMIC_CONFIG_FILE_PATH
               value: "config/dynamicconfig/development.yaml"
           resources:

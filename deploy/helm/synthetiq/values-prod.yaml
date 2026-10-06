@@ -1,5 +1,6 @@
 # ============================================================
 # SynthetIQ Helm Values — Production GKE Overrides
+# Optimized for 2-node GKE standard cluster (e2-standard-2)
 # ============================================================
 
 global:
@@ -7,42 +8,81 @@ global:
   imageRegistry: asia-south1-docker.pkg.dev/synthetiq-dev/synthetiq-docker-repo
   imagePullPolicy: Always
 
+secrets:
+  databaseUrl: "sqlite+aiosqlite:////tmp/synthetiq.db"
+
 dashboard:
-  replicaCount: 2
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 api:
-  replicaCount: 2
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
   env:
-    CORS_ORIGINS: "https://synthetiq.techfusion.dev"
+    CORS_ORIGINS: "*"
 
 worker:
-  replicaCount: 2
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+mcp:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+simulator:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Non-essential external components (disabled on raw GKE)
+ollama:
+  enabled: false
+
+temporalServer:
+  enabled: false
+
+temporalUi:
+  enabled: false
 
 grafana:
-  adminPassword: ""  # Set via sealed secret in production
+  enabled: false
+
+prometheus:
+  enabled: false
 
 ingress:
-  enabled: true
-  className: nginx
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-  tls:
-    - secretName: synthetiq-tls
-      hosts:
-        - synthetiq.techfusion.dev
-  hosts:
-    - host: synthetiq.techfusion.dev
-      paths:
-        - path: /
-          service: dashboard
-          port: 3000
-        - path: /api
-          service: api
-          port: 8000
-        - path: /grafana
-          service: grafana
-          port: 3000
-        - path: /temporal
-          service: temporal-ui
-          port: 8080
+  enabled: false

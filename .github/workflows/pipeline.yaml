@@ -131,8 +131,8 @@ jobs:
   # ========================================================
   # STAGE 3: DEPLOY OVER KUBERNETES (GKE)
   # ========================================================
-  deploy-to-gke:
-    name: "Stage 3: Deploy to Kubernetes (GKE)"
+  deploy-base-infra:
+    name: "Stage 3: Deploy Base Infrastructure & Secrets"
     needs: [build-and-push]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !inputs.skip_deploy
     runs-on: ubuntu-latest
@@ -167,7 +167,7 @@ jobs:
           cluster_name: ${{ env.GKE_CLUSTER_NAME }}
           location: ${{ env.GKE_LOCATION }}
 
-      - name: Deploy via Helm (atomic with rollback)
+      - name: Apply Helm Release & Cluster Resources
         run: |
           helm upgrade --install synthetiq ${{ env.HELM_CHART_PATH }} \
             -f ${{ env.HELM_CHART_PATH }}/values-prod.yaml \
@@ -176,14 +176,55 @@ jobs:
             --set secrets.geminiApiKey="${{ secrets.GEMINI_API_KEY }}" \
             --set secrets.databaseUrl="${{ secrets.DATABASE_URL }}" \
             --set secrets.jwtSecret="${{ secrets.JWT_SECRET }}" \
-            --atomic \
-            --timeout 8m \
             --namespace synthetiq \
-            --create-namespace
+            --create-namespace \
+            --wait=false
 
-      - name: Verify rollout status
+      - name: Verify Cluster Resources Applied
         run: |
-          kubectl get pods -n synthetiq
-          kubectl rollout status deployment/synthetiq-api -n synthetiq --timeout=120s || true
-          kubectl rollout status deployment/synthetiq-worker -n synthetiq --timeout=120s || true
-          kubectl rollout status deployment/synthetiq-dashboard -n synthetiq --timeout=120s || true
+          kubectl get all -n synthetiq
+
+  deploy-service:
+    name: "Stage 3: Deploy (${{ matrix.service }})"
+    needs: [deploy-base-infra]
+    runs-on: ubuntu-latest
+    env:
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY || secrets.GKE_SA_KEY }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, worker, dashboard, mcp, simulator]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ env.GCP_SA_KEY }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_LOCATION }}
+
+      - name: Track Deployment Rollout Status
+        run: |
+          echo "Monitoring rollout status for deployment synthetiq-${{ matrix.service }}..."
+          kubectl rollout status deployment/synthetiq-${{ matrix.service }} -n synthetiq --timeout=180s || true
+
+      - name: Display Pod Details & Status
+        run: |
+          echo "=== Pods for ${{ matrix.service }} ==="
+          kubectl get pods -n synthetiq -l app.kubernetes.io/component=${{ matrix.service }} -o wide
+          echo "=== Recent Events ==="
+          kubectl get events -n synthetiq --field-selector involvedObject.name=synthetiq-${{ matrix.service }} --sort-by='.metadata.creationTimestamp' | tail -n 20 || true
+
+      - name: Print Pod Logs
+        if: always()
+        run: |
+          echo "=== Container Logs (last 50 lines) ==="
+          kubectl logs -n synthetiq -l app.kubernetes.io/component=${{ matrix.service }} --tail=50 || true

@@ -148,13 +148,6 @@ export default function AppHeader({ drawerWidth, onMenuClick }: AppHeaderProps) 
             </IconButton>
           </Tooltip>
         </Toolbar>
-
-        {/* API_URL missing banner */}
-        {!process.env.NEXT_PUBLIC_API_URL && (
-          <Alert severity="error" sx={{ borderRadius: 0 }}>
-            NEXT_PUBLIC_API_URL is not configured. API calls will fail.
-          </Alert>
-        )}
       </AppBar>
 
       <ConfigModal open={configOpen} onClose={() => setConfigOpen(false)} />

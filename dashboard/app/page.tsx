@@ -355,7 +355,7 @@ export default function ExecutiveOverviewPage() {
                 }}
               />
               <Typography variant="caption" color="success.light" fontWeight={600} fontFamily="monospace">
-                Temporal: {config?.endpoints?.temporal_host ?? "Connected (localhost:7233)"}
+                Temporal: {config?.endpoints?.temporal_host ?? "Connected (temporal-server:7233)"}
               </Typography>
             </Box>
           </Box>

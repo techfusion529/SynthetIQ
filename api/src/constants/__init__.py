@@ -10,10 +10,10 @@ CORS_ORIGINS: list[str] = ["*"]
 FIREBASE_PROJECT_ID: str = os.getenv("FIREBASE_PROJECT_ID", "synthetiq-cpcb-compliance")
 
 # Microservice Endpoints
-TEMPORAL_HOST: str = os.getenv("TEMPORAL_HOST", "localhost:7233")
-MCP_URL: str = os.getenv("MCP_URL", "http://localhost:8001")
-SIMULATOR_URL: str = os.getenv("SIMULATOR_URL", "http://localhost:9091")
-MOCKS_URL: str = os.getenv("MOCKS_URL", "http://localhost:8002")
+TEMPORAL_HOST: str = os.getenv("TEMPORAL_HOST") or os.getenv("TEMPORAL_ADDRESS") or "temporal-server:7233"
+MCP_URL: str = os.getenv("MCP_URL", "http://synthetiq-mcp:8001")
+SIMULATOR_URL: str = os.getenv("SIMULATOR_URL", "http://synthetiq-simulator:9091")
+MOCKS_URL: str = os.getenv("MOCKS_URL", "http://synthetiq-mocks:8002")
 
 # AI & Physics Engine Configuration Defaults
 DEFAULT_GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")

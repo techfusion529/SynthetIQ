@@ -157,7 +157,7 @@ export default function AgentsPage() {
                 />
               </Box>
               <Typography variant="body1" fontWeight={700} fontFamily="monospace">
-                {config?.endpoints?.temporal_host || "localhost:7233"}
+                {config?.endpoints?.temporal_host || "temporal-server:7233"}
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
                 Durable Workflow Queue: epr-compliance

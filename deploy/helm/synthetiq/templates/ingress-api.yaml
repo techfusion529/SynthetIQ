@@ -14,11 +14,24 @@ metadata:
     {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className | default "nginx" }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
   rules:
-    - {{- if and .Values.ingress.api .Values.ingress.api.host }}
-      host: {{ .Values.ingress.api.host | quote }}
-      {{- end }}
+    {{- if .Values.ingress.domain }}
+    - host: {{ .Values.ingress.domain | quote }}
       http:
+        paths:
+          - path: {{ dig "api" "path" "/api" .Values.ingress }}
+            pathType: Prefix
+            backend:
+              service:
+                name: synthetiq-api
+                port:
+                  number: {{ .Values.api.port | default 8000 }}
+    {{- end }}
+    - http:
         paths:
           - path: {{ dig "api" "path" "/api" .Values.ingress }}
             pathType: Prefix

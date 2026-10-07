@@ -13,11 +13,24 @@ metadata:
     {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className | default "nginx" }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
   rules:
-    - {{- if and .Values.ingress.temporal .Values.ingress.temporal.host }}
-      host: {{ .Values.ingress.temporal.host | quote }}
-      {{- end }}
+    {{- if .Values.ingress.domain }}
+    - host: {{ .Values.ingress.domain | quote }}
       http:
+        paths:
+          - path: {{ dig "temporal" "path" "/temporal" .Values.ingress }}
+            pathType: Prefix
+            backend:
+              service:
+                name: temporal-ui
+                port:
+                  number: {{ .Values.temporalUi.port | default 8080 }}
+    {{- end }}
+    - http:
         paths:
           - path: {{ dig "temporal" "path" "/temporal" .Values.ingress }}
             pathType: Prefix

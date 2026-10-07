@@ -244,24 +244,26 @@ prometheus:
 ingress:
   enabled: true
   className: nginx
+  domain: "synthetiq.ddns.net"
+  tls:
+    - hosts:
+        - synthetiq.ddns.net
+      secretName: synthetiq-tls-cert
   dashboard:
     enabled: true
-    host: ""
     path: /
     annotations: {}
   api:
     enabled: true
-    host: ""
     path: /api
     annotations: {}
   temporal:
     enabled: true
-    host: ""
     path: /temporal
     annotations: {}
   grafana:
     enabled: true
-    host: ""
     path: /grafana
     annotations: {}
+
 

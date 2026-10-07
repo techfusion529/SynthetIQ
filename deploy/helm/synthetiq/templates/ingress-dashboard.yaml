@@ -13,11 +13,24 @@ metadata:
     {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className | default "nginx" }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
   rules:
-    - {{- if and .Values.ingress.dashboard .Values.ingress.dashboard.host }}
-      host: {{ .Values.ingress.dashboard.host | quote }}
-      {{- end }}
+    {{- if .Values.ingress.domain }}
+    - host: {{ .Values.ingress.domain | quote }}
       http:
+        paths:
+          - path: {{ dig "dashboard" "path" "/" .Values.ingress }}
+            pathType: Prefix
+            backend:
+              service:
+                name: synthetiq-dashboard
+                port:
+                  number: {{ .Values.dashboard.port | default 3000 }}
+    {{- end }}
+    - http:
         paths:
           - path: {{ dig "dashboard" "path" "/" .Values.ingress }}
             pathType: Prefix

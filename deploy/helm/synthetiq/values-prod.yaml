@@ -159,6 +159,11 @@ ollama:
 ingress:
   enabled: true
   className: nginx
+  domain: "synthetiq.ddns.net"
+  tls:
+    - hosts:
+        - synthetiq.ddns.net
+      secretName: synthetiq-tls-cert
   dashboard:
     enabled: true
   api:

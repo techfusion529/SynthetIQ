@@ -176,20 +176,22 @@ jobs:
           kubectl delete ingress synthetiq-ingress -n synthetiq --ignore-not-found
 
       - name: Configure Ingress TLS Secret
-        if: ${{ secrets.SSL_CERTIFICATE != '' && secrets.SSL_PRIVATE_KEY != '' }}
+        env:
+          SSL_CERT: ${{ secrets.SSL_CERTIFICATE }}
+          SSL_KEY: ${{ secrets.SSL_PRIVATE_KEY }}
         run: |
-          echo "Applying TLS certificate secret for synthetiq.ddns.net..."
-          cat << 'EOF' > /tmp/tls.crt
-          ${{ secrets.SSL_CERTIFICATE }}
-          EOF
-          cat << 'EOF' > /tmp/tls.key
-          ${{ secrets.SSL_PRIVATE_KEY }}
-          EOF
-          kubectl create secret tls synthetiq-tls-cert \
-            --cert=/tmp/tls.crt \
-            --key=/tmp/tls.key \
-            -n synthetiq --dry-run=client -o yaml | kubectl apply -f -
-          rm -f /tmp/tls.crt /tmp/tls.key
+          if [ -n "$SSL_CERT" ] && [ -n "$SSL_KEY" ]; then
+            echo "Applying TLS certificate secret for synthetiq.ddns.net..."
+            printf "%s\n" "$SSL_CERT" > /tmp/tls.crt
+            printf "%s\n" "$SSL_KEY" > /tmp/tls.key
+            kubectl create secret tls synthetiq-tls-cert \
+              --cert=/tmp/tls.crt \
+              --key=/tmp/tls.key \
+              -n synthetiq --dry-run=client -o yaml | kubectl apply -f -
+            rm -f /tmp/tls.crt /tmp/tls.key
+          else
+            echo "SSL certificate secrets not configured, skipping TLS secret creation."
+          fi
 
       - name: Apply Helm Release & Cluster Resources
         run: |

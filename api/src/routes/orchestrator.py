@@ -23,6 +23,8 @@ from src.middleware.rbac import require_permission
 from src.routes.config import get_runtime_config
 from src.services.temporal_service import temporal_service
 
+from src.routes.stream import push_event
+
 router = APIRouter(prefix="/compliance", tags=["Autonomous End-to-End Orchestrator"])
 logger = logging.getLogger(__name__)
 
@@ -129,6 +131,7 @@ async def execute_e2e_compliance_run(
         "timestamp": time.time(),
     }
     steps_log.append(step1)
+    push_event(run_id, {**step1, "type": "step_update", "run_id": run_id})
 
     # -------------------------------------------------------------
     # STAGE 2: Continuous Double Auction Matching
@@ -155,6 +158,7 @@ async def execute_e2e_compliance_run(
         "timestamp": time.time(),
     }
     steps_log.append(step2)
+    push_event(run_id, {**step2, "type": "step_update", "run_id": run_id})
 
     # -------------------------------------------------------------
     # STAGE 3: Quad-Core Fraud Audit (SCADA + E-Way + Jev Reflex)
@@ -196,6 +200,31 @@ async def execute_e2e_compliance_run(
 
     is_fraud = (kw > 10.0 and pf > config.power_factor_max and torque < config.torque_threshold_nm) or (torque < 5.0)
     audit_flags: list[str] = []
+
+    # Persist audit record to DB
+    try:
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models import AuditRecord
+        _step3_data = step3["data"]
+        async with get_db_session() as session:
+            session.add(AuditRecord(
+                audit_id=_step3_data.get("audit_id",""),
+                recycler_id="RECYC-DELHI-01", plant_id="PLANT-OKHLA-2",
+                plastic_category=category,
+                reported_volume_tons=volume_tons,
+                verified_physical_melt_tons=volume_tons if not is_fraud else 0.0,
+                physical_melt_verified=not is_fraud,
+                confidence_score=_step3_data.get("confidence_score", 0),
+                eway_bill_verified=True,
+                audit_verdict=_step3_data.get("verdict",""),
+                rejection_reasons=_step3_data.get("flags",[]),
+                audit_hash=_step3_data.get("sha256_audit_hash",""),
+                physics={"torque_nm": torque, "power_factor": pf, "active_power_kw": kw},
+                triggered_by=user.get("email",""),
+            ))
+    except Exception as _exc:
+        logger.warning(f"Could not persist AuditRecord ({_exc})")
+
     if is_fraud:
         audit_flags.append("SPOOF_DETECTED: Resistive space heaters detected without motor torque")
         audit_verdict = "REJECTED_FRAUD"
@@ -231,6 +260,7 @@ async def execute_e2e_compliance_run(
         "timestamp": time.time(),
     }
     steps_log.append(step3)
+    push_event(run_id, {**step3, "type": "step_update", "run_id": run_id})
 
     if is_fraud:
         # Fraud halted pipeline
@@ -244,7 +274,8 @@ async def execute_e2e_compliance_run(
             "company_id": company_id,
             "steps": steps_log,
         }
-        _RUNS_DB.insert(0, final_result)
+        push_event(run_id, {**final_result, "type": "run_complete"})
+    _RUNS_DB.insert(0, final_result)
         return final_result
 
     # -------------------------------------------------------------
@@ -271,6 +302,28 @@ async def execute_e2e_compliance_run(
         "timestamp": time.time(),
     }
     steps_log.append(step4)
+    push_event(run_id, {**step4, "type": "step_update", "run_id": run_id})
+    # Persist PO to DB
+    try:
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models import EscrowPORecord
+        async with get_db_session() as session:
+            session.add(EscrowPORecord(
+                po_number=po_number, company_id=company_id,
+                recycler_id="RECYC-DELHI-01", recycler_name="EcoMelt Solutions Ltd",
+                category=category, plastic_tons=volume_tons,
+                total_amount_inr=contract_value,
+                advance_amount_inr=advance_amount,
+                retention_amount_inr=retention_amount,
+                status="advance_released",
+                escrow_account="ESCROW-HDFC-9921",
+                audit_id=step3["data"].get("audit_id"),
+                sap_purchase_order_number=po_number,
+                sap_sync_status="COMMITTED_TO_SAP_S4HANA",
+            ))
+    except Exception as _exc:
+        logger.warning(f"Could not persist EscrowPORecord ({_exc})")
+
 
     # -------------------------------------------------------------
     # STAGE 5: CPCB Form-1 Statutory Vault & DSC Dispatch
@@ -297,6 +350,25 @@ async def execute_e2e_compliance_run(
         "timestamp": time.time(),
     }
     steps_log.append(step5)
+    push_event(run_id, {**step5, "type": "step_update", "run_id": run_id})
+    # Persist Form-1 to DB
+    try:
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models import Form1Record
+        async with get_db_session() as session:
+            session.add(Form1Record(
+                form_id=form1_id, company_id=company_id,
+                recycler_id="RECYC-DELHI-01", recycler_name="EcoMelt Solutions Ltd",
+                po_number=po_number, audit_id=step3["data"].get("audit_id"),
+                plastic_category=category, physical_melt_tons=volume_tons,
+                conversion_factor_cf=1.0, credited_tons=volume_tons,
+                portal_status="CPCB_ACCEPTED", portal_ack_number=ack_number,
+                dsc_signature=dsc_signature, full_payload=step5["data"],
+                dispatched_by=user.get("email",""),
+            ))
+    except Exception as _exc:
+        logger.warning(f"Could not persist Form1Record ({_exc})")
+
 
     final_result = {
         "run_id": run_id,
@@ -314,6 +386,7 @@ async def execute_e2e_compliance_run(
         "triggered_by": user["email"],
         "steps": steps_log,
     }
+    push_event(run_id, {**final_result, "type": "run_complete"})
     _RUNS_DB.insert(0, final_result)
 
     # Persist into PostgreSQL WorkflowRun

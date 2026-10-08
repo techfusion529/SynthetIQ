@@ -25,7 +25,9 @@ from src.routes import (
     organizations_router,
     schedules_router,
     settlement_router,
+    stream_router,
     users_router,
+    stream_router,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ── Startup ───────────────────────────────────────────────────────────────
     logger.info("SynthetIQ API starting up…")
 
+    # Force-import new ORM models so they register with Base.metadata
+    try:
+        from synthetiq_shared.models import AuctionRecord, BidRecord, AuditRecord, EscrowPORecord, Form1Record  # noqa: F401
+    except Exception:
+        pass
     # 1. SQLite / Postgres schema (dev: auto-create, prod: use Alembic)
     try:
         from synthetiq_shared.database import init_db  # type: ignore[import-not-found]
@@ -126,6 +133,7 @@ app.include_router(liability_router,    prefix=API_V1_STR)
 app.include_router(auctions_router,     prefix=API_V1_STR)
 app.include_router(audit_router,        prefix=API_V1_STR)
 app.include_router(settlement_router,   prefix=API_V1_STR)
+app.include_router(stream_router, prefix=API_V1_STR)
 app.include_router(schedules_router,    prefix=API_V1_STR)
 app.include_router(organizations_router, prefix=API_V1_STR)
 app.include_router(users_router,         prefix=API_V1_STR)

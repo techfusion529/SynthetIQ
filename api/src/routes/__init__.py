@@ -12,6 +12,7 @@ from .orchestrator import router as orchestrator_router
 from .organizations import router as organizations_router
 from .schedules import router as schedules_router
 from .settlement import router as settlement_router
+from .stream import router as stream_router
 from .users import router as users_router
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "organizations_router",
     "users_router",
     "agent_config_router",
+    "stream_router",
 ]

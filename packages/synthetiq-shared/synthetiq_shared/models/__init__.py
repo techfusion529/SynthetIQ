@@ -1,8 +1,19 @@
-"""Multi-tenant domain & ORM models â€” public exports."""
+"""Multi-tenant domain & ORM models — public exports."""
 
 # ORM Models (SQLAlchemy)
 from .agent_config import AgentConfiguration
-from .organization import DataSource, Organization, Schedule, User, WorkflowRun
+from .organization import (
+    DataSource,
+    Organization,
+    Schedule,
+    User,
+    WorkflowRun,
+    AuctionRecord,
+    BidRecord,
+    AuditRecord,
+    EscrowPORecord,
+    Form1Record,
+)
 
 # Pydantic Domain Models
 from .company import CompanyERPConfig, CompanyProfile, OnboardedCompany
@@ -20,6 +31,11 @@ __all__ = [
     "AgentConfiguration",
     "Schedule",
     "WorkflowRun",
+    "AuctionRecord",
+    "BidRecord",
+    "AuditRecord",
+    "EscrowPORecord",
+    "Form1Record",
     # Pydantic
     "OnboardedCompany",
     "CompanyProfile",

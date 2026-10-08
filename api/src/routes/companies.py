@@ -1,9 +1,9 @@
 """Enterprise onboarding and ERP profile management routes.
 
 RBAC:
-  GET  /companies           → orgs:read   (viewer+)
-  GET  /companies/{id}      → orgs:read   (viewer+)
-  POST /companies           → orgs:write  (admin only)
+  GET  /companies            - ' orgs:read   (viewer+)
+  GET  /companies/{id}       - ' orgs:read   (viewer+)
+  POST /companies            - ' orgs:write  (admin only)
 """
 
 from __future__ import annotations

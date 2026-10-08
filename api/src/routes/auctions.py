@@ -1,4 +1,4 @@
-"""Workflow 2: Liquidity & Continuous Double Auction routes — DB-backed."""
+"""Workflow 2: Liquidity & Continuous Double Auction routes  -  DB-backed."""
 from __future__ import annotations
 import logging, time, uuid
 from typing import Any
@@ -152,4 +152,4 @@ async def get_auction(auction_id: str, user: CurrentUser, _: Any = Depends(requi
     match = next((a for a in await _get_all_auctions() if a.get("auction_id") == auction_id), None)
     if not match:
         raise HTTPException(status_code=404, detail=f"Auction not found: {auction_id}")
-    return match
+    return match

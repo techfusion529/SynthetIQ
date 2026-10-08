@@ -1,4 +1,4 @@
-"""Authentication & Session Router — Login, Registration, and User Context."""
+"""Authentication & Session Router  -  Login, Registration, and User Context."""
 
 from __future__ import annotations
 

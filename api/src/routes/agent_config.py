@@ -1,10 +1,10 @@
-"""Agent Configuration Router — Dynamic Agent Tuning, Data Source Binding & Testing.
+"""Agent Configuration Router  -  Dynamic Agent Tuning, Data Source Binding & Testing.
 
 RBAC:
-  GET  /organizations/{org_id}/agents               → config:read  (viewer+)
-  GET  /organizations/{org_id}/agents/{agent_name}  → config:read  (viewer+)
-  PUT  /organizations/{org_id}/agents/{agent_name}  → config:write (compliance_officer+)
-  POST /organizations/{org_id}/agents/{agent_name}/test → config:read (compliance_officer+)
+  GET  /organizations/{org_id}/agents                - ' config:read  (viewer+)
+  GET  /organizations/{org_id}/agents/{agent_name}   - ' config:read  (viewer+)
+  PUT  /organizations/{org_id}/agents/{agent_name}   - ' config:write (compliance_officer+)
+  POST /organizations/{org_id}/agents/{agent_name}/test  - ' config:read (compliance_officer+)
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""FastAPI authentication dependency — extracts and verifies Firebase JWT from request headers.
+"""FastAPI authentication dependency  -  extracts and verifies Firebase JWT from request headers.
 
 Usage in routes:
     from src.middleware.auth import require_auth, CurrentUser

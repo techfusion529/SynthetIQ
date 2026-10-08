@@ -1,4 +1,4 @@
-"""API service constants — route prefixes, CORS configs, and dynamic engine defaults."""
+"""API service constants  -  route prefixes, CORS configs, and dynamic engine defaults."""
 
 from __future__ import annotations
 

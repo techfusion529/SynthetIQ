@@ -20,7 +20,7 @@ try:
         get_scheduler_service,
     )
 except ImportError:
-    # Standalone import — duplicate the minimal subset needed by the API
+    # Standalone import  -  duplicate the minimal subset needed by the API
     import logging
     import uuid
     from datetime import datetime, timezone
@@ -44,7 +44,7 @@ except ImportError:
         def start(self) -> None:
             if not self._scheduler.running:
                 self._scheduler.start()
-                logger.info("✓ APScheduler started (API process)")
+                logger.info(" -  APScheduler started (API process)")
 
         def shutdown(self, wait: bool = True) -> None:
             if self._scheduler.running:

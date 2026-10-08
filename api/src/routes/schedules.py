@@ -1,13 +1,13 @@
-"""Schedule management API — CRUD for per-org APScheduler cron jobs.
+"""Schedule management API  -  CRUD for per-org APScheduler cron jobs.
 
 RBAC:
-  GET  /schedules/              → schedules:read   (compliance_officer+)
-  POST /schedules/              → schedules:write  (admin only)
-  GET  /schedules/{id}          → schedules:read   (compliance_officer+)
-  POST /schedules/{id}/pause    → schedules:write  (admin only)
-  POST /schedules/{id}/resume   → schedules:write  (admin only)
-  DELETE /schedules/{id}        → schedules:delete (admin only)
-  GET  /schedules/jobs          → schedules:read   (compliance_officer+)
+  GET  /schedules/               - ' schedules:read   (compliance_officer+)
+  POST /schedules/               - ' schedules:write  (admin only)
+  GET  /schedules/{id}           - ' schedules:read   (compliance_officer+)
+  POST /schedules/{id}/pause     - ' schedules:write  (admin only)
+  POST /schedules/{id}/resume    - ' schedules:write  (admin only)
+  DELETE /schedules/{id}         - ' schedules:delete (admin only)
+  GET  /schedules/jobs           - ' schedules:read   (compliance_officer+)
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/schedules", tags=["Schedules"])
 
 
 # ---------------------------------------------------------------------------
-# Lazy import helper — scheduler lives in the worker process; the API uses
+# Lazy import helper  -  scheduler lives in the worker process; the API uses
 # an HTTP shim in production.  For local dev / single-process mode the
 # scheduler_service is imported directly.
 # ---------------------------------------------------------------------------
@@ -136,7 +136,7 @@ async def get_schedule(
 
     # Non-admins can only read schedules belonging to their org
     if user.get("role") != "admin" and record.get("org_id") != user.get("org_id"):
-        raise HTTPException(status_code=403, detail="Access denied — wrong organisation")
+        raise HTTPException(status_code=403, detail="Access denied  -  wrong organisation")
 
     return record
 

@@ -1,4 +1,4 @@
-"""Firebase Auth middleware — verifies JWT tokens from the executive dashboard.
+"""Firebase Auth middleware  -  verifies JWT tokens from the executive dashboard.
 
 In production mode, uses firebase_admin.auth.verify_id_token().
 In dev mode (AUTH_DEV_MODE=true), returns a mock user for local development.
@@ -32,7 +32,7 @@ def initialize_firebase() -> None:
 
     dev_mode = os.getenv("AUTH_DEV_MODE", "false").lower() in ("true", "1", "yes")
     if dev_mode:
-        logger.warning("Firebase Auth running in DEV MODE — tokens are NOT verified")
+        logger.warning("Firebase Auth running in DEV MODE  -  tokens are NOT verified")
         return
 
     # Try service account JSON, then Application Default Credentials
@@ -133,7 +133,7 @@ class AuthService:
             }
 
         except firebase_auth.ExpiredIdTokenError:
-            raise ValueError("Token has expired — please re-authenticate")
+            raise ValueError("Token has expired  -  please re-authenticate")
         except firebase_auth.RevokedIdTokenError:
             raise ValueError("Token has been revoked")
         except firebase_auth.InvalidIdTokenError as e:

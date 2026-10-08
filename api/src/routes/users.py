@@ -1,10 +1,10 @@
-"""User Management Router — Per-tenant user administration and role management.
+"""User Management Router  -  Per-tenant user administration and role management.
 
 RBAC:
-  GET    /organizations/{org_id}/users          → users:read  (viewer+)
-  POST   /organizations/{org_id}/users          → users:write (admin)
-  PATCH  /organizations/{org_id}/users/{uid}/role → users:write (admin)
-  DELETE /organizations/{org_id}/users/{uid}      → users:write (admin)
+  GET    /organizations/{org_id}/users           - ' users:read  (viewer+)
+  POST   /organizations/{org_id}/users           - ' users:write (admin)
+  PATCH  /organizations/{org_id}/users/{uid}/role  - ' users:write (admin)
+  DELETE /organizations/{org_id}/users/{uid}       - ' users:write (admin)
 """
 
 from __future__ import annotations

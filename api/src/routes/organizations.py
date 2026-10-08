@@ -1,15 +1,15 @@
-"""Organizations & Data Sources Router — Persistent Multi-Tenant Administration.
+"""Organizations & Data Sources Router  -  Persistent Multi-Tenant Administration.
 
 RBAC:
-  GET    /organizations/                  → orgs:read          (viewer+)
-  POST   /organizations/                  → orgs:write         (admin)
-  GET    /organizations/{id}              → orgs:read          (viewer+)
-  PUT    /organizations/{id}              → orgs:write         (admin)
-  GET    /organizations/{id}/data-sources → datasources:read   (compliance_officer+)
-  POST   /organizations/{id}/data-sources → datasources:write  (admin)
-  DELETE /organizations/{id}/data-sources/{ds_id} → datasources:delete (admin)
-  POST   /organizations/{id}/data-sources/{ds_id}/test    → datasources:read   (compliance_officer+)
-  POST   /organizations/{id}/data-sources/{ds_id}/preview → datasources:read   (compliance_officer+)
+  GET    /organizations/                   - ' orgs:read          (viewer+)
+  POST   /organizations/                   - ' orgs:write         (admin)
+  GET    /organizations/{id}               - ' orgs:read          (viewer+)
+  PUT    /organizations/{id}               - ' orgs:write         (admin)
+  GET    /organizations/{id}/data-sources  - ' datasources:read   (compliance_officer+)
+  POST   /organizations/{id}/data-sources  - ' datasources:write  (admin)
+  DELETE /organizations/{id}/data-sources/{ds_id}  - ' datasources:delete (admin)
+  POST   /organizations/{id}/data-sources/{ds_id}/test     - ' datasources:read   (compliance_officer+)
+  POST   /organizations/{id}/data-sources/{ds_id}/preview  - ' datasources:read   (compliance_officer+)
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def _verify_org_access(user: dict[str, Any], org_id: str) -> None:
     if user.get("role") != "admin" and user.get("org_id") != org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied — wrong organisation",
+            detail="Access denied  -  wrong organisation",
         )
 
 

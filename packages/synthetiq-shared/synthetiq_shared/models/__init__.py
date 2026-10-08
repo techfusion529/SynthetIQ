@@ -1,4 +1,4 @@
-"""Multi-tenant domain & ORM models — public exports."""
+"""Multi-tenant domain & ORM models  -  public exports."""
 
 # ORM Models (SQLAlchemy)
 from .agent_config import AgentConfiguration
@@ -59,4 +59,4 @@ __all__ = [
     "Form1",
     "DigitalSignature",
     "DispatchResult",
-]
+]

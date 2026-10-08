@@ -1,4 +1,4 @@
-"""Auction domain models — RFPs, Bids, Compensation Corridors, and Auction Results."""
+"""Auction domain models  -  RFPs, Bids, Compensation Corridors, and Auction Results."""
 
 from __future__ import annotations
 

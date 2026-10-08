@@ -66,7 +66,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Create all tables (development only — use Alembic for production)."""
+    """Create all tables (development only  -  use Alembic for production)."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables created successfully")

@@ -1,4 +1,4 @@
-"""Shared utilities — observability, logging, and cryptography."""
+"""Shared utilities  -  observability, logging, and cryptography."""
 
 from .crypto import compute_audit_hash, sign_form1_sha256
 from .telemetry import (

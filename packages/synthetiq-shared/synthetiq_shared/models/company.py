@@ -1,4 +1,4 @@
-"""Company domain models — onboarded enterprise profiles and ERP configuration."""
+"""Company domain models  -  onboarded enterprise profiles and ERP configuration."""
 
 from __future__ import annotations
 

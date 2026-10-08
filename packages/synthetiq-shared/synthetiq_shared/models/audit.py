@@ -1,4 +1,4 @@
-"""Audit domain models — E-Way bills, SCADA telemetry, thermodynamic signatures, and verdicts."""
+"""Audit domain models  -  E-Way bills, SCADA telemetry, thermodynamic signatures, and verdicts."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ class ThermodynamicSignature(BaseModel):
 
 
 class AuditVerdict(BaseModel):
-    """Quad-Core Fraud Audit final verdict — System 1 + System 2 verification."""
+    """Quad-Core Fraud Audit final verdict  -  System 1 + System 2 verification."""
     audit_id: str
     recycler_id: str
     plant_id: str

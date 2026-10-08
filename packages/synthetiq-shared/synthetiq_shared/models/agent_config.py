@@ -1,4 +1,4 @@
-"""Agent Configuration ORM Model — Multi-Tenant Agent Bindings & Parameters.
+"""Agent Configuration ORM Model  -  Multi-Tenant Agent Bindings & Parameters.
 
 Stores dynamic configuration, prompt customizations, threshold parameters,
 and data source bindings for each agent within an organization.

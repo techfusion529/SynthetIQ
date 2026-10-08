@@ -1,4 +1,4 @@
-"""Regulatory domain models — CPCB mandates, conversion factors, and CTO."""
+"""Regulatory domain models  -  CPCB mandates, conversion factors, and CTO."""
 
 from __future__ import annotations
 

@@ -1,1 +1,1 @@
-"""SynthetIQ shared package — config, database, and ORM models."""
+"""SynthetIQ shared package  -  config, database, and ORM models."""

@@ -1,4 +1,4 @@
-"""SynthetIQ Zero-Trust MCP Server — tool execution gateway for AI agents."""
+"""SynthetIQ Zero-Trust MCP Server  -  tool execution gateway for AI agents."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def init_gcp_tools() -> None:
             sales_table=sales_table,
             credentials_path=creds_path,
         )
-        print(f"✓ MCP BigQuery tool ready (project={project_id}, dataset={dataset_id})")
+        print(f" -  MCP BigQuery tool ready (project={project_id}, dataset={dataset_id})")
     except Exception as e:
         print(f"⚠ MCP BigQuery tool initialization deferred: {e}")
 
@@ -40,7 +40,7 @@ def init_gcp_tools() -> None:
             subscription_name=subscription,
             credentials_path=creds_path,
         )
-        print(f"✓ MCP Pub/Sub tool ready (project={project_id}, subscription={subscription})")
+        print(f" -  MCP Pub/Sub tool ready (project={project_id}, subscription={subscription})")
     except Exception as e:
         print(f"⚠ MCP Pub/Sub tool initialization deferred: {e}")
 

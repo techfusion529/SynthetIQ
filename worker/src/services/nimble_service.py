@@ -1,4 +1,4 @@
-"""Nimble System 1 service — fast typed fraud detection via Ollama SystemOne endpoint.
+"""Nimble System 1 service  -  fast typed fraud detection via Ollama SystemOne endpoint.
 
 Nimble is a 9B decision model purpose-built for fast (<100 ms) typed classification.
 It returns structured "choice" and "bool" answers without any free-form hallucination.
@@ -26,10 +26,10 @@ from tenacity import (
 
 logger = logging.getLogger(__name__)
 
-# ── Nimble SCADA fraud-detection prompts ────────────────────────────────────
+#  -  -  -  -  Nimble SCADA fraud-detection prompts  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 #
 # The "state" field is a rich textual description of the sensor reading.
-# The "questions" dict defines strictly typed outputs — Nimble returns a
+# The "questions" dict defines strictly typed outputs  -  Nimble returns a
 # probability-weighted choice or boolean for each key.
 
 _FRAUD_QUESTIONS: dict[str, dict[str, Any]] = {
@@ -42,8 +42,8 @@ _FRAUD_QUESTIONS: dict[str, dict[str, Any]] = {
         "criteria": {
             "APPROVED": (
                 "Genuine induction motor under viscous polymer load: "
-                "torque ≥ 15 Nm, power factor 0.78–0.92, "
-                "specific energy 0.15–1.2 kWh/kg"
+                "torque ≥ 15 Nm, power factor 0.78 - 0.92, "
+                "specific energy 0.15 - 1.2 kWh/kg"
             ),
             "REJECTED_FRAUD": (
                 "Resistive space-heater spoofing detected: "
@@ -51,7 +51,7 @@ _FRAUD_QUESTIONS: dict[str, dict[str, Any]] = {
                 "zero or near-zero melt rate despite high power draw"
             ),
             "ESCALATED_FOR_MANUAL_REVIEW": (
-                "Ambiguous signature — some indicators are inconsistent; "
+                "Ambiguous signature  -  some indicators are inconsistent; "
                 "manual inspection of the plant is required"
             ),
         },
@@ -61,7 +61,7 @@ _FRAUD_QUESTIONS: dict[str, dict[str, Any]] = {
         "instructions": (
             "Does the combination of power factor and torque indicate "
             "a real 3-phase induction motor running under viscous polymer load? "
-            "Answer true only when both PF is in 0.78–0.92 AND torque is ≥ 15 Nm."
+            "Answer true only when both PF is in 0.78 - 0.92 AND torque is ≥ 15 Nm."
         ),
     },
     "energy_balance_ok": {
@@ -96,7 +96,7 @@ class NimbleService:
         self._available: bool | None = None  # None = not yet checked
         logger.info(f"NimbleService configured: host={ollama_host}, model={model}")
 
-    # ── Availability probe ────────────────────────────────────────────────────
+    #  -  -  -  -  Availability probe  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
     async def _check_availability(self) -> bool:
         """Return True if the Ollama server is reachable and Nimble model is loaded."""
@@ -125,7 +125,7 @@ class NimbleService:
         """Force re-check of availability on next call."""
         self._available = None
 
-    # ── Core SystemOne call ───────────────────────────────────────────────────
+    #  -  -  -  -  Core SystemOne call  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
     @retry(
         stop=stop_after_attempt(2),
@@ -159,7 +159,7 @@ class NimbleService:
             resp.raise_for_status()
             return resp.json()
 
-    # ── Public evaluation API ─────────────────────────────────────────────────
+    #  -  -  -  -  Public evaluation API  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
     async def evaluate_scada_signature(
         self,
@@ -177,7 +177,7 @@ class NimbleService:
 
         Args:
             torque_nm: Motor shaft torque in Newton-metres
-            power_factor: Electrical power factor (0.0 – 1.0)
+            power_factor: Electrical power factor (0.0  -  1.0)
             active_power_kw: Active (real) power in kW
             vfd_frequency_hz: VFD drive output frequency in Hz
             melt_rate_kg_h: Reported polymer melt throughput in kg/h
@@ -190,7 +190,7 @@ class NimbleService:
             RuntimeError: If Nimble is unavailable (caller should use Jev fallback)
         """
         if not await self._check_availability():
-            raise RuntimeError("Nimble not available — use Jev fallback")
+            raise RuntimeError("Nimble not available  -  use Jev fallback")
 
         # Build rich state description for Nimble
         specific_energy = (
@@ -206,9 +206,9 @@ class NimbleService:
             f"  Specific energy:       {specific_energy:.3f} kWh/kg\n"
             f"  Reported volume:       {reported_volume_tons:.2f} metric tons\n\n"
             f"Physics baseline for genuine polymer extrusion:\n"
-            f"  Induction motor torque: 15 – 120 Nm under full viscous load\n"
-            f"  Power factor range:     0.78 – 0.92 (inductive, lagging)\n"
-            f"  Specific energy range:  0.15 – 1.2 kWh/kg of polymer melt\n\n"
+            f"  Induction motor torque: 15  -  120 Nm under full viscous load\n"
+            f"  Power factor range:     0.78  -  0.92 (inductive, lagging)\n"
+            f"  Specific energy range:  0.15  -  1.2 kWh/kg of polymer melt\n\n"
             f"Resistive space-heater signature (spoofing indicator):\n"
             f"  Torque near zero (<8 Nm), power factor near unity (>0.96),\n"
             f"  high power draw but zero or minimal melt output."
@@ -263,14 +263,14 @@ class NimbleService:
         """
         answers = raw.get("answers", {})
 
-        # ── fraud_verdict ────────────────────────────────────────────────────
+        #  -  -  -  -  fraud_verdict  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
         verdict_answer = answers.get("fraud_verdict", {})
         verdict = verdict_answer.get("value", "ESCALATED_FOR_MANUAL_REVIEW")
         probs = verdict_answer.get("probabilities", {})
         # Confidence = probability of the chosen verdict
         confidence = float(probs.get(verdict, 0.5))
 
-        # ── boolean checks ────────────────────────────────────────────────────
+        #  -  -  -  -  boolean checks  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
         is_genuine = answers.get("is_genuine_motor", {}).get("value", False)
         energy_ok = answers.get("energy_balance_ok", {}).get("value", True)
 
@@ -288,10 +288,10 @@ class NimbleService:
             flags.append("NIMBLE: Not consistent with genuine induction motor under load")
         if not energy_ok:
             flags.append(
-                f"NIMBLE_ENERGY: Specific energy {specific_energy:.3f} kWh/kg outside 0.15–1.2 range"
+                f"NIMBLE_ENERGY: Specific energy {specific_energy:.3f} kWh/kg outside 0.15 - 1.2 range"
             )
         if power_factor > 0.96:
-            flags.append(f"PHYSICS: Near-unity PF {power_factor:.3f} — no inductive motor load")
+            flags.append(f"PHYSICS: Near-unity PF {power_factor:.3f}  -  no inductive motor load")
         if torque_nm < 8.0 and active_power_kw > 10.0:
             flags.append(f"PHYSICS: Low torque {torque_nm:.1f} Nm with high power draw")
 
@@ -316,7 +316,7 @@ class NimbleService:
         }
 
 
-# ── Global singleton ──────────────────────────────────────────────────────────
+#  -  -  -  -  Global singleton  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
 _nimble_service: NimbleService | None = None
 
@@ -342,7 +342,7 @@ def initialize_nimble_service(
         model=model,
         timeout=timeout,
     )
-    logger.info(f"✓ NimbleService initialized: {ollama_host}/{model}")
+    logger.info(f" -  NimbleService initialized: {ollama_host}/{model}")
     return _nimble_service
 
 

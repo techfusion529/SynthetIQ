@@ -1,17 +1,17 @@
-"""EPR Compliance Pipeline Orchestrator — Google ADK SequentialAgent / ParallelAgent.
+"""EPR Compliance Pipeline Orchestrator  -  Google ADK SequentialAgent / ParallelAgent.
 
 Architecture (per implementation_plan.md):
 
   epr_compliance_pipeline (SequentialAgent)
-  ├── upstream_parallel (ParallelAgent)
-  │   ├── brand_liability_agent
-  │   └── regulatory_watchdog_agent
-  ├── treasury_agent
-  ├── audit_parallel (ParallelAgent)
-  │   ├── logistics_agent
-  │   └── auditor_agent
-  ├── erp_agent
-  └── legal_agent
+   -  -  -  -  -  -  upstream_parallel (ParallelAgent)
+   -  -     -  -  -  -  -  -  brand_liability_agent
+   -  -     - " -  -  -  -  regulatory_watchdog_agent
+   -  -  -  -  -  -  treasury_agent
+   -  -  -  -  -  -  audit_parallel (ParallelAgent)
+   -  -     -  -  -  -  -  -  logistics_agent
+   -  -     - " -  -  -  -  auditor_agent
+   -  -  -  -  -  -  erp_agent
+   - " -  -  -  -  legal_agent
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ audit_parallel = create_parallel_group(
     description="Parallel logistics origin verification and SCADA telemetry fraud detection",
 )
 
-# Full pipeline — sequential stages
+# Full pipeline  -  sequential stages
 epr_compliance_pipeline = create_sequential_pipeline(
     name="epr_compliance_pipeline",
     agents=[
@@ -63,7 +63,7 @@ epr_compliance_pipeline = create_sequential_pipeline(
         erp_agent,           # Stage 4: Escrow PO
         legal_agent,         # Stage 5: Form-1 dispatch
     ],
-    description="End-to-end EPR compliance pipeline: liability → auction → audit → PO → Form-1",
+    description="End-to-end EPR compliance pipeline: liability  - ' auction  - ' audit  - ' PO  - ' Form-1",
 )
 
 
@@ -100,7 +100,7 @@ async def run_epr_pipeline(
         Aggregated pipeline result dict with keys for each stage
     """
     logger.info(
-        f"🚀 Starting EPR pipeline — company={company_id}, FY={fiscal_year}, "
+        f"🚀 Starting EPR pipeline  -  company={company_id}, FY={fiscal_year}, "
         f"category={category}, volume={volume_tons}t"
     )
 

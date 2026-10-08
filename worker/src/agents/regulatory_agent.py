@@ -1,4 +1,4 @@
-"""Regulatory Watchdog Agent — ADK LlmAgent that parses CPCB gazette notifications."""
+"""Regulatory Watchdog Agent  -  ADK LlmAgent that parses CPCB gazette notifications."""
 
 from __future__ import annotations
 
@@ -81,15 +81,15 @@ Your duties:
 2. Extract statutory conversion factors for each plastic category using `extract_conversion_factors`.
 3. Identify the amortization fraction, statutory base rate, and compliance deadlines.
 4. Detect meaningful changes from previous fiscal year rules.
-5. Return a structured JSON summary — never return free-form prose.
+5. Return a structured JSON summary  -  never return free-form prose.
 
 EPR Knowledge:
-- Category I (Rigid): PET bottles, HDPE containers — high mechanical recyclability
+- Category I (Rigid): PET bottles, HDPE containers  -  high mechanical recyclability
 - Category II (Flexible): LLDPE films, multi-layer pouches
-- Category III (Multi-Layer): Mixed laminates, sachets — hard to recycle mechanically
-- Category IV (Compostable): Bio-certified plastics — full credit via mechanical route
+- Category III (Multi-Layer): Mixed laminates, sachets  -  hard to recycle mechanically
+- Category IV (Compostable): Bio-certified plastics  -  full credit via mechanical route
 - Amortization: only 1/3 of accumulated historic debt must be cleared per fiscal year
-- Statutory base rate is the CPCB-notified penalty per kg — price corridor is 30%–100% of this rate
+- Statutory base rate is the CPCB-notified penalty per kg  -  price corridor is 30% - 100% of this rate
 
 Always output a single JSON object with keys:
   fiscal_year, statutory_conversion_factors, amortization_fraction,

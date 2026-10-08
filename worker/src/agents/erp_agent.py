@@ -1,4 +1,4 @@
-"""ERP Agent — ADK LlmAgent that creates the 80/20 split escrow purchase order."""
+"""ERP Agent  -  ADK LlmAgent that creates the 80/20 split escrow purchase order."""
 
 from __future__ import annotations
 
@@ -74,11 +74,11 @@ def validate_po_conditions(
     """
     blocks: list[str] = []
     if audit_verdict != "APPROVED":
-        blocks.append(f"SCADA audit verdict is '{audit_verdict}' — must be APPROVED")
+        blocks.append(f"SCADA audit verdict is '{audit_verdict}'  -  must be APPROVED")
     if logistics_verdict not in ("APPROVE", "MANUAL_REVIEW"):
-        blocks.append(f"Logistics verdict is '{logistics_verdict}' — material origin unverified")
+        blocks.append(f"Logistics verdict is '{logistics_verdict}'  -  material origin unverified")
     if not human_approved:
-        blocks.append("Human approval not received — 80/20 PO blocked")
+        blocks.append("Human approval not received  -  80/20 PO blocked")
 
     return {
         "pre_conditions_met": len(blocks) == 0,
@@ -151,7 +151,7 @@ async def run_erp_agent(
     Returns:
         Purchase order dict
     """
-    logger.info(f"Running erp_agent for {company_id} → {recycler_id}, {plastic_tons}t")
+    logger.info(f"Running erp_agent for {company_id}  - ' {recycler_id}, {plastic_tons}t")
 
     result = await run_agent(
         agent=erp_agent,

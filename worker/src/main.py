@@ -26,7 +26,7 @@ from services.jev_auditor import initialize_jev_auditor
 from services.nimble_service import initialize_nimble_service
 from services.privacy_service import initialize_privacy_service
 
-# Shared config — installed under the synthetiq_shared namespace
+# Shared config  -  installed under the synthetiq_shared namespace
 try:
     from synthetiq_shared.config import get_config
 except ModuleNotFoundError:
@@ -62,7 +62,7 @@ async def initialize_services() -> None:
         os.environ["GOOGLE_API_KEY"] = config.gemini.api_key
         os.environ["GEMINI_API_KEY"] = config.gemini.api_key
         os.environ["GEMINI_MODEL"] = config.gemini.model
-        logger.info(f"✓ Google ADK configured: model={config.gemini.model}")
+        logger.info(f" -  Google ADK configured: model={config.gemini.model}")
     else:
         logger.warning("GEMINI_API_KEY not configured. Running worker in demo/mock agent mode.")
         os.environ.setdefault("GOOGLE_API_KEY", "mock-agent-key")
@@ -80,11 +80,11 @@ async def initialize_services() -> None:
         else:
             os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
         logger.info(
-            f"✓ GCP Platform configured: project={config.gcp.project_id}, "
+            f" -  GCP Platform configured: project={config.gcp.project_id}, "
             f"region={config.gcp.region}"
         )
     else:
-        logger.warning("GCP_PROJECT_ID not set — Vertex AI / BigQuery / Pub/Sub disabled")
+        logger.warning("GCP_PROJECT_ID not set  -  Vertex AI / BigQuery / Pub/Sub disabled")
 
     # Initialize Gemini AI service (dual-mode: Vertex AI + API key fallback)
     from services.ai_service import initialize_gemini_service
@@ -96,12 +96,12 @@ async def initialize_services() -> None:
         gcp_project_id=config.gcp.project_id if config.gcp.project_id else None,
         gcp_region=config.gcp.region,
     )
-    logger.info("✓ Gemini AI service initialized")
+    logger.info(" -  Gemini AI service initialized")
 
     # Initialize ADK session service
     from agents.base_adk import get_session_service
     get_session_service()
-    logger.info("✓ ADK InMemorySessionService initialized")
+    logger.info(" -  ADK InMemorySessionService initialized")
 
     # Initialize Nimble System 1 service (Ollama /v1/systemone)
     nimble_host = config.ollama.host  # reuse OLLAMA_HOST
@@ -111,9 +111,9 @@ async def initialize_services() -> None:
         model="nimble",
         timeout=10.0,
     )
-    logger.info("✓ Nimble service initialized (availability checked on first call)")
+    logger.info(" -  Nimble service initialized (availability checked on first call)")
 
-    # Initialize Jev auditor (NIMBLE_PRIMARY → falls back to HYBRID_ENSEMBLE)
+    # Initialize Jev auditor (NIMBLE_PRIMARY  - ' falls back to HYBRID_ENSEMBLE)
     logger.info(f"Initializing Jev auditor in {config.jev.mode} mode...")
     initialize_jev_auditor(
         mode=config.jev.mode,
@@ -123,7 +123,7 @@ async def initialize_services() -> None:
         power_factor_max=config.jev.power_factor_max,
         confidence_threshold=config.jev.confidence_threshold,
     )
-    logger.info("✓ Jev auditor initialized")
+    logger.info(" -  Jev auditor initialized")
 
     # Initialize privacy service (Ollama + Gemma)
     if config.ollama.enable_pii_scrubbing:
@@ -133,7 +133,7 @@ async def initialize_services() -> None:
             model=config.ollama.model,
             enabled=True,
         )
-        logger.info("✓ Privacy service initialized")
+        logger.info(" -  Privacy service initialized")
     else:
         initialize_privacy_service(enabled=False)
         logger.info("Privacy service disabled (PII scrubbing off)")
@@ -159,7 +159,7 @@ async def _start_health_server(port: int = 9090):
                 pass
 
     server = await asyncio.start_server(_handle_client, "0.0.0.0", port)
-    logger.info(f"✓ Health check server listening on port {port}")
+    logger.info(f" -  Health check server listening on port {port}")
     return server
 
 
@@ -180,7 +180,7 @@ async def main() -> None:
     for attempt in range(1, 31):
         try:
             client = await Client.connect(temporal_target)
-            logger.info("✓ Connected to Temporal")
+            logger.info(" -  Connected to Temporal")
             break
         except Exception as e:
             logger.warning(f"Temporal not ready yet (attempt {attempt}/30): {e}. Retrying in 3s...")
@@ -197,6 +197,7 @@ async def main() -> None:
         agent_activities.audit_scada_telemetry_activity,
         agent_activities.create_escrow_split_po_activity,
         agent_activities.generate_and_dispatch_form1_activity,
+        agent_activities.generate_audit_report_pdf_activity,
     ]
 
     # Start worker

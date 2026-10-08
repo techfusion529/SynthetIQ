@@ -1,4 +1,4 @@
-"""Logistics Agent — ADK LlmAgent that verifies material origin via E-Way bills and QR codes."""
+"""Logistics Agent  -  ADK LlmAgent that verifies material origin via E-Way bills and QR codes."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def scan_qr_packaging_ledger(qr_code_id: str) -> dict[str, Any]:
         "manufacture_state": "Maharashtra",
         "collection_point": "Delhi Municipal MRF",
         "collection_date": "2026-09-20",
-        "chain_of_custody": ["Brand → Retailer → Consumer → MRF → Recycler"],
+        "chain_of_custody": ["Brand  - ' Retailer  - ' Consumer  - ' MRF  - ' Recycler"],
         "provenance_verified": True,
         "tamper_detected": False,
     }

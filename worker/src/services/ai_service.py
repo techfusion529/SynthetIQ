@@ -7,8 +7,8 @@ Real LLM integration for:
 - Dynamic planning and reasoning
 
 Supports two modes:
-1. Vertex AI (Agent Platform) — uses ADC credentials, enterprise-grade endpoint
-2. Direct API Key — uses Google AI Studio API key (fallback for local dev)
+1. Vertex AI (Agent Platform)  -  uses ADC credentials, enterprise-grade endpoint
+2. Direct API Key  -  uses Google AI Studio API key (fallback for local dev)
 """
 
 from __future__ import annotations

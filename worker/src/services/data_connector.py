@@ -6,13 +6,13 @@ to fetch ERP sales data, SCADA telemetry, and write audit results.
 
 Connector hierarchy:
     DataConnector (abstract)
-    ├── BigQueryConnector    — Google BigQuery (production ERP / analytics)
-    ├── PostgreSQLConnector  — Direct SQL (on-premise ERP / internal DB)
-    ├── RESTAPIConnector     — Generic REST endpoint (SAP OData, Oracle Fusion…)
-    └── CSVFileConnector     — Flat-file upload (onboarding / offline batch)
+     -  -  -  -  -  -  BigQueryConnector     -  Google BigQuery (production ERP / analytics)
+     -  -  -  -  -  -  PostgreSQLConnector   -  Direct SQL (on-premise ERP / internal DB)
+     -  -  -  -  -  -  RESTAPIConnector      -  Generic REST endpoint (SAP OData, Oracle Fusion…)
+     - " -  -  -  -  CSVFileConnector      -  Flat-file upload (onboarding / offline batch)
 
 Configuration is stored encrypted in DataSource.connection_config (JSON).
-Credentials flow from environment / Secret Manager — never from user input.
+Credentials flow from environment / Secret Manager  -  never from user input.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-# ── Abstract base ─────────────────────────────────────────────────────────────
+#  -  -  -  -  Abstract base  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
 class DataConnector(ABC):
     """Abstract data connector interface."""
@@ -92,17 +92,17 @@ class DataConnector(ABC):
         return f"{self.__class__.__name__}(org={self.org_id}, type={self.connector_type})"
 
 
-# ── BigQuery Connector ────────────────────────────────────────────────────────
+#  -  -  -  -  BigQuery Connector  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
 class BigQueryConnector(DataConnector):
     """Google BigQuery connector for cloud-native ERP data.
 
     Required config keys:
-        project_id    — GCP project
-        dataset_id    — BigQuery dataset  (default: epr_compliance)
-        sales_table   — Table name        (default: sales_data)
-        telemetry_table — Telemetry table (default: scada_telemetry)
-        credentials_path — Path to service-account JSON (optional; uses ADC if absent)
+        project_id     -  GCP project
+        dataset_id     -  BigQuery dataset  (default: epr_compliance)
+        sales_table    -  Table name        (default: sales_data)
+        telemetry_table  -  Telemetry table (default: scada_telemetry)
+        credentials_path  -  Path to service-account JSON (optional; uses ADC if absent)
     """
 
     def __init__(self, org_id: str, config: dict[str, Any]) -> None:
@@ -119,7 +119,7 @@ class BigQueryConnector(DataConnector):
         self.telemetry_table = config.get("telemetry_table", "scada_telemetry")
         self.audit_table = config.get("audit_table", "audit_results")
 
-        # Lazy client — import only if google-cloud-bigquery is installed
+        # Lazy client  -  import only if google-cloud-bigquery is installed
         self._client: Any = None
 
     def _get_client(self) -> Any:
@@ -150,7 +150,7 @@ class BigQueryConnector(DataConnector):
             bigquery.ScalarQueryParameter("fiscal_year", "STRING", fiscal_year),
         ])
         client = self._get_client()
-        # BigQuery client is synchronous — run in thread pool
+        # BigQuery client is synchronous  -  run in thread pool
         results = await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: list(client.query(query, job_config=job_config).result()),
@@ -204,7 +204,7 @@ class BigQueryConnector(DataConnector):
             return False
 
 
-# ── PostgreSQL Connector ──────────────────────────────────────────────────────
+#  -  -  -  -  PostgreSQL Connector  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
 class PostgreSQLConnector(DataConnector):
     """Async PostgreSQL connector for on-premise or cloud SQL ERP databases.
@@ -296,20 +296,20 @@ class PostgreSQLConnector(DataConnector):
             return False
 
 
-# ── REST API Connector ────────────────────────────────────────────────────────
+#  -  -  -  -  REST API Connector  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
 class RESTAPIConnector(DataConnector):
     """Generic REST/HTTP connector for SAP OData, Oracle Fusion, etc.
 
     Required config keys:
-        base_url       — Root API URL
-        auth_type      — "bearer" | "basic" | "api_key" | "none"
-        token          — Bearer token / API key (for bearer / api_key)
-        username, password — For basic auth
-        sales_path     — Relative path for sales endpoint (default: /sales)
-        telemetry_path — Relative path for telemetry  (default: /telemetry)
-        audit_path     — Relative path for audit POST (default: /audits)
-        headers        — Additional HTTP headers dict (optional)
+        base_url        -  Root API URL
+        auth_type       -  "bearer" | "basic" | "api_key" | "none"
+        token           -  Bearer token / API key (for bearer / api_key)
+        username, password  -  For basic auth
+        sales_path      -  Relative path for sales endpoint (default: /sales)
+        telemetry_path  -  Relative path for telemetry  (default: /telemetry)
+        audit_path      -  Relative path for audit POST (default: /audits)
+        headers         -  Additional HTTP headers dict (optional)
     """
 
     def __init__(self, org_id: str, config: dict[str, Any]) -> None:
@@ -352,7 +352,7 @@ class RESTAPIConnector(DataConnector):
             )
             resp.raise_for_status()
             data = resp.json()
-            # Normalise to list — APIs return either a list or {"data": [...]}
+            # Normalise to list  -  APIs return either a list or {"data": [...]}
             return data if isinstance(data, list) else data.get("data", data.get("value", []))
 
     async def query_telemetry(self, plant_id: str, time_range_hours: int = 24) -> list[dict[str, Any]]:
@@ -390,14 +390,14 @@ class RESTAPIConnector(DataConnector):
             return False
 
 
-# ── CSV / File Connector ──────────────────────────────────────────────────────
+#  -  -  -  -  CSV / File Connector  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
 class CSVFileConnector(DataConnector):
     """Flat-file connector for CSV uploads and offline batch processing.
 
     Required config keys:
-        sales_file_path     — Absolute path to sales CSV
-        telemetry_file_path — Absolute path to telemetry CSV (optional)
+        sales_file_path      -  Absolute path to sales CSV
+        telemetry_file_path  -  Absolute path to telemetry CSV (optional)
 
     CSV column conventions (case-insensitive):
         Sales:     product_sku, plastic_category, plastic_weight_kg, units_sold, state_code
@@ -440,7 +440,7 @@ class CSVFileConnector(DataConnector):
 
     async def query_telemetry(self, plant_id: str, time_range_hours: int = 24) -> list[dict[str, Any]]:
         if not self.telemetry_file:
-            logger.warning("[CSV] No telemetry file configured — returning empty list")
+            logger.warning("[CSV] No telemetry file configured  -  returning empty list")
             return []
         logger.info(f"[CSV] Loading telemetry: {self.telemetry_file}")
         rows = self._read_csv(self.telemetry_file)
@@ -469,7 +469,7 @@ class CSVFileConnector(DataConnector):
         return bool(self.sales_file_path) and os.path.exists(self.sales_file_path)
 
 
-# ── Factory ───────────────────────────────────────────────────────────────────
+#  -  -  -  -  Factory  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
 _CONNECTOR_REGISTRY: dict[str, type[DataConnector]] = {
     "bigquery":   BigQueryConnector,

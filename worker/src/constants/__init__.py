@@ -1,4 +1,4 @@
-"""Worker constants — task queues, model names, and retry policies."""
+"""Worker constants  -  task queues, model names, and retry policies."""
 
 from __future__ import annotations
 

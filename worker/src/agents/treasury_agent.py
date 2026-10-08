@@ -1,4 +1,4 @@
-"""Treasury Agent — ADK LlmAgent that runs the continuous double auction."""
+"""Treasury Agent  -  ADK LlmAgent that runs the continuous double auction."""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ def validate_price_corridor(
     floor_inr: float,
     ceiling_inr: float,
 ) -> dict[str, Any]:
-    """Check whether a price falls within the statutory 30%–100% corridor.
+    """Check whether a price falls within the statutory 30% - 100% corridor.
 
     Args:
         price_inr: Price to validate
@@ -99,7 +99,7 @@ def compute_statutory_corridor(statutory_base_rate_inr: float) -> dict[str, Any]
         "statutory_base_rate_inr": statutory_base_rate_inr,
         "floor_price_inr": round(statutory_base_rate_inr * 0.30, 2),
         "ceiling_price_inr": round(statutory_base_rate_inr * 1.00, 2),
-        "corridor_description": "30% – 100% of CPCB statutory rate",
+        "corridor_description": "30%  -  100% of CPCB statutory rate",
     }
 
 
@@ -112,14 +112,14 @@ TREASURY_INSTRUCTION = """You are the Treasury Agent for SynthetIQ's continuous 
 Your job:
 1. Compute the statutory price corridor using `compute_statutory_corridor`.
 2. Fetch recycler bids with `fetch_recycler_bids`.
-3. Validate each bid's price with `validate_price_corridor` — reject out-of-corridor bids.
+3. Validate each bid's price with `validate_price_corridor`  -  reject out-of-corridor bids.
 4. Allocate bids to meet the target volume, minimising total cost.
    - Prefer lower-price, higher-reputation recyclers first.
    - Split across multiple recyclers to reduce concentration risk.
 5. Output a single JSON object summarising the auction result.
 
 Auction Rules:
-  - Price corridor: 30% – 100% of the statutory base rate
+  - Price corridor: 30%  -  100% of the statutory base rate
   - Target: clear the exact requested volume (partial fill is acceptable if no more bids exist)
   - Mandatory JSON output keys:
       rfp_id, category, statutory_floor_inr, statutory_ceiling_inr,
@@ -159,7 +159,7 @@ async def run_treasury_agent(
     Returns:
         Auction allocation dict
     """
-    logger.info(f"Running treasury_agent for {rfp_id} — {target_tons}t {category}")
+    logger.info(f"Running treasury_agent for {rfp_id}  -  {target_tons}t {category}")
 
     result = await run_agent(
         agent=treasury_agent,

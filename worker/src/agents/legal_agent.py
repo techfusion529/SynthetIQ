@@ -1,4 +1,4 @@
-"""Legal Agent — ADK LlmAgent that generates and dispatches CPCB Form-1."""
+"""Legal Agent  -  ADK LlmAgent that generates and dispatches CPCB Form-1."""
 
 from __future__ import annotations
 
@@ -115,8 +115,8 @@ Your job:
 
 Regulatory Context:
   - Form-1 is the official CPCB document for registering recycling credits.
-  - Credits = physical_melt_tons × Cf (conversion factor).
-  - DSC signing is mandatory — unsigned forms are rejected by the portal.
+  - Credits = physical_melt_tons  -  -  Cf (conversion factor).
+  - DSC signing is mandatory  -  unsigned forms are rejected by the portal.
   - The portal uses Temporal exponential backoff for retries on network failures.
 
 Mandatory JSON output keys:
@@ -161,7 +161,7 @@ async def run_legal_agent(
         Form-1 dispatch result dict
     """
     form_id = f"FORM1-{uuid.uuid4().hex[:8].upper()}"
-    logger.info(f"Running legal_agent — form_id={form_id}, PO={po_number}")
+    logger.info(f"Running legal_agent  -  form_id={form_id}, PO={po_number}")
 
     result = await run_agent(
         agent=legal_agent,

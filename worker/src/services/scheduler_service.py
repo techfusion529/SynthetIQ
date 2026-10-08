@@ -8,14 +8,14 @@ Design:
   - Uses AsyncIOScheduler so it runs inside the same asyncio event loop as
     the Temporal worker.
   - Schedule CRUD is persisted in the `schedules` PostgreSQL table
-    (Organization ORM model — Phase 1).
+    (Organization ORM model  -  Phase 1).
   - Supports: one_time, daily, weekly, interval, and raw cron expressions.
   - Workflow types mirror the four Temporal workflows:
-      upstream_liability  → UpstreamLiabilityWorkflow
-      auction_liquidity   → AuctionLiquidityWorkflow
-      quad_core_audit     → QuadCoreAuditWorkflow
-      settlement_dispatch → SettlementDispatchWorkflow
-      master_e2e          → MasterEPRComplianceWorkflow
+      upstream_liability   - ' UpstreamLiabilityWorkflow
+      auction_liquidity    - ' AuctionLiquidityWorkflow
+      quad_core_audit      - ' QuadCoreAuditWorkflow
+      settlement_dispatch  - ' SettlementDispatchWorkflow
+      master_e2e           - ' MasterEPRComplianceWorkflow
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 logger = logging.getLogger(__name__)
 
-# ── Workflow type → Temporal workflow name mapping ────────────────────────────
+#  -  -  -  -  Workflow type  - ' Temporal workflow name mapping  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 WORKFLOW_TYPE_MAP: dict[str, str] = {
     "upstream_liability":  "UpstreamLiabilityWorkflow",
     "auction_liquidity":   "AuctionLiquidityWorkflow",
@@ -60,13 +60,13 @@ class SchedulerService:
         self._schedules: dict[str, dict[str, Any]] = {}
         logger.info(f"SchedulerService created (api_base={self.api_base_url})")
 
-    # ── Lifecycle ─────────────────────────────────────────────────────────────
+    #  -  -  -  -  Lifecycle  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
     def start(self) -> None:
         """Start the APScheduler event loop."""
         if not self._scheduler.running:
             self._scheduler.start()
-            logger.info("✓ APScheduler started")
+            logger.info(" -  APScheduler started")
 
     def shutdown(self, wait: bool = True) -> None:
         """Gracefully stop the scheduler."""
@@ -78,7 +78,7 @@ class SchedulerService:
     def is_running(self) -> bool:
         return self._scheduler.running
 
-    # ── Schedule management ───────────────────────────────────────────────────
+    #  -  -  -  -  Schedule management  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
     def add_schedule(
         self,
@@ -218,19 +218,19 @@ class SchedulerService:
             })
         return jobs
 
-    # ── Internal helpers ──────────────────────────────────────────────────────
+    #  -  -  -  -  Internal helpers  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
     def _resolve_trigger(self, expression: str) -> CronTrigger | IntervalTrigger:
         """Convert a cron string or shorthand into an APScheduler trigger.
 
         Supported shorthands:
-          @daily     → CronTrigger(hour=0, minute=0)
-          @hourly    → CronTrigger(minute=0)
-          @weekly    → CronTrigger(day_of_week='mon', hour=0, minute=0)
-          every_30m  → IntervalTrigger(minutes=30)
-          every_1h   → IntervalTrigger(hours=1)
-          every_Xh   → IntervalTrigger(hours=X)
-          5-field cron (e.g. "0 2 * * *") → CronTrigger via from_crontab
+          @daily      - ' CronTrigger(hour=0, minute=0)
+          @hourly     - ' CronTrigger(minute=0)
+          @weekly     - ' CronTrigger(day_of_week='mon', hour=0, minute=0)
+          every_30m   - ' IntervalTrigger(minutes=30)
+          every_1h    - ' IntervalTrigger(hours=1)
+          every_Xh    - ' IntervalTrigger(hours=X)
+          5-field cron (e.g. "0 2 * * *")  - ' CronTrigger via from_crontab
         """
         expr = expression.strip().lower()
 
@@ -314,7 +314,7 @@ class SchedulerService:
                     result = resp.json()
                     record["last_status"] = result.get("status", "COMPLETED")
                     logger.info(
-                        f"[Scheduler] {schedule_id} → {record['last_status']} "
+                        f"[Scheduler] {schedule_id}  - ' {record['last_status']} "
                         f"(run #{record['run_count']})"
                     )
                 else:
@@ -332,7 +332,7 @@ class SchedulerService:
             self._schedules[schedule_id].update(record)
 
 
-# ── Global singleton ──────────────────────────────────────────────────────────
+#  -  -  -  -  Global singleton  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 
 _scheduler_service: SchedulerService | None = None
 

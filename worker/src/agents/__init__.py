@@ -1,4 +1,4 @@
-"""Multi-agent system for SynthetIQ EPR compliance — Google ADK based."""
+"""Multi-agent system for SynthetIQ EPR compliance  -  Google ADK based."""
 
 from __future__ import annotations
 

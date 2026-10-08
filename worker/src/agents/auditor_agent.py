@@ -1,4 +1,4 @@
-"""Auditor Agent — bridges Google ADK to the Nimble / Jev fraud-detection service.
+"""Auditor Agent  -  bridges Google ADK to the Nimble / Jev fraud-detection service.
 
 This agent wraps the SCADA telemetry evaluation. The underlying call goes to
 Nimble (Phase 4) when Ollama is available, with IsolationForest + physics rules
@@ -52,27 +52,17 @@ def evaluate_scada_signature(
     vfd_frequency_hz: float,
     melt_rate_kg_h: float,
     reported_volume_tons: float,
+    category: str = "cat_i_rigid",
+    energy_total_kwh: float | None = None,
 ) -> dict[str, Any]:
     """Evaluate the SCADA electrical signature for fraud detection.
 
-    Delegates to Nimble (Phase 4 service) when available; falls back to the
-    Jev IsolationForest + physics-rules ensemble.
-
-    Args:
-        torque_nm: Motor shaft torque
-        power_factor: Electrical power factor
-        active_power_kw: Active power consumption
-        vfd_frequency_hz: VFD drive frequency
-        melt_rate_kg_h: Reported polymer melt rate
-        reported_volume_tons: Claimed recycled volume
-
-    Returns:
-        Audit verdict with confidence score and flags
+    Delegates to Nimble when available; falls back to the
+    Jev IsolationForest + physics-rules ensemble (with formal Delta_mass calculation).
     """
-    # Try Nimble first (will be wired in Phase 4 via nimble_service)
     try:
         import asyncio
-        from services.nimble_service import get_nimble_service  # type: ignore[import-not-found]
+        from services.nimble_service import get_nimble_service
         nimble = get_nimble_service()
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(
@@ -89,7 +79,7 @@ def evaluate_scada_signature(
         pass  # Fall through to Jev ensemble
 
     # Jev ensemble fallback
-    from services.jev_auditor import get_jev_auditor  # type: ignore[import-not-found]
+    from services.jev_auditor import get_jev_auditor
     jev = get_jev_auditor()
     return jev.evaluate_signature(
         torque_nm=torque_nm,
@@ -98,6 +88,8 @@ def evaluate_scada_signature(
         vfd_frequency_hz=vfd_frequency_hz,
         melt_rate_kg_h=melt_rate_kg_h,
         reported_volume_tons=reported_volume_tons,
+        category=category,
+        energy_total_kwh=energy_total_kwh,
     )
 
 
@@ -109,15 +101,15 @@ AUDITOR_INSTRUCTION = """You are the Auditor Agent (System 1 Reflex) for Synthet
 
 Your job:
 1. Fetch live SCADA/VFD telemetry with `fetch_scada_telemetry`.
-2. Evaluate the electrical signature with `evaluate_scada_signature` — this calls the
+2. Evaluate the electrical signature with `evaluate_scada_signature`  -  this calls the
    Nimble 9B decision model (or Jev IsolationForest ensemble as fallback).
 3. Interpret the verdict and confidence score.
 4. Output a single JSON audit result.
 
 Physics to look for (genuine extrusion):
   - Torque ≥ 15 Nm (viscous polymer load on extruder shaft)
-  - Power factor 0.78 – 0.92 (3-phase induction motor under load)
-  - Specific energy 0.15 – 1.2 kWh/kg of melt
+  - Power factor 0.78  -  0.92 (3-phase induction motor under load)
+  - Specific energy 0.15  -  1.2 kWh/kg of melt
   - VFD frequency stable around 50 Hz
 
 Red flags (resistive-heater spoofing):
@@ -147,6 +139,12 @@ async def run_auditor_agent(
     recycler_id: str,
     plant_id: str,
     reported_volume_tons: float,
+    torque_nm: float = 45.0,
+    power_factor: float = 0.85,
+    active_power_kw: float = 95.0,
+    vfd_frequency_hz: float = 50.0,
+    melt_rate_kg_h: float = 250.0,
+    category: str = "cat_i_rigid",
     session_id: str | None = None,
 ) -> dict[str, Any]:
     """Run the Auditor Agent for a recycling plant.
@@ -155,20 +153,33 @@ async def run_auditor_agent(
         recycler_id: Recycler identifier
         plant_id: Plant identifier
         reported_volume_tons: Volume the recycler claims to have processed
+        torque_nm: Motor shaft torque
+        power_factor: Electrical power factor
+        active_power_kw: Active power consumption
+        vfd_frequency_hz: VFD drive frequency
+        melt_rate_kg_h: Reported melt rate
+        category: Polymer category
         session_id: Optional ADK session ID
 
     Returns:
         Audit verdict dict
     """
-    logger.info(f"Running auditor_agent for {recycler_id}/{plant_id} — {reported_volume_tons}t")
+    logger.info(
+        f"Running auditor_agent for {recycler_id}/{plant_id}  -  {reported_volume_tons}t, "
+        f"torque={torque_nm}Nm, pf={power_factor}, kw={active_power_kw}, category={category}"
+    )
+
+    prompt = (
+        f"Audit recycler '{recycler_id}', plant '{plant_id}', "
+        f"reported volume: {reported_volume_tons} tons, category: '{category}'. "
+        f"Telemetry: torque={torque_nm} Nm, power_factor={power_factor}, active_power={active_power_kw} kW, "
+        f"vfd_frequency={vfd_frequency_hz} Hz, melt_rate={melt_rate_kg_h} kg/h. "
+        "Evaluate the SCADA electrical signature and thermodynamic Delta_mass equation, and return a single JSON object."
+    )
 
     result = await run_agent(
         agent=auditor_agent,
-        user_message=(
-            f"Audit recycler '{recycler_id}', plant '{plant_id}', "
-            f"reported volume: {reported_volume_tons} tons. "
-            "Fetch telemetry, evaluate the SCADA signature, and return a single JSON object."
-        ),
+        user_message=prompt,
         session_id=session_id,
         user_id=recycler_id,
     )
@@ -179,7 +190,19 @@ async def run_auditor_agent(
             text = text.split("```json")[1].split("```")[0]
         elif "```" in text:
             text = text.split("```")[1].split("```")[0]
-        return json.loads(text.strip())
+        data = json.loads(text.strip())
+        if isinstance(data, dict) and "verdict" in data:
+            return data
     except (json.JSONDecodeError, IndexError):
-        logger.warning("Could not parse JSON from auditor agent; returning raw")
-        return {"raw_response": result.get("response", ""), "tool_calls": result.get("tool_calls", [])}
+        logger.warning("Could not parse JSON from auditor agent; evaluating deterministically")
+
+    # High-reliability fallback: deterministic evaluation
+    return evaluate_scada_signature(
+        torque_nm=torque_nm,
+        power_factor=power_factor,
+        active_power_kw=active_power_kw,
+        vfd_frequency_hz=vfd_frequency_hz,
+        melt_rate_kg_h=melt_rate_kg_h,
+        reported_volume_tons=reported_volume_tons,
+        category=category,
+    )

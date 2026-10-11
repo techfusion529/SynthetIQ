@@ -1,4 +1,6 @@
 // SynthetIQ API Gateway Client & Real-Time Service Integration
+import type { E2ERunResult, E2EStep } from "./types/compliance.types";
+export type { E2ERunResult, E2EStep };
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL !== undefined
@@ -34,28 +36,6 @@ export interface SystemConfig {
   };
 }
 
-export interface E2EStep {
-  step: number;
-  name: string;
-  service: string;
-  status: string;
-  data: Record<string, any>;
-  timestamp: number;
-}
-
-export interface E2ERunResult {
-  run_id: string;
-  status: string;
-  message: string;
-  duration_seconds: number;
-  company_id: string;
-  category?: string;
-  volume_tons?: number;
-  audit_hash?: string;
-  po_number?: string;
-  portal_ack_number?: string;
-  steps: E2EStep[];
-}
 
 export interface ScadaLiveResponse {
   telemetry: {
@@ -173,7 +153,10 @@ export async function fetchComplianceRuns(token: string): Promise<E2ERunResult[]
     }
     if (!res.ok) return [];
     return await res.json();
-  } catch {
+  } catch (e) {
+    // Re-throw 410 errors so the caller can surface "Please refresh the page."
+    // Swallow all other network/parse errors and return an empty list.
+    if (e instanceof Error && e.message.startsWith("This endpoint has moved")) throw e;
     return [];
   }
 }

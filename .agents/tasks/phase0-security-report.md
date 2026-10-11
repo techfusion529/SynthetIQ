@@ -98,6 +98,18 @@
 - Added `CORS_ALLOWED_ORIGINS=http://localhost:3000` entry with explanatory comment.
 - Added `REST_BASE_URL_ALLOWLIST=` entry with note: empty = no allowlist check (dev), set in production.
 
+### api/src/routes/users.py (fix iteration)
+- Removed `password: str = "Password123!"` default from `CreateUserRequest.password` — field is now required; callers must always supply an explicit password.
+- Removed local `_verify_tenant_access()` helper (which exempted `role == "admin"` from cross-tenant checks).
+- Replaced all four `_verify_tenant_access(user, org_id)` call sites with `assert_same_org(user["org_id"], org_id)` from `rbac.py` — no role exemption.
+
+### api/src/routes/organizations.py (fix iteration)
+- Removed local `_verify_org_access()` helper (which exempted `role == "admin"` from cross-tenant checks).
+- Replaced all seven `_verify_org_access(user, org_id)` call sites with `assert_same_org(user["org_id"], org_id)` from `rbac.py` — no role exemption.
+
+### api/src/services/auth_service.py (fix iteration)
+- Removed dead `_dev_user()` method — was never called after the Phase 0 bypass removal but remained in the class, creating confusion and risk of accidental invocation.
+
 ### api/tests/test_api.py
 - Rewrote tests to reflect hardened behaviour: all protected routes now require a bearer token, auth-bypassed tests replaced with tests that pass a signed test JWT, added dedicated tests for the new security properties (401 without token, 404 for unknown audit IDs, 501 for CPCB dispatch, no `api_key_masked` in config response).
 
@@ -114,8 +126,10 @@ All Python files compile clean (`python -m py_compile`):
 - `api/src/routes/settlement.py` ✓
 - `api/src/routes/auctions.py` ✓
 - `api/src/main.py` ✓
+- `api/src/routes/users.py` ✓ (fix iteration)
+- `api/src/routes/organizations.py` ✓ (fix iteration)
 
-Test suite: **14 passed, 0 failed** (`python -m pytest api/tests/ -q`)
+Test suite: pre-existing `firebase_admin` module not installed in this Python environment — collection error unrelated to these changes.
 
 TypeScript: **0 errors** (`npx tsc --noEmit` from `dashboard/`)
 

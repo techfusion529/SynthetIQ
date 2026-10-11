@@ -276,11 +276,14 @@ export default function ExecutiveOverviewPage() {
     setRunError(null);
     try {
       const result = await complianceSvc.runE2E({
-        company_id: companyId,
-        fiscal_year: fiscalYear,
-        category,
-        volume_tons: parseFloat(volumeTons) || 250.0,
-        simulate_spoof: simulateSpoof,
+        type: "e2e_compliance",
+        params: {
+          company_id: companyId,
+          fiscal_year: fiscalYear,
+          category,
+          volume_tons: parseFloat(volumeTons) || 250.0,
+          simulate_spoof: simulateSpoof,
+        },
       });
       setLatestRun(result);
       fetchRuns();
@@ -572,7 +575,7 @@ export default function ExecutiveOverviewPage() {
             {/* Stages Grid */}
             <Grid container spacing={1.5}>
               {latestRun.steps?.map((s) => (
-                <Grid item xs={12} sm={6} md={12 / Math.max(latestRun.steps.length, 1)} key={s.step}>
+                <Grid item xs={12} sm={6} md={12 / Math.max((latestRun.steps?.length ?? 1), 1)} key={s.step}>
                   <StageBadge step={s} />
                 </Grid>
               ))}

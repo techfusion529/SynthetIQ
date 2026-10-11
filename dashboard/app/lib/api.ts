@@ -148,11 +148,14 @@ export async function runE2ECompliance(
     simulate_spoof?: boolean;
   }
 ): Promise<E2ERunResult> {
-  const res = await fetch(`${API_BASE}/api/v1/compliance/run-e2e`, {
+  const res = await fetch(`${API_BASE}/api/v1/runs`, {
     method: "POST",
     headers: makeAuthHeaders(token),
-    body: JSON.stringify(params),
+    body: JSON.stringify({ type: "e2e_compliance", params }),
   });
+  if (res.status === 410) {
+    throw new Error("This endpoint has moved. Please refresh the page.");
+  }
   if (!res.ok) {
     throw new Error(`Compliance run failed with status ${res.status}`);
   }
@@ -161,10 +164,13 @@ export async function runE2ECompliance(
 
 export async function fetchComplianceRuns(token: string): Promise<E2ERunResult[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/v1/compliance/runs`, {
+    const res = await fetch(`${API_BASE}/api/v1/runs`, {
       cache: "no-store",
       headers: makeAuthHeaders(token),
     });
+    if (res.status === 410) {
+      throw new Error("This endpoint has moved. Please refresh the page.");
+    }
     if (!res.ok) return [];
     return await res.json();
   } catch {

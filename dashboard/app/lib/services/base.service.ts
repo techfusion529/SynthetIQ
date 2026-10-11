@@ -58,6 +58,14 @@ export abstract class BaseService {
     }
 
     if (!res.ok) {
+      // 410 Gone — old endpoint has been retired
+      if (res.status === 410) {
+        throw new ApiError(
+          410,
+          "This endpoint has moved. Please refresh the page.",
+          url
+        );
+      }
       let msg = res.statusText;
       try {
         const err = await res.json();

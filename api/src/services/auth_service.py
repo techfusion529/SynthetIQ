@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from typing import Any, Optional
 
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
@@ -140,3 +140,81 @@ class AuthService:
 
 # Global service instance
 auth_service = AuthService()
+
+
+# ---------------------------------------------------------------------------
+# User creation helper  -  creates User + Membership in one transaction
+# ---------------------------------------------------------------------------
+
+async def create_user(
+    session: Any,
+    *,
+    user_id: str,
+    email: str,
+    display_name: str,
+    password_hash: str,
+    role: str,
+    org_id: str,
+    is_active: bool = True,
+) -> Any:
+    """Insert a User row and an associated Membership row.
+
+    Args:
+        session: An active AsyncSession.
+        user_id: Pre-generated user ID.
+        email: Normalised (lowercase) email address.
+        display_name: Human-readable name.
+        password_hash: Already-hashed password.
+        role: RBAC role string.
+        org_id: Organisation the user belongs to.
+        is_active: Whether the account is active (default True).
+
+    Returns:
+        The newly created User ORM instance.
+    """
+    from synthetiq_shared.models import Membership, User as UserModel
+
+    new_user = UserModel(
+        user_id=user_id,
+        email=email,
+        display_name=display_name,
+        password_hash=password_hash,
+        role=role,
+        org_id=org_id,
+        is_active=is_active,
+    )
+    session.add(new_user)
+
+    # Create corresponding membership row
+    membership = Membership(
+        user_id=user_id,
+        org_id=org_id,
+        role=role,
+        is_active=True,
+    )
+    session.add(membership)
+
+    logger.info(f"Created user {email} in org {org_id} with role {role}")
+    return new_user
+
+
+async def get_user_memberships(user_id: str) -> list[Any]:
+    """Return all active Membership rows for a user.
+
+    Args:
+        user_id: The user's primary key.
+
+    Returns:
+        List of active Membership ORM instances.
+    """
+    from sqlalchemy import select
+    from synthetiq_shared.database import get_db_session
+    from synthetiq_shared.models import Membership
+
+    async with get_db_session() as session:
+        result = await session.execute(
+            select(Membership)
+            .where(Membership.user_id == user_id)
+            .where(Membership.is_active.is_(True))
+        )
+        return list(result.scalars().all())

@@ -39,14 +39,14 @@ def test_readiness_check():
 
 
 def test_list_companies_requires_auth():
-    """Companies endpoint must return 401 without a token."""
-    response = client.get("/api/v1/companies/")
+    """Organizations endpoint must return 401 without a token (companies route is retired)."""
+    response = client.get("/api/v1/organizations/")
     assert response.status_code == 401
 
 
 def test_list_companies_with_auth():
-    """Companies endpoint returns 200 with a valid token."""
-    response = client.get("/api/v1/companies/", headers=_AUTH_HEADERS)
+    """Organizations endpoint returns 200 with a valid token (companies route is retired)."""
+    response = client.get("/api/v1/organizations/", headers=_AUTH_HEADERS)
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 

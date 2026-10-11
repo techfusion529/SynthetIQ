@@ -5,6 +5,7 @@ from .agent_config import AgentConfiguration
 from .organization import (
     DataSource,
     Organization,
+    OrgType,
     Schedule,
     User,
     WorkflowRun,
@@ -13,6 +14,9 @@ from .organization import (
     AuditRecord,
     EscrowPORecord,
     Form1Record,
+    LegalEntity,
+    Membership,
+    InviteToken,
 )
 
 # Pydantic Domain Models
@@ -26,6 +30,7 @@ from .settlement import DigitalSignature, DispatchResult, EscrowPurchaseOrder, F
 __all__ = [
     # ORM
     "Organization",
+    "OrgType",
     "User",
     "DataSource",
     "AgentConfiguration",
@@ -36,6 +41,9 @@ __all__ = [
     "AuditRecord",
     "EscrowPORecord",
     "Form1Record",
+    "LegalEntity",
+    "Membership",
+    "InviteToken",
     # Pydantic
     "OnboardedCompany",
     "CompanyProfile",
@@ -59,4 +67,4 @@ __all__ = [
     "Form1",
     "DigitalSignature",
     "DispatchResult",
-]
+]

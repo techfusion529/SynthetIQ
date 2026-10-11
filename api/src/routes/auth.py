@@ -1,4 +1,4 @@
-"""Authentication & Session Router  -  Login, Registration, and User Context."""
+﻿"""Authentication & Session Router  -  Login, Registration, and User Context."""
 
 from __future__ import annotations
 
@@ -97,6 +97,13 @@ async def login(request: Request, payload: LoginRequest) -> AuthResponse:
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
                 )
+            # Transparently re-hash SHA-256 passwords to argon2id on successful login
+            if user.password_hash and not user.password_hash.startswith("$argon2"):
+                try:
+                    user.password_hash = hash_password(payload.password)
+                    logger.info(f"Re-hashed password for {email} from SHA-256 to argon2id")
+                except Exception as exc:
+                    logger.warning(f"Could not re-hash password for {email}: {exc}")
         elif payload.id_token:
             # Verify Firebase token
             try:
@@ -177,18 +184,16 @@ async def register(payload: RegisterRequest) -> AuthResponse:
         session.add(new_org)
 
         user_id = f"USR-{uuid.uuid4().hex[:8].upper()}"
-        new_user = User(
+        from src.services.auth_service import create_user as _create_user
+        new_user = await _create_user(
+            session,
             user_id=user_id,
             email=email,
-            password_hash=hash_password(payload.password),
             display_name=payload.display_name,
+            password_hash=hash_password(payload.password),
             role="admin",
             org_id=org_id,
-            is_active=True,
         )
-        session.add(new_user)
-
-        # Seed default agent configuration for this new tenant
         from synthetiq_shared.seed import DEFAULT_AGENTS_CONFIG
         for agent_def in DEFAULT_AGENTS_CONFIG:
             session.add(
@@ -311,3 +316,154 @@ async def get_me(user: CurrentUser) -> dict[str, Any]:
         "user": user,
         "organization": org_data,
     }
+
+
+# ---------------------------------------------------------------------------
+# Email verification
+# ---------------------------------------------------------------------------
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+@router.post("/verify-email")
+async def verify_email(payload: VerifyEmailRequest) -> dict[str, Any]:
+    """Validate an email verification token and activate the organisation."""
+    from datetime import datetime, timezone
+    from synthetiq_shared.models import InviteToken
+
+    async with get_db_session() as session:
+        result = await session.execute(
+            select(InviteToken).where(InviteToken.token == payload.token)
+        )
+        token_row = result.scalar_one_or_none()
+
+        if not token_row:
+            raise HTTPException(status_code=404, detail="Token not found")
+        if token_row.purpose != "email_verification":
+            raise HTTPException(status_code=400, detail="Invalid token purpose")
+        if token_row.used_at is not None:
+            raise HTTPException(status_code=410, detail="Token has already been used")
+        now = datetime.now(timezone.utc)
+        # Handle both tz-aware and naive datetimes stored in DB
+        expires = token_row.expires_at
+        if expires.tzinfo is None:
+            from datetime import timezone as tz
+            expires = expires.replace(tzinfo=tz.utc)
+        if now > expires:
+            raise HTTPException(status_code=410, detail="Token has expired")
+
+        # Activate the organisation
+        if token_row.org_id:
+            res = await session.execute(
+                select(Organization).where(Organization.org_id == token_row.org_id)
+            )
+            org = res.scalar_one_or_none()
+            if org:
+                org.status = "active"
+
+        # Mark token as used
+        token_row.used_at = now
+
+        return {"status": "verified", "org_id": token_row.org_id}
+
+
+# ---------------------------------------------------------------------------
+# Accept invite
+# ---------------------------------------------------------------------------
+
+class AcceptInviteRequest(BaseModel):
+    token: str
+    password: str
+    display_name: str = ""
+
+
+@router.post("/accept-invite", response_model=AuthResponse)
+async def accept_invite(payload: AcceptInviteRequest) -> AuthResponse:
+    """Accept an org invite token, create user + membership, return JWT."""
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    from synthetiq_shared.models import InviteToken
+    from src.services.auth_service import create_user
+    from src.services.jwt_utils import create_access_token, create_refresh_token, hash_password
+
+    async with get_db_session() as session:
+        result = await session.execute(
+            select(InviteToken).where(InviteToken.token == payload.token)
+        )
+        token_row = result.scalar_one_or_none()
+
+        if not token_row:
+            raise HTTPException(status_code=404, detail="Token not found")
+        if token_row.purpose != "invite":
+            raise HTTPException(status_code=400, detail="Invalid token purpose")
+        if token_row.used_at is not None:
+            raise HTTPException(status_code=410, detail="Token has already been used")
+        now = datetime.now(timezone.utc)
+        expires = token_row.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if now > expires:
+            raise HTTPException(status_code=410, detail="Token has expired")
+
+        email = token_row.email
+        org_id = token_row.org_id or ""
+        role = token_row.role
+
+        # Check email not already registered
+        from synthetiq_shared.models import User as UserModel
+        existing = await session.execute(select(UserModel).where(UserModel.email == email))
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail=f"User with email {email!r} already exists")
+
+        user_id = f"USR-{_uuid.uuid4().hex[:8].upper()}"
+        display_name = payload.display_name or email
+
+        new_user = await create_user(
+            session,
+            user_id=user_id,
+            email=email,
+            display_name=display_name,
+            password_hash=hash_password(payload.password),
+            role=role,
+            org_id=org_id,
+        )
+
+        # Mark token used
+        token_row.used_at = now
+
+        # Get org name for response
+        from synthetiq_shared.models import Organization as OrgModel
+        org_res = await session.execute(select(OrgModel).where(OrgModel.org_id == org_id))
+        org = org_res.scalar_one_or_none()
+        org_name = org.name if org else ""
+
+        logger.info(f"Invite accepted: {email} joined org {org_id} as {role}")
+
+    access_token = create_access_token({
+        "uid": user_id,
+        "email": email,
+        "display_name": display_name,
+        "role": role,
+        "org_id": org_id,
+        "authorized": True,
+    })
+    refresh = create_refresh_token({
+        "uid": user_id,
+        "email": email,
+        "role": role,
+        "org_id": org_id,
+    })
+
+    return AuthResponse(
+        access_token=access_token,
+        refresh_token=refresh,
+        user=UserResponse(
+            user_id=user_id,
+            email=email,
+            display_name=display_name,
+            role=role,
+            org_id=org_id,
+            organization_name=org_name,
+        ),
+    )

@@ -1,4 +1,4 @@
-"""SynthetIQ API Gateway  -  FastAPI entry point (v0.2)."""
+﻿"""SynthetIQ API Gateway  -  FastAPI entry point (v0.2)."""
 
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ from src.routes import (
     auctions_router,
     audit_router,
     auth_router,
-    companies_router,
     config_router,
     health_router,
     liability_router,
@@ -40,18 +39,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Startup / shutdown lifecycle  -  DB, Firebase, and Scheduler."""
 
     # ---- Startup -------------------------------------------------------
-    logger.info("SynthetIQ API starting up…")
+    logger.info("SynthetIQ API starting upâ€¦")
 
     # Force-import new ORM models so they register with Base.metadata
     try:
         from synthetiq_shared.models import AuctionRecord, BidRecord, AuditRecord, EscrowPORecord, Form1Record  # noqa: F401
     except Exception:
         pass
-    # 1. SQLite / Postgres schema (dev: auto-create, prod: use Alembic)
+    # 1. DB schema is managed by Alembic migrations — no auto-create in production
     try:
         from synthetiq_shared.database import init_db  # type: ignore[import-not-found]
-        await init_db()
-        logger.info("[DB] Database tables ready")
+        # init_db() calls Base.metadata.create_all — only run in dev mode
+        import os
+        if os.getenv("ENV", "local").lower() == "local":
+            await init_db()
+            logger.info("[DB] Database tables ready (dev auto-create)")
+        else:
+            logger.info("[DB] Skipping auto-create; Alembic owns the schema in production")
     except Exception as exc:
         logger.warning(f"DB init skipped ({type(exc).__name__}: {exc})")
 
@@ -135,7 +139,6 @@ app.include_router(auth_router,           prefix=API_V1_STR)
 app.include_router(health_router,         prefix=API_V1_STR)
 app.include_router(config_router,         prefix=API_V1_STR)
 app.include_router(orchestrator_router,   prefix=API_V1_STR)
-app.include_router(companies_router,      prefix=API_V1_STR)
 app.include_router(liability_router,      prefix=API_V1_STR)
 app.include_router(auctions_router,       prefix=API_V1_STR)
 app.include_router(audit_router,          prefix=API_V1_STR)

@@ -74,10 +74,16 @@ async def get_current_user(
                 # Always use DB role and org_id — prevents stale token elevation
                 user["role"] = db_user.role
                 user["org_id"] = db_user.org_id
+                # Expose platform_admin flag so TenantCtx can use it
+                user["platform_admin"] = getattr(db_user, "platform_admin", False)
         except HTTPException:
             raise
         except Exception as db_err:
-            logger.warning(f"Could not re-verify user from DB: {db_err}")
+            logger.error(f"DB error while re-verifying user {uid}: {db_err}")
+            raise HTTPException(
+                status_code=503,
+                detail="Service temporarily unavailable",
+            )
 
     return user
 

@@ -1,29 +1,26 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-import hashlib, logging, time, uuid
-
+import hashlib
+import logging
+import time
+import uuid
 from typing import Any
 
 import httpx
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.middleware.auth import CurrentUser
-
 from src.middleware.rbac import require_permission
-
 from src.routes.config import get_runtime_config
-
 from src.services.temporal_service import temporal_service
-
-
+from src.utils.tenant import TenantCtx, get_tenant_ctx
 
 router = APIRouter(prefix="/audit", tags=["Workflow 3 - Fraud Audit"])
-
 logger = logging.getLogger(__name__)
 
 
-async def _get_all_audits() -> list[dict[str, Any]]:
+async def _get_all_audits(org_id: str | None = None, is_platform_admin: bool = False, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
 
     try:
 
@@ -35,11 +32,11 @@ async def _get_all_audits() -> list[dict[str, Any]]:
 
         async with get_db_session() as session:
 
-            rows = (await session.execute(
-
-                select(AuditRecord).order_by(AuditRecord.created_at.desc())
-
-            )).scalars().all()
+            query = select(AuditRecord).order_by(AuditRecord.created_at.desc())
+            if not is_platform_admin and org_id:
+                query = query.where(AuditRecord.org_id == org_id)
+            query = query.limit(limit).offset(offset)
+            rows = (await session.execute(query)).scalars().all()
 
             return [r.to_dict() for r in rows]
 
@@ -411,11 +408,20 @@ async def trigger_fraud_audit(
 
 async def list_audit_verdicts(
 
-    user: CurrentUser, _: Any = Depends(require_permission("audits:read"))
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("audits:read")),
+    limit: int = Query(50, le=200),
+    offset: int = Query(0, ge=0),
 
 ) -> list[dict[str, Any]]:
 
-    return await _get_all_audits()
+    return await _get_all_audits(
+        org_id=tenant_ctx.org_id,
+        is_platform_admin=tenant_ctx.is_platform_admin,
+        limit=limit,
+        offset=offset,
+    )
 
 
 
@@ -445,13 +451,22 @@ async def get_audit_verdict(
 
 async def list_audit_exceptions(
 
-    user: CurrentUser, _: Any = Depends(require_permission("audits:read"))
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("audits:read")),
+    limit: int = Query(50, le=200),
+    offset: int = Query(0, ge=0),
 
 ) -> list[dict[str, Any]]:
 
     """List all audit records currently awaiting human compliance officer review (Feature 5 AC 5.1)."""
 
-    all_audits = await _get_all_audits()
+    all_audits = await _get_all_audits(
+        org_id=tenant_ctx.org_id,
+        is_platform_admin=tenant_ctx.is_platform_admin,
+        limit=limit,
+        offset=offset,
+    )
 
     exceptions = [
 

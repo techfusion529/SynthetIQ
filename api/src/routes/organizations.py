@@ -10,13 +10,16 @@ RBAC:
   DELETE /organizations/{id}/data-sources/{ds_id}  - ' datasources:delete (admin)
   POST   /organizations/{id}/data-sources/{ds_id}/test     - ' datasources:read   (compliance_officer+)
   POST   /organizations/{id}/data-sources/{ds_id}/preview  - ' datasources:read   (compliance_officer+)
+  POST   /organizations/{id}/invites       - ' orgs:write         (admin or platform_admin)
 """
 
 from __future__ import annotations
 
 import logging
+import secrets
 import uuid
-from typing import Any
+from datetime import datetime, timezone, timedelta
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -26,7 +29,7 @@ from src.middleware.auth import CurrentUser
 from src.middleware.rbac import assert_same_org, require_permission
 from src.services.data_connector_shim import create_connector
 from synthetiq_shared.database import get_db_session
-from synthetiq_shared.models import DataSource, Organization
+from synthetiq_shared.models import DataSource, InviteToken, Organization, OrgType
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/organizations", tags=["Organizations & Data Sources"])
@@ -56,6 +59,7 @@ class CreateOrgRequest(BaseModel):
     country: str = "IN"
     annual_plastic_footprint_tons: float = 0.0
     settings: dict[str, Any] = {}
+    org_type: OrgType
 
 
 class UpdateOrgRequest(BaseModel):
@@ -127,9 +131,26 @@ async def create_organization(
             annual_plastic_footprint_tons=payload.annual_plastic_footprint_tons,
             settings=payload.settings,
             is_active=True,
+            status="pending_verification",
+            org_type=payload.org_type.value if payload.org_type else None,
         )
         session.add(record)
+
+        # Generate email verification token
+        token_str = secrets.token_hex(32)  # 64-char hex
+        verification_token = InviteToken(
+            email=user.get("email", ""),
+            org_id=org_id,
+            role="admin",
+            token=token_str,
+            purpose="email_verification",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+            created_by=user.get("uid"),
+        )
+        session.add(verification_token)
+
         logger.info(f"Created organisation {org_id} ({payload.name}) by {user['email']}")
+        logger.info(f"Verification URL: /auth/verify-email?token={token_str}")
 
         return {
             "org_id": record.org_id,
@@ -139,6 +160,8 @@ async def create_organization(
             "country": record.country,
             "annual_plastic_footprint_tons": record.annual_plastic_footprint_tons,
             "is_active": record.is_active,
+            "status": record.status,
+            "org_type": record.org_type,
             "created_by": user["email"],
         }
 
@@ -404,4 +427,65 @@ async def preview_data_source(
             "sample_rows": records[:5],
             "columns": list(records[0].keys()) if records else [],
             "status": "success",
+        }
+
+
+# ---------------------------------------------------------------------------
+# Invites endpoint
+# ---------------------------------------------------------------------------
+
+class CreateInviteRequest(BaseModel):
+    email: str
+    role: str = "viewer"
+    expires_hours: int = 72
+
+
+@router.post("/{org_id}/invites")
+async def create_invite(
+    org_id: str,
+    payload: CreateInviteRequest,
+    user: CurrentUser,
+    _: Any = Depends(require_permission("users:write")),
+) -> dict[str, Any]:
+    """Generate an invite token for a new user to join this org.
+
+    Caller must be same-org admin or platform_admin.
+    """
+    caller_role = user.get("role", "viewer")
+    caller_org = user.get("org_id", "")
+
+    # Allow same-org admin OR platform_admin
+    if caller_role != "platform_admin":
+        assert_same_org(caller_org, org_id)
+
+    async with get_db_session() as session:
+        # Check org exists
+        res = await session.execute(select(Organization).where(Organization.org_id == org_id))
+        org = res.scalar_one_or_none()
+        if not org:
+            raise HTTPException(status_code=404, detail=f"Organisation {org_id!r} not found")
+
+        token_str = secrets.token_hex(32)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=payload.expires_hours)
+
+        invite = InviteToken(
+            email=payload.email.strip().lower(),
+            org_id=org_id,
+            role=payload.role,
+            token=token_str,
+            purpose="invite",
+            expires_at=expires_at,
+            created_by=user.get("uid"),
+        )
+        session.add(invite)
+
+        invite_url = f"/auth/accept-invite?token={token_str}"
+        logger.info(f"Invite URL: {invite_url}")
+
+        return {
+            "invite_url": invite_url,
+            "expires_at": expires_at.isoformat(),
+            "email": payload.email,
+            "role": payload.role,
+            "org_id": org_id,
         }

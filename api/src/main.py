@@ -68,6 +68,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.warning(f"Firebase init skipped ({type(exc).__name__}: {exc})")
 
+    # 3. Temporal Schedule Service
+    try:
+        from src.services.scheduler_service import TemporalScheduleService
+        from src.services.temporal_service import temporal_service
+        temporal_client = await temporal_service.get_client()
+        app.state.schedule_svc = TemporalScheduleService(temporal_client)
+        logger.info("[Scheduler] TemporalScheduleService ready")
+    except Exception as exc:
+        logger.warning(f"TemporalScheduleService init skipped ({type(exc).__name__}: {exc})")
+        app.state.schedule_svc = None
+
     yield
 
     # ---- Shutdown ------------------------------------------------------

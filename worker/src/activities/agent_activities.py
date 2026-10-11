@@ -192,6 +192,7 @@ async def audit_scada_telemetry_activity(
     vfd_frequency_hz: float,
     melt_rate_kg_h: float,
     category: str = "cat_i_rigid",
+    org_id: str = "",
 ) -> dict[str, Any]:
     """SCADA telemetry fraud audit via ADK Auditor Agent (Nimble / Jev ensemble)."""
     logger.info(f"[Activity] SCADA audit  -  {recycler_id}/{plant_id}, category={category}")
@@ -246,6 +247,7 @@ async def audit_scada_telemetry_activity(
         f"confidence={result.get('confidence_score', 0)}, "
         f"delta_percent={result.get('delta_percent', 0):.2f}"
     )
+    result["org_id"] = org_id
     return AuditResult(**result).model_dump()
 
 
@@ -260,6 +262,7 @@ async def create_escrow_split_po_activity(
     audit_id: str,
     plastic_tons: float,
     unit_price_inr: float,
+    org_id: str = "",
     audit_verdict: str | None = None,
     human_approved: bool | None = None,
 ) -> dict[str, Any]:
@@ -300,6 +303,7 @@ async def create_escrow_split_po_activity(
     # Fix 3: validate required PO fields and return typed POResult instead of raw dict
     _require(result, "po_id", "po")
     _require(result, "escrow_amount", "po")
+    result["org_id"] = org_id
     return POResult(**result).model_dump()
 
 
@@ -313,6 +317,7 @@ async def generate_and_dispatch_form1_activity(
     audit_id: str,
     physical_melt_tons: float,
     conversion_factor: float = 1.0,
+    org_id: str = "",
 ) -> dict[str, Any]:
     """Generate DSC-signed Form-1 and dispatch to CPCB using ADK Legal Agent."""
     logger.info(f"[Activity] Form-1 dispatch  -  PO={po_number}, {physical_melt_tons}t")
@@ -331,10 +336,11 @@ async def generate_and_dispatch_form1_activity(
     result.setdefault("audit_id", audit_id)
     result.setdefault("ack_number", f"ACK-CPCB-{uuid.uuid4().hex[:10].upper()}")
 
-    # C3: fail-closed gate — no default "CPCB_ACCEPTED"
+    # C3: fail-closed gate — portal_status must be provided by the agent, not defaulted here
     _require(result, "portal_status", "form1")
 
     logger.info(f"[Activity] Form-1 ACK: {result['ack_number']}")
+    result["org_id"] = org_id
     return Form1Result(**result).model_dump()
 
 

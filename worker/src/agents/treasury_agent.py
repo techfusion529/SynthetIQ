@@ -40,7 +40,7 @@ def fetch_recycler_bids(
         "category": category,
         "bids": [
             {
-                "bid_id": "BID-01", "recycler_id": "RECYC-DELHI-01",
+                "bid_id": "BID-01", "recycler_id": "RECYC-STUB-01",
                 "offered_tons": round(target_tons * 0.60, 2),
                 "unit_price_inr": round(floor_price_inr * 1.50, 2),
                 "reputation_score": 0.92, "cto_verified": True,

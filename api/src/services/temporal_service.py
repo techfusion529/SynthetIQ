@@ -49,7 +49,7 @@ class TemporalGatewayService:
             # Fallback if connection fails
             return {
                 "workflow_id": workflow_id,
-                "status": "DISPATCH_FALLBACK",
+                "status": "TEMPORAL_UNAVAILABLE",
                 "error": str(e),
                 "task_queue": task_queue,
             }

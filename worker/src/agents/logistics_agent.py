@@ -58,7 +58,7 @@ def scan_qr_packaging_ledger(qr_code_id: str) -> dict[str, Any]:
     # In production: queries the CPCB Extended Producer Responsibility Packaging Ledger
     return {
         "qr_code_id": qr_code_id,
-        "brand_pibo": "COMP-IN-001",
+        "brand_pibo": "",
         "product_category": "cat_i_rigid",
         "manufacture_date": "2024-03-15",
         "manufacture_state": "Maharashtra",

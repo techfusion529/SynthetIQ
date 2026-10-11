@@ -76,8 +76,8 @@ async def run_epr_pipeline(
     fiscal_year: str,
     category: str,
     volume_tons: float,
-    recycler_id: str = "RECYC-DELHI-01",
-    plant_id: str = "PLANT-OKHLA-2",
+    recycler_id: str = "",
+    plant_id: str = "",
     statutory_base_rate: float = 12.0,
     session_id: str | None = None,
 ) -> dict[str, Any]:

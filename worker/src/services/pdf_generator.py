@@ -135,8 +135,8 @@ def generate_cpcb_form1_pdf(audit_data: dict[str, Any]) -> bytes:
     canvas.draw_text("1. REGISTERED PRODUCER & RECYCLER IDENTIFICATION", 40, y, font="F2", size=10, color=(0.08, 0.18, 0.36))
     canvas.draw_line(40, y - 4, 572, y - 4, stroke=(0.08, 0.18, 0.36), width=1.5)
 
-    recycler_id = audit_data.get("recycler_id", "RECYC-DELHI-01")
-    plant_id = audit_data.get("plant_id", "PLANT-OKHLA-2")
+    recycler_id = audit_data.get("recycler_id", "")
+    plant_id = audit_data.get("plant_id", "")
     company_id = audit_data.get("company_id", "COMP-001")
     category = audit_data.get("plastic_category") or audit_data.get("category", "cat_i_rigid")
 

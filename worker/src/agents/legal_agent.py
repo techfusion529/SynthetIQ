@@ -93,7 +93,7 @@ def dispatch_to_cpcb_portal(signed_form: dict[str, Any]) -> dict[str, Any]:
     ack_number = f"ACK-CPCB-2026-{uuid.uuid4().hex[:10].upper()}"
     return {
         "form_id": signed_form.get("form_id"),
-        "portal_status": "CPCB_ACCEPTED",
+        "portal_status": "PORTAL_SUBMITTED",
         "ack_number": ack_number,
         "registered_credits_tons": signed_form.get("net_credit_tons"),
         "portal_url": "https://cpcb.nic.in/epr-portal",

@@ -14,6 +14,7 @@ from datetime import timedelta
 from typing import Any
 
 from temporalio import workflow
+from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
     from src.activities.agent_activities import (
@@ -28,10 +29,9 @@ with workflow.unsafe.imports_passed_through():
     )
     from synthetiq_shared.models import RunInput
 
-#  -  -  -  -  Timeout constants  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
-_SHORT   = timedelta(seconds=60)
-_MEDIUM  = timedelta(seconds=120)
-_LONG    = timedelta(seconds=180)
+# Shared retry policy applied to every activity execution
+_RETRY = RetryPolicy(maximum_attempts=3)
+_TIMEOUT = timedelta(minutes=5)
 
 
 # ---------------------------------------------------------------------------
@@ -66,12 +66,14 @@ class UpstreamLiabilityWorkflow:
         rules = await workflow.execute_activity(
             parse_regulatory_rules_activity,
             args=["CPCB PWM Rules 2026"],
-            start_to_close_timeout=_MEDIUM,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
         liability = await workflow.execute_activity(
             calculate_brand_liability_activity,
             args=[company_id, fiscal_year],
-            start_to_close_timeout=_MEDIUM,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
         return {"status": "COMPLETED", "regulatory_rules": rules, "liability": liability}
 
@@ -95,7 +97,8 @@ class AuctionLiquidityWorkflow:
         auction_result = await workflow.execute_activity(
             execute_double_auction_activity,
             args=[f"RFP-{company_id}", category, target_tons, statutory_base_rate],
-            start_to_close_timeout=_MEDIUM,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
         return {"status": "AUCTION_MATCHED", "result": auction_result}
 
@@ -167,7 +170,8 @@ class QuadCoreAuditWorkflow:
         eway = await workflow.execute_activity(
             verify_eway_bill_activity,
             args=[eway_bill_ref or "EWB-UNKNOWN"],
-            start_to_close_timeout=_MEDIUM,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
         audit = await workflow.execute_activity(
             audit_scada_telemetry_activity,
@@ -176,7 +180,8 @@ class QuadCoreAuditWorkflow:
                 torque_nm, power_factor, active_power_kw, vfd_frequency_hz, melt_rate_kg_h,
                 category,
             ],
-            start_to_close_timeout=_LONG,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
 
         self.audit_verdict = audit
@@ -248,16 +253,19 @@ class SettlementDispatchWorkflow:
         plastic_tons: float,
         unit_price_inr: float = 7.5,
         conversion_factor: float = 1.0,
+        org_id: str = "",
     ) -> dict[str, Any]:
         po = await workflow.execute_activity(
             create_escrow_split_po_activity,
-            args=[company_id, recycler_id, audit_id, plastic_tons, unit_price_inr],
-            start_to_close_timeout=_SHORT,
+            args=[company_id, recycler_id, audit_id, plastic_tons, unit_price_inr, org_id],
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
         form1 = await workflow.execute_activity(
             generate_and_dispatch_form1_activity,
-            args=[po["po_number"], audit_id, plastic_tons, conversion_factor],
-            start_to_close_timeout=_SHORT,
+            args=[po["po_number"], audit_id, plastic_tons, conversion_factor, org_id],
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
         pdf_res = await workflow.execute_activity(
             generate_audit_report_pdf_activity,
@@ -271,7 +279,8 @@ class SettlementDispatchWorkflow:
                 "po_number": po["po_number"],
                 "audit_verdict": "APPROVED",
             }],
-            start_to_close_timeout=_SHORT,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
         return {
             "status": "SETTLED_AND_DISPATCHED",
@@ -354,7 +363,8 @@ class MasterEPRComplianceWorkflow:
         liability = await workflow.execute_activity(
             calculate_brand_liability_activity,
             args=[company_id, fiscal_year],
-            start_to_close_timeout=_MEDIUM,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
 
         #  -  -  -  -  Stage 2a: Regulatory rules (Regulatory Watchdog Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
@@ -363,14 +373,16 @@ class MasterEPRComplianceWorkflow:
         rules = await workflow.execute_activity(
             parse_regulatory_rules_activity,
             args=["CPCB Plastic Waste Management Amendment Rules 2026"],
-            start_to_close_timeout=_MEDIUM,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
 
         #  -  -  -  -  Stage 2b: Auction (Treasury Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
         auction = await workflow.execute_activity(
             execute_double_auction_activity,
             args=[f"RFP-{company_id}", category, volume_tons, 12.0],
-            start_to_close_timeout=_MEDIUM,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
 
         #  -  -  -  -  Stage 3a: Logistics (Logistics Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
@@ -379,7 +391,8 @@ class MasterEPRComplianceWorkflow:
         eway = await workflow.execute_activity(
             verify_eway_bill_activity,
             args=[eway_bill_ref or "EWB-UNKNOWN"],
-            start_to_close_timeout=_MEDIUM,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
 
         #  -  -  -  -  Stage 3b: SCADA Audit (Auditor Agent  - ' Nimble / Jev)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
@@ -393,8 +406,10 @@ class MasterEPRComplianceWorkflow:
             args=[
                 recycler_id, plant_id, volume_tons,
                 torque, pf, kw, 50.0, melt, category,
+                run_input.org_id,
             ],
-            start_to_close_timeout=_LONG,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
 
         self.delta_mass = float(audit.get("delta_mass", 0.0))
@@ -449,8 +464,9 @@ class MasterEPRComplianceWorkflow:
         clearing_price = auction.get("clearing_price_inr", 7.8)
         po = await workflow.execute_activity(
             create_escrow_split_po_activity,
-            args=[company_id, recycler_id, audit["audit_id"], volume_tons, clearing_price],
-            start_to_close_timeout=_SHORT,
+            args=[company_id, recycler_id, audit["audit_id"], volume_tons, clearing_price, run_input.org_id],
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
 
         #  -  -  -  -  Stage 5: Form-1 (Legal Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
@@ -458,8 +474,9 @@ class MasterEPRComplianceWorkflow:
         self.current_status = "STAGE_5_STATUTORY_FORM1_DISPATCH"
         form1 = await workflow.execute_activity(
             generate_and_dispatch_form1_activity,
-            args=[po["po_number"], audit["audit_id"], volume_tons, 1.0],
-            start_to_close_timeout=_SHORT,
+            args=[po["po_number"], audit["audit_id"], volume_tons, 1.0, run_input.org_id],
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
 
         #  -  -  -  -  Stage 6: Priority 3 PDF Generation  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
@@ -485,7 +502,8 @@ class MasterEPRComplianceWorkflow:
                 "audit_verdict": "APPROVED",
                 "workflow_run_id": workflow.info().workflow_id,
             }],
-            start_to_close_timeout=_SHORT,
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
         )
 
         self.current_status = "COMPLETED"

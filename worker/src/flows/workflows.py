@@ -26,6 +26,7 @@ with workflow.unsafe.imports_passed_through():
         parse_regulatory_rules_activity,
         verify_eway_bill_activity,
     )
+    from synthetiq_shared.models import RunInput
 
 #  -  -  -  -  Timeout constants  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
 _SHORT   = timedelta(seconds=60)
@@ -38,7 +39,7 @@ _LONG    = timedelta(seconds=180)
 # ---------------------------------------------------------------------------
 
 @dataclass
-class AuditDecisionInput:
+class HumanApprovalSignal:
     """Input payload sent via Temporal signal by compliance officers in the HITL console."""
     approved: bool
     notes: str = ""
@@ -46,6 +47,10 @@ class AuditDecisionInput:
     reason_code: str = "MANUAL_PHYSICS_OVERRIDE"
     override_tons: float | None = None
     signature_hash: str | None = None
+
+
+# Backward-compatible alias — keeps old wire name working until FEAT-002 rewires settlement.py
+AuditDecisionInput = HumanApprovalSignal
 
 
 # ---------------------------------------------------------------------------
@@ -104,25 +109,29 @@ class QuadCoreAuditWorkflow:
     """W3  -  Logistics Agent + Auditor Agent with HITL Signal Exception Resolution."""
 
     def __init__(self) -> None:
+        self._approval_received: bool = False
         self.auditor_approved: bool | None = None
         self.auditor_notes: str | None = None
         self.auditor_id: str | None = None
         self.auditor_reason_code: str | None = None
         self.override_tons: float | None = None
+        self._signal_input: HumanApprovalSignal | None = None
         self.current_status: str = "RUNNING"
         self.requires_hitl: bool = False
         self.delta_mass: float = 0.0
         self.fraud_risk_score: float = 0.0
         self.audit_verdict: dict[str, Any] = {}
 
-    @workflow.signal
-    async def resolve_audit_exception(self, decision: AuditDecisionInput) -> None:
+    @workflow.signal(name="human_approval")
+    async def resolve_audit_exception(self, decision: HumanApprovalSignal) -> None:
         """Signal handler allowing human compliance officers to approve/reject audit exceptions."""
+        self._signal_input = decision
         self.auditor_approved = decision.approved
         self.auditor_notes = decision.notes
         self.auditor_id = decision.auditor_id
         self.auditor_reason_code = decision.reason_code
         self.override_tons = decision.override_tons
+        self._approval_received = True
 
     @workflow.query
     def get_audit_status(self) -> dict[str, Any]:
@@ -151,12 +160,13 @@ class QuadCoreAuditWorkflow:
         vfd_frequency_hz: float = 50.0,
         melt_rate_kg_h: float = 250.0,
         category: str = "cat_i_rigid",
+        eway_bill_ref: str = "",
     ) -> dict[str, Any]:
         self.current_status = "RUNNING_LOGISTICS_AND_TELEMETRY"
 
         eway = await workflow.execute_activity(
             verify_eway_bill_activity,
-            args=["EWB-2026-99210"],
+            args=[eway_bill_ref or "EWB-UNKNOWN"],
             start_to_close_timeout=_MEDIUM,
         )
         audit = await workflow.execute_activity(
@@ -184,7 +194,7 @@ class QuadCoreAuditWorkflow:
         if needs_hitl:
             self.current_status = "PENDING_HITL_REVIEW"
             # Block workflow until human auditor signal arrives
-            await workflow.wait_condition(lambda: self.auditor_approved is not None)
+            await workflow.wait_condition(lambda: self._approval_received)
 
             if self.auditor_approved:
                 self.current_status = "AUDIT_APPROVED_BY_HUMAN_AUDITOR"
@@ -287,25 +297,29 @@ class MasterEPRComplianceWorkflow:
     """
 
     def __init__(self) -> None:
+        self._approval_received: bool = False
         self.auditor_approved: bool | None = None
         self.auditor_notes: str | None = None
         self.auditor_id: str | None = None
         self.auditor_reason_code: str | None = None
         self.override_tons: float | None = None
+        self._signal_input: HumanApprovalSignal | None = None
         self.current_status: str = "INITIALIZED"
         self.requires_hitl: bool = False
         self.stage_reached: int = 0
         self.delta_mass: float = 0.0
         self.fraud_risk_score: float = 0.0
 
-    @workflow.signal
-    async def resolve_audit_exception(self, decision: AuditDecisionInput) -> None:
+    @workflow.signal(name="human_approval")
+    async def resolve_audit_exception(self, decision: HumanApprovalSignal) -> None:
         """Signal handler for real-time human auditor approval or rejection."""
+        self._signal_input = decision
         self.auditor_approved = decision.approved
         self.auditor_notes = decision.notes
         self.auditor_id = decision.auditor_id
         self.auditor_reason_code = decision.reason_code
         self.override_tons = decision.override_tons
+        self._approval_received = True
 
     @workflow.query
     def get_audit_status(self) -> dict[str, Any]:
@@ -323,14 +337,16 @@ class MasterEPRComplianceWorkflow:
         }
 
     @workflow.run
-    async def run(
-        self,
-        company_id: str,
-        fiscal_year: str,
-        category: str,
-        volume_tons: float,
-        simulate_spoof: bool = False,
-    ) -> dict[str, Any]:
+    async def run(self, run_input: RunInput) -> dict[str, Any]:
+        # Extract fields from the unified input model
+        company_id = run_input.company_id
+        fiscal_year = run_input.fiscal_year
+        category = run_input.category
+        volume_tons = run_input.volume_tons
+        simulate_spoof = run_input.simulate_spoof
+        recycler_id = run_input.recycler_id
+        plant_id = run_input.plant_id
+        eway_bill_ref = run_input.eway_bill_ref
 
         #  -  -  -  -  Stage 1: Liability (Brand Liability Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
         self.stage_reached = 1
@@ -362,7 +378,7 @@ class MasterEPRComplianceWorkflow:
         self.current_status = "STAGE_3_LOGISTICS_AND_TELEMETRY"
         eway = await workflow.execute_activity(
             verify_eway_bill_activity,
-            args=["EWB-2026-99210"],
+            args=[eway_bill_ref or "EWB-UNKNOWN"],
             start_to_close_timeout=_MEDIUM,
         )
 
@@ -375,7 +391,7 @@ class MasterEPRComplianceWorkflow:
         audit = await workflow.execute_activity(
             audit_scada_telemetry_activity,
             args=[
-                "RECYC-DELHI-01", "PLANT-OKHLA-2", volume_tons,
+                recycler_id, plant_id, volume_tons,
                 torque, pf, kw, 50.0, melt, category,
             ],
             start_to_close_timeout=_LONG,
@@ -397,7 +413,7 @@ class MasterEPRComplianceWorkflow:
             self.current_status = "PENDING_HITL_REVIEW"
 
             #  -  -  -  -  Priority 1: Block until Human Compliance Auditor Signal  -  -  -  - 
-            await workflow.wait_condition(lambda: self.auditor_approved is not None)
+            await workflow.wait_condition(lambda: self._approval_received)
 
             if not self.auditor_approved:
                 self.current_status = "HALTED_DUE_TO_AUDITOR_CONFIRMED_FRAUD"
@@ -433,7 +449,7 @@ class MasterEPRComplianceWorkflow:
         clearing_price = auction.get("clearing_price_inr", 7.8)
         po = await workflow.execute_activity(
             create_escrow_split_po_activity,
-            args=[company_id, "RECYC-DELHI-01", audit["audit_id"], volume_tons, clearing_price],
+            args=[company_id, recycler_id, audit["audit_id"], volume_tons, clearing_price],
             start_to_close_timeout=_SHORT,
         )
 
@@ -454,8 +470,8 @@ class MasterEPRComplianceWorkflow:
             args=[{
                 "audit_id": audit["audit_id"],
                 "company_id": company_id,
-                "recycler_id": "RECYC-DELHI-01",
-                "plant_id": "PLANT-OKHLA-2",
+                "recycler_id": recycler_id,
+                "plant_id": plant_id,
                 "plastic_category": category,
                 "reported_volume_tons": volume_tons,
                 "verified_physical_melt_tons": volume_tons,

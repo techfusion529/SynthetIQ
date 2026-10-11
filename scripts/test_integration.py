@@ -5,14 +5,33 @@ sys.path.insert(0, os.path.abspath('api'))
 sys.path.insert(0, os.path.abspath('packages/synthetiq-shared'))
 sys.path.insert(0, os.path.abspath('worker/src'))
 
+# JWT_SECRET_KEY must be set before importing the app (jwt_utils raises RuntimeError otherwise)
+if not os.getenv("JWT_SECRET_KEY"):
+    os.environ["JWT_SECRET_KEY"] = "test-only-secret-do-not-use-in-production-aabbcc"
+
 import asyncio
 from httpx import AsyncClient, ASGITransport
 from src.main import app
+from src.services.jwt_utils import create_access_token
+
+
+def _make_test_token(role: str = "admin", org_id: str = "ORG-DEV-001") -> str:
+    """Mint a valid HS256 JWT for integration tests."""
+    return create_access_token({
+        "uid": "USR-ADMIN-001",
+        "email": "compliance_officer@synthetiq.ai",
+        "display_name": "Test Admin",
+        "role": role,
+        "org_id": org_id,
+        "authorized": True,
+    })
 
 
 async def test_full_pipeline():
     transport = ASGITransport(app=app)
-    headers = {"Authorization": "Bearer dev-synthetiq-admin-token"}
+    # Mint a valid JWT — never use hardcoded dev tokens
+    token = _make_test_token()
+    headers = {"Authorization": f"Bearer {token}"}
 
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         # 1. Healthcheck

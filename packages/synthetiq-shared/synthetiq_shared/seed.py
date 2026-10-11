@@ -35,6 +35,26 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(f"{salt}{password}".encode("utf-8")).hexdigest()
 
 
+def _get_seed_password() -> str:
+    """Get seed password from env var or fail in non-local environments.
+
+    In non-local environments (staging, production), SEED_ADMIN_PASSWORD must be
+    explicitly set to prevent well-known credentials from being seeded.
+    """
+    env = os.getenv("ENV", "local").lower()
+    seed_password = os.getenv("SEED_ADMIN_PASSWORD", "")
+    if not seed_password:
+        if env != "local":
+            raise RuntimeError(
+                f"SEED_ADMIN_PASSWORD env var must be set in ENV={env}. "
+                "Refusing to seed a well-known password in non-local environments."
+            )
+        # Local dev fallback — not a security risk in ENV=local
+        seed_password = "Password123!"
+        logger.warning("SEED_ADMIN_PASSWORD not set — using default dev password (local only)")
+    return seed_password
+
+
 DEFAULT_AGENTS_CONFIG = [
     {
         "agent_name": "brand_liability",
@@ -173,7 +193,7 @@ async def seed_database() -> None:
             admin_user = User(
                 user_id="USR-ADMIN-001",
                 email=admin_email,
-                password_hash=hash_password("Password123!"),
+                password_hash=hash_password(_get_seed_password()),
                 display_name="Dev Compliance Officer",
                 role="admin",
                 org_id=org_id,

@@ -113,9 +113,31 @@
 ### api/tests/test_api.py
 - Rewrote tests to reflect hardened behaviour: all protected routes now require a bearer token, auth-bypassed tests replaced with tests that pass a signed test JWT, added dedicated tests for the new security properties (401 without token, 404 for unknown audit IDs, 501 for CPCB dispatch, no `api_key_masked` in config response).
 
+### api/src/routes/audit.py (review fix — finding 1)
+- `GET /audit/report/{audit_id}/json`: changed from returning HTTP 200 with `{"error": ..., "status": "NOT_FOUND"}` body to raising `HTTPException(status_code=404)` for unknown audit IDs. Now consistent with PDF endpoint behaviour.
+
+### api/src/routes/agent_config.py (review fix — finding 2)
+- Removed `_verify_tenant_access()` helper which exempted `role == "admin"` from cross-tenant checks.
+- Added `assert_same_org` import from `rbac.py`.
+- Replaced all four `_verify_tenant_access(user, org_id)` call sites with `assert_same_org(user["org_id"], org_id)` — no role exemption for any role.
+
+### packages/synthetiq-shared/synthetiq_shared/seed.py (review fix — finding 3)
+- Added `_get_seed_password()` helper: reads `SEED_ADMIN_PASSWORD` env var. In non-local environments (`ENV != "local"`), raises `RuntimeError` if the var is unset, blocking the well-known credential from being seeded. In `ENV=local` with no var set, falls back to `"Password123!"` with a warning log.
+- Replaced hardcoded `hash_password("Password123!")` with `hash_password(_get_seed_password())`.
+
+### scripts/test_integration.py (review fix — finding 4)
+- Removed hardcoded `Authorization: "Bearer dev-synthetiq-admin-token"` header.
+- Added `JWT_SECRET_KEY` env var bootstrap (sets a test-only value before importing the app so the module-level guard passes).
+- Added `_make_test_token()` helper that mints a valid signed HS256 JWT using `create_access_token`.
+- Integration test now sends `f"Bearer {_make_test_token()}"` — a properly signed token.
+
+### dashboard/app/login/page.tsx (review fix — finding 5)
+- Changed `useState("Password123!")` to `useState("")` — password field is now empty on page load.
+- Changed `handleQuickFill` to call `setPassword("")` instead of `setPassword("Password123!")` — quick-fill populates email only, leaves password blank.
+
 ---
 
-## Verification results
+## Verification results (fix iteration)
 
 All Python files compile clean (`python -m py_compile`):
 - `api/src/services/auth_service.py` ✓

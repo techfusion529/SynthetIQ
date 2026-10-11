@@ -23,7 +23,7 @@ export default function LoginPage() {
   const { login } = useSession();
 
   const [email, setEmail] = useState("compliance_officer@synthetiq.ai");
-  const [password, setPassword] = useState("Password123!");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,7 +53,7 @@ export default function LoginPage() {
 
   const handleQuickFill = (roleEmail: string) => {
     setEmail(roleEmail);
-    setPassword("Password123!");
+    setPassword("");
   };
 
   return (

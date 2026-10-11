@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from src.middleware.auth import CurrentUser
-from src.middleware.rbac import require_permission
+from src.middleware.rbac import assert_same_org, require_permission
 from src.services.data_connector_shim import get_connector_for_org
 from synthetiq_shared.database import get_db_session
 from synthetiq_shared.models import AgentConfiguration, DataSource, Organization
@@ -39,13 +39,6 @@ class TestAgentRequest(BaseModel):
     sample_input: dict[str, Any] | None = None
 
 
-def _verify_tenant_access(user: dict[str, Any], org_id: str) -> None:
-    if user.get("role") != "admin" and user.get("org_id") != org_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this organization's agent configurations",
-        )
-
 
 @router.get("/")
 async def list_agent_configurations(
@@ -54,7 +47,7 @@ async def list_agent_configurations(
     _: Any = Depends(require_permission("config:read")),
 ) -> list[dict[str, Any]]:
     """List all agent configurations and their dynamic data source bindings for the tenant."""
-    _verify_tenant_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         res = await session.execute(
@@ -92,7 +85,7 @@ async def get_agent_configuration(
     _: Any = Depends(require_permission("config:read")),
 ) -> dict[str, Any]:
     """Get the active configuration for a specific agent in the tenant."""
-    _verify_tenant_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         res = await session.execute(
@@ -134,7 +127,7 @@ async def update_agent_configuration(
     _: Any = Depends(require_permission("config:write")),
 ) -> dict[str, Any]:
     """Update agent parameters, LLM model, prompt, or bind a new data source."""
-    _verify_tenant_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         # If data_source_id is provided, verify it belongs to this org
@@ -202,7 +195,7 @@ async def test_agent_with_dynamic_data(
     _: Any = Depends(require_permission("config:read")),
 ) -> dict[str, Any]:
     """Execute an isolated test run of a single agent using tenant's dynamic data source."""
-    _verify_tenant_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         res = await session.execute(

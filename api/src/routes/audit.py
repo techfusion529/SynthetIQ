@@ -645,7 +645,7 @@ async def get_audit_report_json(
 
     if not record:
 
-        return {"error": f"Audit {audit_id} not found", "status": "NOT_FOUND"}
+        raise HTTPException(status_code=404, detail=f"Audit {audit_id} not found")
 
     return {
 

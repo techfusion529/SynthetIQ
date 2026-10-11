@@ -35,7 +35,7 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import HubIcon from "@mui/icons-material/Hub";
 
-import { useCompany } from "./lib/contexts/CompanyContext";
+import { useOrganization as useCompany } from "./lib/contexts/OrganizationContext";
 import {
   useComplianceService,
   useLiabilityService,

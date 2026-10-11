@@ -29,7 +29,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import AddIcon from "@mui/icons-material/Add";
 import SignalCellularAltIcon from "@mui/icons-material/SignalCellularAlt";
 
-import { useCompany } from "../lib/contexts/CompanyContext";
+import { useOrganization as useCompany } from "../lib/contexts/OrganizationContext";
 import { useAuctionService } from "../lib/hooks/useServices";
 import { ApiError } from "../lib/services/base.service";
 import type { Auction, Bid } from "../lib/types/auction.types";

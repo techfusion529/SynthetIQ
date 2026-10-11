@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import ThemeRegistry from "./lib/ThemeRegistry";
 import { SessionProvider } from "./lib/contexts/SessionContext";
-import { CompanyProvider } from "./lib/contexts/CompanyContext";
+import { OrganizationProvider } from "./lib/contexts/OrganizationContext";
 import AppShell from "../components/AppShell";
 
 export const metadata: Metadata = {
@@ -17,9 +17,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeRegistry>
           <SessionProvider>
-            <CompanyProvider>
+            <OrganizationProvider>
               <AppShell>{children}</AppShell>
-            </CompanyProvider>
+            </OrganizationProvider>
           </SessionProvider>
         </ThemeRegistry>
       </body>

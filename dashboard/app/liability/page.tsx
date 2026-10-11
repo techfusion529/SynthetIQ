@@ -24,7 +24,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ScaleIcon from "@mui/icons-material/Scale";
 import CalculateIcon from "@mui/icons-material/Calculate";
 
-import { useCompany } from "../lib/contexts/CompanyContext";
+import { useOrganization as useCompany } from "../lib/contexts/OrganizationContext";
 import { useLiabilityService } from "../lib/hooks/useServices";
 import { ApiError } from "../lib/services/base.service";
 import type { LiabilityReport } from "../lib/types/liability.types";

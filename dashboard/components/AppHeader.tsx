@@ -17,7 +17,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import SecurityIcon from "@mui/icons-material/Security";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useRouter } from "next/navigation";
-import { useCompany } from "../app/lib/contexts/CompanyContext";
+import { useOrganization as useCompany } from "../app/lib/contexts/OrganizationContext";
 import { useSession } from "../app/lib/contexts/SessionContext";
 import ConfigModal from "./ConfigModal";
 

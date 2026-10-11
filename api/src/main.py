@@ -20,16 +20,18 @@ from src.routes import (
     audit_router,
     auth_router,
     config_router,
+    datasources_router,
     health_router,
     liability_router,
     orchestrator_router,
+    org_config_router,
     organizations_router,
+    regulatory_router,
     runs_router,
     schedules_router,
     settlement_router,
     stream_router,
     users_router,
-    stream_router,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,7 +46,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Force-import new ORM models so they register with Base.metadata
     try:
-        from synthetiq_shared.models import AuctionRecord, BidRecord, AuditRecord, EscrowPORecord, Form1Record  # noqa: F401
+        from synthetiq_shared.models import (  # noqa: F401
+            AuctionRecord, BidRecord, AuditRecord, EscrowPORecord, Form1Record,
+            RegulatoryPack, OrgPolicy, PlantCalibration, ObligationLedger,
+        )
     except Exception:
         pass
     # 1. DB schema is managed by Alembic migrations — no auto-create in production
@@ -134,6 +139,9 @@ app.include_router(organizations_router,  prefix=API_V1_STR)
 app.include_router(users_router,          prefix=API_V1_STR)
 app.include_router(agent_config_router,   prefix=API_V1_STR)
 app.include_router(runs_router,           prefix=API_V1_STR)
+app.include_router(regulatory_router,     prefix=API_V1_STR)
+app.include_router(org_config_router,     prefix=API_V1_STR)
+app.include_router(datasources_router,    prefix=API_V1_STR)
 
 if __name__ == "__main__":
     import uvicorn

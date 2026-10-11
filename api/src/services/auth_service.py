@@ -137,18 +137,6 @@ class AuthService:
             logger.error(f"Token verification failed: {e}")
             raise ValueError(f"Authentication failed: {e}")
 
-    def _dev_user(self, token_hint: str = "") -> dict[str, Any]:
-        """Return a mock user for development / demo mode (dev_mode only)."""
-        return {
-            "uid": "USR-ADMIN-001",
-            "email": "compliance_officer@synthetiq.ai",
-            "display_name": "Compliance Officer",
-            "role": "admin",
-            "org_id": "ORG-DEV-001",
-            "email_verified": True,
-            "authorized": True,
-        }
-
 
 # Global service instance
 auth_service = AuthService()

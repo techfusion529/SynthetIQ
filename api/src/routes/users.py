@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from src.middleware.auth import CurrentUser
-from src.middleware.rbac import require_permission
+from src.middleware.rbac import assert_same_org, require_permission
 from src.services.jwt_utils import hash_password
 from synthetiq_shared.database import get_db_session
 from synthetiq_shared.models import Organization, User
@@ -33,20 +33,11 @@ class CreateUserRequest(BaseModel):
     email: str
     display_name: str
     role: Literal["admin", "compliance_officer", "auditor", "viewer"] = "viewer"
-    password: str = "Password123!"
+    password: str
 
 
 class UpdateRoleRequest(BaseModel):
     role: Literal["admin", "compliance_officer", "auditor", "viewer"]
-
-
-def _verify_tenant_access(user: dict[str, Any], org_id: str) -> None:
-    """Ensure non-admins cannot access other organizations."""
-    if user.get("role") != "admin" and user.get("org_id") != org_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this organization's users",
-        )
 
 
 @router.get("/")
@@ -56,7 +47,7 @@ async def list_users(
     _: Any = Depends(require_permission("users:read")),
 ) -> list[dict[str, Any]]:
     """List all active members belonging to an organization."""
-    _verify_tenant_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         # Check org exists
@@ -95,7 +86,7 @@ async def invite_or_create_user(
     _: Any = Depends(require_permission("users:write")),
 ) -> dict[str, Any]:
     """Add a new user to the organization with an assigned RBAC role."""
-    _verify_tenant_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     email = payload.email.strip().lower()
 
@@ -146,7 +137,7 @@ async def update_user_role(
     _: Any = Depends(require_permission("users:write")),
 ) -> dict[str, Any]:
     """Change the RBAC role for an existing organization member."""
-    _verify_tenant_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         res = await session.execute(
@@ -186,7 +177,7 @@ async def deactivate_user(
     _: Any = Depends(require_permission("users:write")),
 ) -> dict[str, Any]:
     """Deactivate or remove a user from the organization."""
-    _verify_tenant_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     if user_id == user.get("uid"):
         raise HTTPException(

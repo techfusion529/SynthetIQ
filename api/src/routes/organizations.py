@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from src.middleware.auth import CurrentUser
-from src.middleware.rbac import require_permission
+from src.middleware.rbac import assert_same_org, require_permission
 from src.services.data_connector_shim import create_connector
 from synthetiq_shared.database import get_db_session
 from synthetiq_shared.models import DataSource, Organization
@@ -43,14 +43,6 @@ def _mask_secrets(config: dict[str, Any]) -> dict[str, Any]:
         k: "***" if k.lower() in masked_keys else v
         for k, v in config.items()
     }
-
-
-def _verify_org_access(user: dict[str, Any], org_id: str) -> None:
-    if user.get("role") != "admin" and user.get("org_id") != org_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied  -  wrong organisation",
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +150,7 @@ async def get_organization(
     _: Any = Depends(require_permission("orgs:read")),
 ) -> dict[str, Any]:
     """Retrieve a single organisation profile."""
-    _verify_org_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         res = await session.execute(select(Organization).where(Organization.org_id == org_id))
@@ -188,7 +180,7 @@ async def update_organization(
     _: Any = Depends(require_permission("orgs:write")),
 ) -> dict[str, Any]:
     """Update organisation metadata. Requires admin role."""
-    _verify_org_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         res = await session.execute(select(Organization).where(Organization.org_id == org_id))
@@ -230,7 +222,7 @@ async def list_data_sources(
     _: Any = Depends(require_permission("datasources:read")),
 ) -> list[dict[str, Any]]:
     """List all data sources registered for an organisation."""
-    _verify_org_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         res = await session.execute(
@@ -265,7 +257,7 @@ async def register_data_source(
     _: Any = Depends(require_permission("datasources:write")),
 ) -> dict[str, Any]:
     """Register a new dynamic data source for an organisation."""
-    _verify_org_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     source_type = payload.source_type.lower()
     valid_types = {"bigquery", "postgresql", "postgres", "rest_api", "rest", "csv", "file", "pubsub"}
@@ -317,7 +309,7 @@ async def delete_data_source(
     _: Any = Depends(require_permission("datasources:delete")),
 ) -> dict[str, Any]:
     """Remove or deactivate a data source registration."""
-    _verify_org_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         res = await session.execute(
@@ -340,7 +332,7 @@ async def test_data_source(
     _: Any = Depends(require_permission("datasources:read")),
 ) -> dict[str, Any]:
     """Run a live ping / connection health-check against a registered data source."""
-    _verify_org_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         res = await session.execute(
@@ -377,7 +369,7 @@ async def preview_data_source(
     _: Any = Depends(require_permission("datasources:read")),
 ) -> dict[str, Any]:
     """Retrieve sample data records from the connected data source for schema preview."""
-    _verify_org_access(user, org_id)
+    assert_same_org(user["org_id"], org_id)
 
     async with get_db_session() as session:
         res = await session.execute(

@@ -7,13 +7,70 @@ around the LLM calls.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# C2 — Activity result models
+# ---------------------------------------------------------------------------
+
+class LiabilityResult(BaseModel):
+    net_liability_tons: float
+    gross_liability_tons: float
+    category: str
+
+
+class AuctionResult(BaseModel):
+    clearing_price: float
+    winner_org_id: str
+    total_volume_tons: float
+
+
+class AuditResult(BaseModel):
+    delta_percent: float
+    verdict: Literal["PASS", "FAIL", "HITL"]
+    physical_melt_verified: bool
+    audit_id: str
+
+
+class POResult(BaseModel):
+    po_id: str
+    escrow_amount: float
+    audit_verdict: str
+
+
+class Form1Result(BaseModel):
+    form1_id: str
+    signed: bool = False
+    portal_status: str
+
+
+class PDFResult(BaseModel):
+    pdf_path: str
+    hash_hex: str
+
+
+# ---------------------------------------------------------------------------
+# C3 — Fail-closed gate helper
+# ---------------------------------------------------------------------------
+
+def _require(d: dict, key: str, activity_name: str):
+    """Raise a retryable ApplicationError if key is missing or None."""
+    if key not in d or d[key] is None:
+        raise ApplicationError(
+            f"FAIL_CLOSED: {key} missing from {activity_name} result",
+            non_retryable=False,
+        )
+    return d[key]
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +104,10 @@ async def calculate_brand_liability_activity(
     )
 
     result.setdefault("company_id", company_id)
-    return result
+
+    # C3: fail-closed gate
+    _require(result, "net_liability_tons", "liability")
+    return LiabilityResult(**result).model_dump()
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +154,11 @@ async def execute_double_auction_activity(
     result.setdefault("category", category)
     result.setdefault("cleared_tons", result.get("total_tons", target_tons))
     result.setdefault("clearing_price_inr", result.get("clearing_price_inr", statutory_base_rate * 0.65))
-    return result
+
+    # C3: fail-closed gates — no hardcoded winner default
+    _require(result, "clearing_price", "auction")
+    _require(result, "winner_org_id", "auction")
+    return AuctionResult(**result).model_dump()
 
 
 # ---------------------------------------------------------------------------
@@ -151,17 +215,31 @@ async def audit_scada_telemetry_activity(
     result.setdefault("plant_id", plant_id)
     result.setdefault("reported_volume_tons", reported_volume_tons)
     result.setdefault("plastic_category", category)
-
-    # Normalise verdict field name used by workflow halt check
-    result.setdefault("physical_melt_verified", not result.get("is_spoofed", False))
     result.setdefault("is_spoofed", False)
+
+    # C3: fail-closed gate — require delta_percent from agent
+    _require(result, "delta_percent", "audit")
+
+    # C3: deterministic verdict — do NOT trust any LLM verdict string
+    delta = result["delta_percent"]
+    threshold = result.get("threshold", 2.0)
+    if delta > threshold * 2:
+        verdict = "FAIL"
+    elif delta > threshold:
+        verdict = "HITL"
+    else:
+        verdict = "PASS"
+    result["verdict"] = verdict
+
+    # C3: require physical_melt_verified — do NOT default from is_spoofed
+    _require(result, "physical_melt_verified", "audit")
 
     logger.info(
         f"[Activity] Audit verdict: {result.get('verdict', 'UNKNOWN')}, "
         f"confidence={result.get('confidence_score', 0)}, "
-        f"delta_mass={result.get('delta_mass', 0):.2%}"
+        f"delta_percent={result.get('delta_percent', 0):.2f}"
     )
-    return result
+    return AuditResult(**result).model_dump()
 
 
 # ---------------------------------------------------------------------------
@@ -175,9 +253,23 @@ async def create_escrow_split_po_activity(
     audit_id: str,
     plastic_tons: float,
     unit_price_inr: float,
+    audit_verdict: str | None = None,
+    human_approved: bool | None = None,
 ) -> dict[str, Any]:
     """Create 80/20 split escrow PO using ADK ERP Agent."""
     logger.info(f"[Activity] Escrow PO  -  {company_id}  - ' {recycler_id}, {plastic_tons}t")
+
+    # C3: fail-closed gates — no hardcoded defaults
+    if audit_verdict is None:
+        raise ApplicationError(
+            "FAIL_CLOSED: audit_verdict not provided to PO activity",
+            non_retryable=True,
+        )
+    if human_approved is None:
+        raise ApplicationError(
+            "FAIL_CLOSED: human_approved not provided to PO activity",
+            non_retryable=True,
+        )
 
     from agents.erp_agent import run_erp_agent
 
@@ -187,9 +279,9 @@ async def create_escrow_split_po_activity(
         audit_id=audit_id,
         plastic_tons=plastic_tons,
         unit_price_inr=unit_price_inr,
-        audit_verdict="APPROVED",
+        audit_verdict=audit_verdict,
         logistics_verdict="APPROVE",
-        human_approved=True,
+        human_approved=human_approved,
     )
 
     result.setdefault("po_number", f"PO-{uuid.uuid4().hex[:8].upper()}")
@@ -218,14 +310,17 @@ async def generate_and_dispatch_form1_activity(
         physical_melt_tons=physical_melt_tons,
     )
 
-    result.setdefault("form_id", f"FORM1-{uuid.uuid4().hex[:8].upper()}")
+    result.setdefault("form1_id", f"FORM1-{uuid.uuid4().hex[:8].upper()}")
+    result.setdefault("form_id", result["form1_id"])
     result.setdefault("po_number", po_number)
     result.setdefault("audit_id", audit_id)
-    result.setdefault("cpcb_portal_status", result.get("portal_status", "CPCB_ACCEPTED"))
     result.setdefault("ack_number", f"ACK-CPCB-{uuid.uuid4().hex[:10].upper()}")
 
+    # C3: fail-closed gate — no default "CPCB_ACCEPTED"
+    _require(result, "portal_status", "form1")
+
     logger.info(f"[Activity] Form-1 ACK: {result['ack_number']}")
-    return result
+    return Form1Result(**result).model_dump()
 
 
 # ---------------------------------------------------------------------------

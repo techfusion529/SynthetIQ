@@ -125,6 +125,54 @@ python -m pytest api/tests/ -x -q --tb=short
 
 ---
 
-## Stream B — Frontend changes
+## Stream B — Dashboard changes
 
-_To be filled by the next workflow step._
+### dashboard/app/lib/contexts/OrganizationContext.tsx: New file
+- Created `OrganizationProvider` and `useOrganization()` hook
+- Fetches `GET /api/v1/organizations/` via `OrganizationService` using the session token
+- Stores the org list in `orgs` state; defaults `currentOrg` to the first org (or restores from `localStorage` under key `synthetiq_selected_org`)
+- `setCurrentOrg` updates state and `localStorage`
+- Exposes full backward-compat aliases: `companyId`, `company`, `companies`, `loadingCompany`, `companyError`, `setCompanyId` — so all existing callers compile with an import-only change
+- Return type is `React.JSX.Element` (project uses strict JSX namespace)
+
+### dashboard/app/lib/contexts/CompanyContext.tsx: Replaced with re-export stub
+- All implementation removed; file now re-exports `OrganizationProvider as CompanyProvider`, `useOrganization as useCompany`, and `Organization as Company` from `OrganizationContext`
+- Any stale import of `CompanyContext` keeps compiling without changes
+
+### dashboard/app/lib/services/company.service.ts: Replaced with re-export stub
+- `CompanyService` class removed; file re-exports everything from `organization.service.ts` and also exports `OrganizationService as CompanyService` for backward compatibility
+- `useServices.ts` and `services/index.ts` keep resolving `CompanyService` without changes
+
+### dashboard/app/layout.tsx: Provider swap
+- Replaced `import { CompanyProvider } from "./lib/contexts/CompanyContext"` with `import { OrganizationProvider } from "./lib/contexts/OrganizationContext"`
+- Replaced `<CompanyProvider>` with `<OrganizationProvider>` in JSX
+
+### dashboard/app/page.tsx: Import updated
+- `useCompany` import now points to `useOrganization as useCompany` from `OrganizationContext`; no other code changes
+
+### dashboard/app/auction/page.tsx: Import updated
+- Same import-only change as `page.tsx`
+
+### dashboard/app/liability/page.tsx: Import updated
+- Same import-only change as `page.tsx`
+
+### dashboard/components/AppHeader.tsx: Import updated
+- `useCompany` import now points to `useOrganization as useCompany` from `OrganizationContext`; no other code changes
+
+---
+
+## Verification results (Stream B)
+
+```
+cd dashboard && npx tsc --noEmit
+Exit 0 — zero type errors
+```
+
+All 8 files staged and committed: `feat: Phase 1 Tenancy Stream B — replace CompanyContext with OrganizationContext`
+
+---
+
+## Deferred items (with reasoning)
+
+- **`GET /companies` removal from `useServices.ts`**: `CompanyService` in `useServices.ts` now resolves to `OrganizationService` via the re-export alias. The `company` slot in `useServices()` is no longer backed by the deprecated companies endpoint. No call to `GET /companies` remains in the dashboard.
+- **`setCompanyId` full profile fetch**: `CompanyContext` previously fetched the full company profile on `setCompanyId`. `OrganizationContext` does not re-fetch on org switch (orgs are already fully loaded in the list). If a page needs fields not returned by `listOrgs()`, a `getOrg()` call can be added to `setCurrentOrg` in a follow-up.

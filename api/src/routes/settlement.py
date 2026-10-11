@@ -30,34 +30,86 @@ async def _get_all_pos(org_id: str | None = None, is_platform_admin: bool = Fals
 
 @router.post("/approve")
 async def approve_audit_and_settle(
-    payload: dict[str, Any], user: CurrentUser,
+    payload: dict[str, Any],
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
     _: Any = Depends(require_permission("workflows:execute")),
 ) -> dict[str, Any]:
-    audit_id = payload.get("audit_id")
-    if not audit_id:
-        raise HTTPException(status_code=400, detail="audit_id required")
-    workflow_id = payload.get("workflow_id", f"wf4-settlement-{audit_id}")
-    action = payload.get("action", "APPROVE")
+    run_id: str | None = payload.get("run_id")
+    audit_id: str | None = payload.get("audit_id")
+
+    if not run_id:
+        raise HTTPException(status_code=400, detail="run_id required")
+
+    # Look up WorkflowRun to get the actual Temporal workflow_id
+    temporal_workflow_id: str | None = None
+    try:
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models import WorkflowRun
+        from sqlalchemy import select
+        async with get_db_session() as session:
+            query = select(WorkflowRun).where(WorkflowRun.run_id == run_id)
+            if not tenant_ctx.is_platform_admin:
+                query = query.where(WorkflowRun.org_id == tenant_ctx.org_id)
+            run_rec = (await session.execute(query)).scalar_one_or_none()
+            if not run_rec:
+                raise HTTPException(status_code=404, detail=f"WorkflowRun {run_id!r} not found")
+            temporal_workflow_id = run_rec.temporal_workflow_id or run_rec.temporal_run_id
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning(f"DB lookup for run {run_id} failed: {exc}")
+        raise HTTPException(status_code=503, detail="DB unavailable")
+
+    if not temporal_workflow_id:
+        raise HTTPException(status_code=422, detail="WorkflowRun has no associated Temporal workflow_id")
+
+    action: str = payload.get("action", "APPROVE")
+
+    # Signal Temporal workflow with human approval
     signal_res = await temporal_service.signal_workflow(
-        workflow_id=workflow_id,
-        signal_name="HumanApprovalSignal",
-        signal_args=[{"approver": user["email"], "decision": action}],
+        workflow_id=temporal_workflow_id,
+        signal_name="human_approval",
+        signal_args=[{
+            "approved": action == "APPROVE",
+            "approver": user["email"],
+            "decision": action,
+            "notes": payload.get("notes", ""),
+            "audit_id": audit_id,
+        }],
     )
+
+    # On APPROVE: clear hitl_required flag and update PO status
     if action == "APPROVE":
         try:
             from synthetiq_shared.database import get_db_session
-            from synthetiq_shared.models import EscrowPORecord
+            from synthetiq_shared.models import WorkflowRun, EscrowPORecord
             from sqlalchemy import select
             async with get_db_session() as session:
-                row = (await session.execute(
-                    select(EscrowPORecord).where(EscrowPORecord.audit_id == audit_id)
+                # Clear hitl_required
+                run_rec2 = (await session.execute(
+                    select(WorkflowRun).where(WorkflowRun.run_id == run_id)
                 )).scalar_one_or_none()
-                if row:
-                    row.status = "advance_released"
+                if run_rec2:
+                    run_rec2.hitl_required = False
+                # Update PO status if audit_id provided
+                if audit_id:
+                    po = (await session.execute(
+                        select(EscrowPORecord).where(EscrowPORecord.audit_id == audit_id)
+                    )).scalar_one_or_none()
+                    if po:
+                        po.status = "advance_released"
         except Exception as exc:
-            logger.warning(f"Could not update PO status ({exc})")
-    return {"status": "approved" if action == "APPROVE" else "rejected",
-            "audit_id": audit_id, "approved_by": user["email"], "signal_result": signal_res}
+            logger.warning(f"Could not update WorkflowRun/PO on approval ({exc})")
+
+    return {
+        "status": "approved" if action == "APPROVE" else "rejected",
+        "run_id": run_id,
+        "audit_id": audit_id,
+        "temporal_workflow_id": temporal_workflow_id,
+        "approved_by": user["email"],
+        "signal_result": signal_res,
+    }
 
 @router.get("/pos")
 async def list_escrow_pos(

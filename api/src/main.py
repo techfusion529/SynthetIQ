@@ -24,6 +24,7 @@ from src.routes import (
     liability_router,
     orchestrator_router,
     organizations_router,
+    runs_router,
     schedules_router,
     settlement_router,
     stream_router,
@@ -67,36 +68,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.warning(f"Firebase init skipped ({type(exc).__name__}: {exc})")
 
-    # 3. APScheduler - start the per-org schedule engine
-    try:
-        from src.services.scheduler_service import get_scheduler_service
-        scheduler = get_scheduler_service()
-        scheduler.start()
-        logger.info("[Scheduler] APScheduler started")
-        # Seed a default daily compliance run for the dev organisation
-        scheduler.add_schedule(
-            org_id="ORG-DEV-001",
-            workflow_type="master_e2e",
-            cron_expression="0 2 * * *",
-            name="Daily E2E compliance (dev org)",
-            workflow_params={
-                "company_id": "COMP-IN-001",
-                "volume_tons": 250,
-                "category": "cat_i_rigid",
-            },
-        )
-    except Exception as exc:
-        logger.warning(f"Scheduler start skipped ({type(exc).__name__}: {exc})")
-
     yield
 
     # ---- Shutdown ------------------------------------------------------
-    try:
-        from src.services.scheduler_service import get_scheduler_service
-        get_scheduler_service().shutdown(wait=False)
-    except Exception:
-        pass
-
     try:
         from synthetiq_shared.database import close_db  # type: ignore[import-not-found]
         await close_db()
@@ -148,6 +122,7 @@ app.include_router(schedules_router,      prefix=API_V1_STR)
 app.include_router(organizations_router,  prefix=API_V1_STR)
 app.include_router(users_router,          prefix=API_V1_STR)
 app.include_router(agent_config_router,   prefix=API_V1_STR)
+app.include_router(runs_router,           prefix=API_V1_STR)
 
 if __name__ == "__main__":
     import uvicorn

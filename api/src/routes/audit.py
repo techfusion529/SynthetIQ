@@ -1,6 +1,5 @@
 ﻿from __future__ import annotations
 
-import hashlib
 import logging
 import time
 import uuid
@@ -268,139 +267,37 @@ async def trigger_fraud_audit(
 
 ) -> dict[str, Any]:
 
-    recycler_id = payload.get("recycler_id", "RECYC-DELHI-01")
+    recycler_id: str = payload.get("recycler_id", "")
+    if not recycler_id:
+        raise HTTPException(status_code=400, detail="recycler_id required")
+    plant_id: str = payload.get("plant_id", "")
+    if not plant_id:
+        raise HTTPException(status_code=400, detail="plant_id required")
 
-    plant_id = payload.get("plant_id", "PLANT-OKHLA-2")
-
-    category = payload.get("category", "cat_i_rigid")
-
-    volume_tons = float(payload.get("volume_tons", 250.0))
-
-    simulate_spoof = bool(payload.get("simulate_spoof", False))
-
-    scada_res = await get_live_scada_stream(
-
-        user=user, _=None, mode="RESISTIVE_SPOOF" if simulate_spoof else "GENUINE"
-
-    )
-
-    jev = scada_res["jev_evaluation"]
-
-    physics = scada_res["physics"]
+    category: str = payload.get("category", "cat_i_rigid")
+    volume_tons: float = float(payload.get("volume_tons", 250.0))
+    simulate_spoof: bool = bool(payload.get("simulate_spoof", False))
 
     audit_id = f"AUD-{uuid.uuid4().hex[:8].upper()}"
-
-
-
-    # Calculate deterministic physical Delta_mass equation (Priority 2)
-
-    sec_constants = {"cat_i_rigid": 0.45, "cat_ii_flexible": 0.38, "cat_iii_mlp": 0.52, "cat_iv_compostable": 0.35}
-
-    sec = sec_constants.get(category.lower(), 0.45)
-
-    eta_motor = 0.92
-
-    m_claimed_kg = max(0.0, volume_tons * 1000.0)
-
-    melt_rate = float(physics.get("melt_rate_kg_h", 250.0))
-
-    kw = float(physics.get("active_power_kw", 95.0))
-
-    e_total = kw * (m_claimed_kg / max(1.0, melt_rate))
-
-    m_theo_kg = (e_total * eta_motor) / sec if sec > 0 else m_claimed_kg
-
-    m_theo_tons = round(m_theo_kg / 1000.0, 3)
-
-    delta_mass = round(abs(m_claimed_kg - m_theo_kg) / max(1.0, m_claimed_kg), 4)
-
-
-
-    is_spoofed = bool(jev.get("is_spoofed", False))
-
-    needs_hitl = is_spoofed or (delta_mass > 0.02)
-
-    verdict = "PENDING_HITL_REVIEW" if needs_hitl else ("APPROVED" if jev.get("physical_melt_verified") else "REJECTED_FRAUD")
-
-    confidence = min(float(jev.get("confidence_score", 1.0)), 0.45 if delta_mass > 0.02 else 0.98)
-
-
-
-    seed = f"{audit_id}:{recycler_id}:{plant_id}:{physics['torque_nm']}:{physics['power_factor']}:{delta_mass}:{verdict}"
-
-    audit_hash = hashlib.sha256(seed.encode()).hexdigest()
-
-
-
-    flags = list(jev.get("flags", []))
-
-    if delta_mass > 0.02:
-
-        flags.append(f"PHYSICAL_MASS_ENERGY_MISMATCH: Delta_mass={delta_mass:.2%} > 2.0% statutory threshold (Claimed={volume_tons}t vs Theoretical={m_theo_tons}t)")
-
-
-
-    record: dict[str, Any] = {
-
-        "audit_id": audit_id, "recycler_id": recycler_id, "plant_id": plant_id,
-
-        "plastic_category": category, "reported_volume_tons": volume_tons,
-
-        "verified_physical_melt_tons": volume_tons if not needs_hitl else 0.0,
-
-        "physical_melt_verified": not needs_hitl,
-
-        "confidence_score": confidence, "eway_bill_verified": True,
-
-        "audit_verdict": verdict, "rejection_reasons": flags,
-
-        "audit_hash": audit_hash, "physics": physics,
-
-        "delta_mass": delta_mass, "theoretical_volume_tons": m_theo_tons,
-
-        "sec_kwh_per_kg": sec, "energy_total_kwh": round(e_total, 2),
-
-        "requires_hitl": needs_hitl,
-
-        "workflow_id": f"wf3-audit-{audit_id}",
-
-        "triggered_by": user["email"], "timestamp": time.time(),
-
-    }
-
-    await _persist_audit(record)
-
-
-
-    # Dispatch to Temporal with physical parameters
+    workflow_id = f"wf3-audit-{audit_id}"
 
     await temporal_service.start_workflow(
-
         workflow_name="QuadCoreAuditWorkflow",
-
-        workflow_id=f"wf3-audit-{audit_id}",
-
+        workflow_id=workflow_id,
         args=[
-
-            recycler_id, plant_id, volume_tons,
-
-            physics.get("torque_nm", 45.0),
-
-            physics.get("power_factor", 0.85),
-
-            physics.get("active_power_kw", 95.0),
-
-            physics.get("vfd_frequency_hz", 50.0),
-
-            physics.get("melt_rate_kg_h", 250.0),
-
+            recycler_id,
+            plant_id,
+            volume_tons,
             category,
-
+            simulate_spoof,
         ],
-
+        task_queue="synthetiq-main",
     )
-
-    return record
+    return {
+        "audit_id": audit_id,
+        "status": "RUNNING",
+        "workflow_id": workflow_id,
+    }
 
 
 

@@ -19,6 +19,7 @@ from sqlalchemy import select
 from src.middleware.auth import CurrentUser
 from src.middleware.rbac import assert_same_org, require_permission
 from src.services.data_connector_shim import get_connector_for_org
+from synthetiq_shared.constants import STATUTORY_CEILING_INR_PER_KG
 from synthetiq_shared.database import get_db_session
 from synthetiq_shared.models import AgentConfiguration, DataSource, Organization
 
@@ -288,7 +289,7 @@ async def test_agent_with_dynamic_data(
 
     elif agent_name == "treasury":
         target_tons = float(sample.get("target_tons", 250.0))
-        base_rate = float(agent_cfg.parameters.get("statutory_base_rate_inr", 12.0))
+        base_rate = float(agent_cfg.parameters.get("statutory_base_rate_inr", STATUTORY_CEILING_INR_PER_KG))
         clearing_price = round(base_rate * 0.65, 2)
 
         return {

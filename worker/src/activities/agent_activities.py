@@ -154,6 +154,8 @@ async def execute_double_auction_activity(
     result.setdefault("category", category)
     result.setdefault("cleared_tons", result.get("total_tons", target_tons))
     result.setdefault("clearing_price_inr", result.get("clearing_price_inr", statutory_base_rate * 0.65))
+    # Fix 1: normalise treasury agent key (clearing_price_inr) to canonical name
+    result.setdefault("clearing_price", result.get("clearing_price_inr"))
 
     # C3: fail-closed gates — no hardcoded winner default
     _require(result, "clearing_price", "auction")
@@ -217,6 +219,11 @@ async def audit_scada_telemetry_activity(
     result.setdefault("plastic_category", category)
     result.setdefault("is_spoofed", False)
 
+    # Fix 2: normalise auditor agent key (delta_mass) to canonical delta_percent
+    # The auditor agent may return delta_mass; map it to the canonical gate field.
+    if "delta_percent" not in result and "delta_mass" in result:
+        result["delta_percent"] = result["delta_mass"]
+
     # C3: fail-closed gate — require delta_percent from agent
     _require(result, "delta_percent", "audit")
 
@@ -260,6 +267,11 @@ async def create_escrow_split_po_activity(
     logger.info(f"[Activity] Escrow PO  -  {company_id}  - ' {recycler_id}, {plastic_tons}t")
 
     # C3: fail-closed gates — no hardcoded defaults
+    # non_retryable=True is intentional here: audit_verdict and human_approved are
+    # caller-supplied workflow parameters, not transient agent outputs. If they are
+    # None at call time, no number of retries can supply them — the calling workflow
+    # must be fixed. This is the one deliberate deviation from the retryable pattern
+    # used by _require() elsewhere in this file.
     if audit_verdict is None:
         raise ApplicationError(
             "FAIL_CLOSED: audit_verdict not provided to PO activity",
@@ -285,7 +297,10 @@ async def create_escrow_split_po_activity(
     )
 
     result.setdefault("po_number", f"PO-{uuid.uuid4().hex[:8].upper()}")
-    return result
+    # Fix 3: validate required PO fields and return typed POResult instead of raw dict
+    _require(result, "po_id", "po")
+    _require(result, "escrow_amount", "po")
+    return POResult(**result).model_dump()
 
 
 # ---------------------------------------------------------------------------

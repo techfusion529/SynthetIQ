@@ -61,33 +61,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [user, setUserState] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Initialize session from localStorage or Dev Mode defaults
+  // Initialize session from localStorage only — no auto dev-session fallback
   useEffect(() => {
     try {
       const storedToken = localStorage.getItem(TOKEN_KEY);
       const storedUser = localStorage.getItem(USER_KEY);
-
       if (storedToken && storedUser) {
         setTokenState(storedToken);
         setUserState(JSON.parse(storedUser));
-      } else {
-        // Fallback default dev session so the dashboard works seamlessly out of the box
-        const defaultDevUser: AuthUser = {
-          user_id: "USR-ADMIN-001",
-          email: "compliance_officer@synthetiq.ai",
-          display_name: "Compliance Officer",
-          role: "admin",
-          org_id: "ORG-DEV-001",
-          organization_name: "Hindustan Consumer Goods Ltd",
-        };
-        const devToken = process.env.NEXT_PUBLIC_DEV_AUTH_TOKEN || "dev-synthetiq-admin-token";
-        setTokenState(devToken);
-        setUserState(defaultDevUser);
-        localStorage.setItem(TOKEN_KEY, devToken);
-        localStorage.setItem(USER_KEY, JSON.stringify(defaultDevUser));
       }
+      // No stored session → leave token="" and user=null so login screen shows
     } catch {
-      // LocalStorage not available or parse error
+      // localStorage not available or parse error
     } finally {
       setLoading(false);
     }
@@ -108,29 +93,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const resp = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password: password || "Password123!" }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (!resp.ok) {
-        throw new Error(`Login failed with status ${resp.status}`);
+        const err = await resp.json().catch(() => ({}));
+        throw new Error((err as { detail?: string }).detail || `Login failed (${resp.status})`);
       }
 
       const data = await resp.json();
       setSession(data.access_token, data.user);
       return true;
     } catch (err) {
-      console.error("Login error:", err);
-      // Dev mode fallback login
-      const fallbackUser: AuthUser = {
-        user_id: "USR-DEV-LOGIN",
-        email: email,
-        display_name: email.split("@")[0],
-        role: "admin",
-        org_id: "ORG-DEV-001",
-        organization_name: "Hindustan Consumer Goods Ltd",
-      };
-      setSession("dev-token-fallback", fallbackUser);
-      return true;
+      // Re-throw so callers can display the error — no silent fallback
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -154,7 +130,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       if (!resp.ok) {
         const errorData = await resp.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Registration failed (${resp.status})`);
+        throw new Error((errorData as { detail?: string }).detail || `Registration failed (${resp.status})`);
       }
 
       const data = await resp.json();

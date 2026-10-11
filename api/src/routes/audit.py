@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.middleware.auth import CurrentUser
 
@@ -21,91 +21,6 @@ from src.services.temporal_service import temporal_service
 router = APIRouter(prefix="/audit", tags=["Workflow 3 - Fraud Audit"])
 
 logger = logging.getLogger(__name__)
-
-
-
-_AUDITS_DB: dict[str, dict[str, Any]] = {
-
-    "AUD-2026-881": {
-
-        "audit_id": "AUD-2026-881", "recycler_id": "RECYC-DELHI-01",
-
-        "plant_id": "PLANT-OKHLA-2", "plastic_category": "cat_i_rigid",
-
-        "reported_volume_tons": 250.0, "verified_physical_melt_tons": 248.6,
-
-        "physical_melt_verified": True, "confidence_score": 0.965,
-
-        "eway_bill_verified": True, "audit_verdict": "APPROVED",
-
-        "rejection_reasons": [], "audit_hash": "e3b0c44298fc1c149afbf4c8996fb9seed",
-
-        "triggered_by": "seed", "timestamp": 1727760000.0,
-
-    }
-
-}
-
-_seeded = False
-
-
-
-async def _seed_db_if_empty() -> None:
-
-    global _seeded
-
-    if _seeded:
-
-        return
-
-    try:
-
-        from sqlalchemy import select, func as sqlfunc
-
-        from synthetiq_shared.database import get_db_session
-
-        from synthetiq_shared.models import AuditRecord
-
-        async with get_db_session() as session:
-
-            cnt = (await session.execute(select(sqlfunc.count()).select_from(AuditRecord))).scalar() or 0
-
-            if cnt == 0:
-
-                s = _AUDITS_DB["AUD-2026-881"]
-
-                session.add(AuditRecord(
-
-                    audit_id=s["audit_id"], recycler_id=s["recycler_id"], plant_id=s["plant_id"],
-
-                    plastic_category=s["plastic_category"],
-
-                    reported_volume_tons=s["reported_volume_tons"],
-
-                    verified_physical_melt_tons=s["verified_physical_melt_tons"],
-
-                    physical_melt_verified=s["physical_melt_verified"],
-
-                    confidence_score=s["confidence_score"],
-
-                    eway_bill_verified=s["eway_bill_verified"],
-
-                    audit_verdict=s["audit_verdict"],
-
-                    rejection_reasons=s["rejection_reasons"],
-
-                    audit_hash=s["audit_hash"], triggered_by="seed",
-
-                ))
-
-                logger.info("Seeded audit DB with AUD-2026-881")
-
-        _seeded = True
-
-    except Exception as exc:
-
-        logger.warning(f"Audit seed failed ({exc})")
-
 
 
 async def _get_all_audits() -> list[dict[str, Any]]:
@@ -126,15 +41,13 @@ async def _get_all_audits() -> list[dict[str, Any]]:
 
             )).scalars().all()
 
-            if rows:
-
-                return [r.to_dict() for r in rows]
+            return [r.to_dict() for r in rows]
 
     except Exception as exc:
 
         logger.warning(f"DB audit query failed ({exc})")
 
-    return sorted(_AUDITS_DB.values(), key=lambda x: x.get("timestamp", 0), reverse=True)
+    return []
 
 
 
@@ -164,12 +77,11 @@ async def _get_audit(audit_id: str) -> dict[str, Any] | None:
 
         pass
 
-    return _AUDITS_DB.get(audit_id)
+    return None
 
 
 
 async def _persist_audit(record: dict[str, Any]) -> None:
-    _AUDITS_DB[record["audit_id"]] = record
     try:
         from sqlalchemy import select
         from synthetiq_shared.database import get_db_session
@@ -503,8 +415,6 @@ async def list_audit_verdicts(
 
 ) -> list[dict[str, Any]]:
 
-    await _seed_db_if_empty()
-
     return await _get_all_audits()
 
 
@@ -516,8 +426,6 @@ async def get_audit_verdict(
     audit_id: str, user: CurrentUser, _: Any = Depends(require_permission("audits:read"))
 
 ) -> dict[str, Any]:
-
-    await _seed_db_if_empty()
 
     record = await _get_audit(audit_id)
 
@@ -542,8 +450,6 @@ async def list_audit_exceptions(
 ) -> list[dict[str, Any]]:
 
     """List all audit records currently awaiting human compliance officer review (Feature 5 AC 5.1)."""
-
-    await _seed_db_if_empty()
 
     all_audits = await _get_all_audits()
 
@@ -693,33 +599,11 @@ async def download_audit_report_pdf(
 
 
 
-    await _seed_db_if_empty()
-
     record = await _get_audit(audit_id)
 
     if not record:
 
-        record = {
-
-            "audit_id": audit_id,
-
-            "recycler_id": "RECYC-DELHI-01",
-
-            "plant_id": "PLANT-OKHLA-2",
-
-            "company_id": "COMP-001",
-
-            "plastic_category": "cat_i_rigid",
-
-            "reported_volume_tons": 250.0,
-
-            "verified_physical_melt_tons": 248.6,
-
-            "audit_verdict": "APPROVED",
-
-            "delta_mass": 0.0056,
-
-        }
+        raise HTTPException(status_code=404, detail=f"Audit {audit_id} not found")
 
 
 
@@ -757,8 +641,6 @@ async def get_audit_report_json(
 
     """Retrieve full structured statutory CPCB Form-1 filing metadata."""
 
-    await _seed_db_if_empty()
-
     record = await _get_audit(audit_id)
 
     if not record:
@@ -773,11 +655,8 @@ async def get_audit_report_json(
 
         "dossier": record,
 
-        "dsc_status": "VALID_DIGITAL_SIGNATURE",
+        "dsc_status": record.get("dsc_status", "PENDING_DSC"),
 
-        "hash_chain_verified": True,
+        "hash_chain_verified": bool(record.get("audit_hash")),
 
     }
-
-
-

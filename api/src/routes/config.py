@@ -21,7 +21,7 @@ from src.constants import (
     TEMPORAL_HOST,
 )
 from src.middleware.auth import CurrentUser
-from src.middleware.rbac import require_permission
+from src.middleware.rbac import require_permission, require_platform_admin
 
 router = APIRouter(prefix="/config", tags=["System & Engine Configuration"])
 
@@ -58,14 +58,6 @@ def get_runtime_config() -> EngineConfig:
     return _RUNTIME_CONFIG
 
 
-def mask_key(key: str) -> str:
-    if not key:
-        return "NOT_CONFIGURED (Mock Fallback)"
-    if len(key) <= 8:
-        return "********"
-    return f"{key[:6]}...{key[-4:]}"
-
-
 async def check_http_service(url: str, path: str = "/health") -> dict[str, Any]:
     full_url = f"{url.rstrip('/')}{path}"
     try:
@@ -79,8 +71,8 @@ async def check_http_service(url: str, path: str = "/health") -> dict[str, Any]:
 
 
 @router.get("")
-async def get_system_config() -> dict[str, Any]:
-    """Returns active runtime configuration and microservice statuses. Public read."""
+async def get_system_config(user: CurrentUser) -> dict[str, Any]:
+    """Returns active runtime configuration and microservice statuses. Requires authentication."""
     # Live health checks
     mcp_status = await check_http_service(_RUNTIME_CONFIG.mcp_url)
     simulator_status = await check_http_service(_RUNTIME_CONFIG.simulator_url)
@@ -89,7 +81,6 @@ async def get_system_config() -> dict[str, Any]:
     return {
         "gemini": {
             "model": _RUNTIME_CONFIG.gemini_model,
-            "api_key_masked": mask_key(_RUNTIME_CONFIG.gemini_api_key),
             "is_key_provided": bool(_RUNTIME_CONFIG.gemini_api_key),
             "temperature": 0.2,
         },
@@ -125,9 +116,9 @@ async def get_system_config() -> dict[str, Any]:
 async def update_system_config(
     payload: dict[str, Any],
     user: CurrentUser,
-    _: Any = Depends(require_permission("config:write")),
+    _: Any = Depends(require_platform_admin()),
 ) -> dict[str, Any]:
-    """Updates runtime engine configuration. Requires config:write (admin only)."""
+    """Updates runtime engine configuration. Requires platform_admin role."""
     if "gemini_model" in payload and payload["gemini_model"]:
         _RUNTIME_CONFIG.gemini_model = str(payload["gemini_model"])
     if "gemini_api_key" in payload:
@@ -146,15 +137,15 @@ async def update_system_config(
         "status": "success",
         "message": "Configuration updated successfully",
         "gemini_model": _RUNTIME_CONFIG.gemini_model,
-        "api_key_masked": mask_key(_RUNTIME_CONFIG.gemini_api_key),
+        "is_key_provided": bool(_RUNTIME_CONFIG.gemini_api_key),
         "jev_mode": _RUNTIME_CONFIG.jev_mode,
         "torque_threshold_nm": _RUNTIME_CONFIG.torque_threshold_nm,
     }
 
 
 @router.post("/test-gemini")
-async def test_gemini_connection(payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Tests Gemini connectivity with given or configured API key."""
+async def test_gemini_connection(user: CurrentUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Tests Gemini connectivity with given or configured API key. Requires authentication."""
     api_key = (payload or {}).get("api_key") or _RUNTIME_CONFIG.gemini_api_key
     model = (payload or {}).get("model") or _RUNTIME_CONFIG.gemini_model
 

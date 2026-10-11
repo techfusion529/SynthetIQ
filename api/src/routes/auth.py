@@ -6,18 +6,28 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 
 from src.middleware.auth import CurrentUser, get_optional_user
 from src.services.auth_service import auth_service
-from src.services.jwt_utils import create_access_token, hash_password, verify_password
+from src.services.jwt_utils import (
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    verify_password,
+    verify_refresh_token,
+)
 from synthetiq_shared.database import get_db_session
 from synthetiq_shared.models import AgentConfiguration, Organization, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication & Identity"])
+
+limiter = Limiter(key_func=get_remote_address)
 
 
 class LoginRequest(BaseModel):
@@ -37,6 +47,10 @@ class RegisterRequest(BaseModel):
     annual_plastic_footprint_tons: float = 0.0
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
 class UserResponse(BaseModel):
     user_id: str
     email: str
@@ -48,12 +62,14 @@ class UserResponse(BaseModel):
 
 class AuthResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     user: UserResponse
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(payload: LoginRequest) -> AuthResponse:
+@limiter.limit("5/15minutes")
+async def login(request: Request, payload: LoginRequest) -> AuthResponse:
     """Authenticate user with email/password or Firebase ID token."""
     email = payload.email.strip().lower()
 
@@ -66,30 +82,7 @@ async def login(payload: LoginRequest) -> AuthResponse:
         )
         row = result.first()
 
-        # If user not found, or in development mode, check dev credentials
         if not row:
-            # Check dev mode fallback
-            if auth_service.dev_mode:
-                dev_claims = auth_service._dev_user()
-                token = create_access_token({
-                    "uid": dev_claims["uid"],
-                    "email": email,
-                    "display_name": dev_claims["display_name"],
-                    "role": dev_claims["role"],
-                    "org_id": dev_claims["org_id"],
-                    "authorized": True,
-                })
-                return AuthResponse(
-                    access_token=token,
-                    user=UserResponse(
-                        user_id=dev_claims["uid"],
-                        email=email,
-                        display_name=dev_claims["display_name"],
-                        role=dev_claims["role"],
-                        org_id=dev_claims["org_id"],
-                        organization_name="Dev Organization",
-                    ),
-                )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password",
@@ -100,12 +93,10 @@ async def login(payload: LoginRequest) -> AuthResponse:
         # Verify password if provided
         if payload.password:
             if not user.password_hash or not verify_password(payload.password, user.password_hash):
-                # Also allow dev password for convenience
-                if payload.password != "Password123!" and not auth_service.dev_mode:
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Invalid email or password",
-                    )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid email or password",
+                )
         elif payload.id_token:
             # Verify Firebase token
             try:
@@ -126,17 +117,25 @@ async def login(payload: LoginRequest) -> AuthResponse:
                 detail="Password or id_token must be provided",
             )
 
-        token = create_access_token({
+        token_payload = {
             "uid": user.user_id,
             "email": user.email,
             "display_name": user.display_name,
             "role": user.role,
             "org_id": user.org_id,
             "authorized": True,
+        }
+        token = create_access_token(token_payload)
+        refresh = create_refresh_token({
+            "uid": user.user_id,
+            "email": user.email,
+            "role": user.role,
+            "org_id": user.org_id,
         })
 
         return AuthResponse(
             access_token=token,
+            refresh_token=refresh,
             user=UserResponse(
                 user_id=user.user_id,
                 email=user.email,
@@ -214,9 +213,16 @@ async def register(payload: RegisterRequest) -> AuthResponse:
         "org_id": org_id,
         "authorized": True,
     })
+    refresh = create_refresh_token({
+        "uid": user_id,
+        "email": email,
+        "role": "admin",
+        "org_id": org_id,
+    })
 
     return AuthResponse(
         access_token=token,
+        refresh_token=refresh,
         user=UserResponse(
             user_id=user_id,
             email=email,
@@ -224,6 +230,59 @@ async def register(payload: RegisterRequest) -> AuthResponse:
             role="admin",
             org_id=org_id,
             organization_name=payload.organization_name,
+        ),
+    )
+
+
+@router.post("/refresh", response_model=AuthResponse)
+async def refresh_token_endpoint(payload: RefreshRequest) -> AuthResponse:
+    """Issue a new access token and refresh token given a valid refresh token."""
+    try:
+        claims = verify_refresh_token(payload.refresh_token)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+
+    # Re-verify user is still active and role is current from the database
+    async with get_db_session() as session:
+        result = await session.execute(
+            select(User, Organization)
+            .join(Organization, User.org_id == Organization.org_id)
+            .where(User.user_id == claims["uid"])
+            .where(User.is_active.is_(True))
+        )
+        row = result.first()
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User no longer active",
+            )
+        user, org = row
+
+    new_access = create_access_token({
+        "uid": user.user_id,
+        "email": user.email,
+        "display_name": user.display_name,
+        "role": user.role,
+        "org_id": user.org_id,
+        "authorized": True,
+    })
+    new_refresh = create_refresh_token({
+        "uid": user.user_id,
+        "email": user.email,
+        "role": user.role,
+        "org_id": user.org_id,
+    })
+
+    return AuthResponse(
+        access_token=new_access,
+        refresh_token=new_refresh,
+        user=UserResponse(
+            user_id=user.user_id,
+            email=user.email,
+            display_name=user.display_name,
+            role=user.role,
+            org_id=user.org_id,
+            organization_name=org.name,
         ),
     )
 

@@ -6,7 +6,8 @@ import os
 
 API_V1_STR: str = "/api/v1"
 PROJECT_NAME: str = "SynthetIQ API Gateway"
-CORS_ORIGINS: list[str] = ["*"]
+_cors_env = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+CORS_ORIGINS: list[str] = [o.strip() for o in _cors_env.split(",") if o.strip()]
 FIREBASE_PROJECT_ID: str = os.getenv("FIREBASE_PROJECT_ID", "synthetiq-cpcb-compliance")
 
 # Microservice Endpoints

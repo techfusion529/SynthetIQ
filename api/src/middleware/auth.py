@@ -25,14 +25,17 @@ async def get_current_user(
 ) -> dict[str, Any]:
     """FastAPI dependency that extracts and verifies the current user.
 
+    Re-verifies user status and role from the database on every request
+    to prevent stale token claims from granting access to deactivated accounts.
+
     Args:
         authorization: Authorization header (Bearer <token>)
 
     Returns:
-        Verified user claims dict
+        Verified user claims dict (role/org_id always reflect live DB values)
 
     Raises:
-        HTTPException: 401 if token is missing or invalid
+        HTTPException: 401 if token is missing, invalid, or user is inactive
     """
     try:
         user = await auth_service.verify_token(authorization)
@@ -42,14 +45,41 @@ async def get_current_user(
                 detail="User is not authorized",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        return user
-
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Re-verify user is still active and use live role/org_id from DB
+    uid = user.get("uid")
+    if uid:
+        try:
+            from sqlalchemy import select
+            from synthetiq_shared.database import get_db_session
+            from synthetiq_shared.models import User as UserModel
+            async with get_db_session() as session:
+                db_user = (await session.execute(
+                    select(UserModel)
+                    .where(UserModel.user_id == uid)
+                    .where(UserModel.is_active.is_(True))
+                )).scalar_one_or_none()
+                if db_user is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="User account is inactive or deleted",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+                # Always use DB role and org_id — prevents stale token elevation
+                user["role"] = db_user.role
+                user["org_id"] = db_user.org_id
+        except HTTPException:
+            raise
+        except Exception as db_err:
+            logger.warning(f"Could not re-verify user from DB: {db_err}")
+
+    return user
 
 
 # Type alias for use in route signatures

@@ -67,46 +67,64 @@ PERMISSIONS: dict[str, set[str]] = {
     },
 }
 
+# platform_admin has all admin permissions plus platform-wide privileges
+PERMISSIONS["platform_admin"] = PERMISSIONS["admin"] | {
+    "platform:admin",
+    "orgs:admin",
+    "config:platform_write",
+}
+
 
 def get_user_permissions(role: str) -> set[str]:
-    """Get the permission set for a given role.
-
-    Args:
-        role: User role string
-
-    Returns:
-        Set of permission strings
-    """
+    """Get the permission set for a given role."""
     return PERMISSIONS.get(role, set())
 
 
 def has_permission(user: dict[str, Any], permission: str) -> bool:
-    """Check if a user has a specific permission.
-
-    Args:
-        user: User claims dict with 'role' key
-        permission: Permission string (e.g., 'workflows:execute')
-
-    Returns:
-        True if the user's role grants the permission
-    """
+    """Check if a user has a specific permission."""
     role = user.get("role", "viewer")
     return permission in get_user_permissions(role)
+
+
+# ---------------------------------------------------------------------------
+# Cross-tenant and platform-admin guards
+# ---------------------------------------------------------------------------
+
+def assert_same_org(token_org_id: str, resource_org_id: str) -> None:
+    """Raise HTTP 403 if the token's org does not match the resource's org.
+
+    No role exemptions — platform_admin routes must use assert_platform_admin instead.
+    """
+    if token_org_id != resource_org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cross-tenant access denied",
+        )
+
+
+def assert_platform_admin(user: dict[str, Any]) -> None:
+    """Raise HTTP 403 if user is not a platform_admin."""
+    if user.get("role") != "platform_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin access required",
+        )
 
 
 # ---------------------------------------------------------------------------
 # FastAPI Dependencies
 # ---------------------------------------------------------------------------
 
+def require_platform_admin() -> Callable:
+    """Dependency that requires the user to be a platform_admin."""
+    async def _check(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+        assert_platform_admin(user)
+        return user
+    return _check
+
+
 def require_role(*allowed_roles: str) -> Callable:
-    """Create a dependency that requires the user to have one of the specified roles.
-
-    Args:
-        *allowed_roles: Accepted role names
-
-    Returns:
-        FastAPI dependency function
-    """
+    """Create a dependency that requires the user to have one of the specified roles."""
     async def _check_role(
         user: dict[str, Any] = Depends(get_current_user),
     ) -> dict[str, Any]:
@@ -126,14 +144,7 @@ def require_role(*allowed_roles: str) -> Callable:
 
 
 def require_permission(permission: str) -> Callable:
-    """Create a dependency that requires a specific permission.
-
-    Args:
-        permission: Permission string (e.g., 'workflows:execute')
-
-    Returns:
-        FastAPI dependency function
-    """
+    """Create a dependency that requires a specific permission."""
     async def _check_permission(
         user: dict[str, Any] = Depends(get_current_user),
     ) -> dict[str, Any]:
@@ -155,14 +166,7 @@ def require_permission(permission: str) -> Callable:
 def require_org_member(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Ensure the user belongs to an organization.
-
-    Returns:
-        User claims dict (guaranteed to have org_id)
-
-    Raises:
-        HTTPException: 403 if user has no org_id
-    """
+    """Ensure the user belongs to an organization."""
     if not user.get("org_id"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

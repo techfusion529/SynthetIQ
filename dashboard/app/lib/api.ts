@@ -10,7 +10,6 @@ const API_BASE =
 export interface SystemConfig {
   gemini: {
     model: string;
-    api_key_masked: string;
     is_key_provided: boolean;
     temperature: number;
   };
@@ -87,32 +86,50 @@ export interface ScadaLiveResponse {
 }
 
 // -------------------------------------------------------------
+// Auth header helper
+// Every authenticated call MUST pass a token from the session.
+// If the token is absent the call fails with an error — no silent fallback.
+// -------------------------------------------------------------
+export function makeAuthHeaders(token: string): HeadersInit {
+  if (!token) {
+    throw new Error("No auth token — user must be logged in");
+  }
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
+
+// -------------------------------------------------------------
 // System Engine & Model Configuration
 // -------------------------------------------------------------
-export async function fetchConfig(): Promise<SystemConfig | null> {
+export async function fetchConfig(token: string): Promise<SystemConfig | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/v1/config`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/api/v1/config`, {
+      cache: "no-store",
+      headers: makeAuthHeaders(token),
+    });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
-    console.warn("Could not reach API gateway config endpoint, using local defaults:", err);
+    console.warn("Could not reach API gateway config endpoint:", err);
     return null;
   }
 }
 
-export async function updateConfig(payload: Record<string, any>): Promise<any> {
+export async function updateConfig(token: string, payload: Record<string, any>): Promise<any> {
   const res = await fetch(`${API_BASE}/api/v1/config`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: makeAuthHeaders(token),
     body: JSON.stringify(payload),
   });
   return await res.json();
 }
 
-export async function testGemini(apiKey?: string, model?: string): Promise<any> {
+export async function testGemini(token: string, apiKey?: string, model?: string): Promise<any> {
   const res = await fetch(`${API_BASE}/api/v1/config/test-gemini`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: makeAuthHeaders(token),
     body: JSON.stringify({ api_key: apiKey, model }),
   });
   return await res.json();
@@ -121,16 +138,19 @@ export async function testGemini(apiKey?: string, model?: string): Promise<any> 
 // -------------------------------------------------------------
 // Autonomous End-to-End Orchestrator
 // -------------------------------------------------------------
-export async function runE2ECompliance(params: {
-  company_id?: string;
-  fiscal_year?: string;
-  category?: string;
-  volume_tons?: number;
-  simulate_spoof?: boolean;
-}): Promise<E2ERunResult> {
+export async function runE2ECompliance(
+  token: string,
+  params: {
+    company_id?: string;
+    fiscal_year?: string;
+    category?: string;
+    volume_tons?: number;
+    simulate_spoof?: boolean;
+  }
+): Promise<E2ERunResult> {
   const res = await fetch(`${API_BASE}/api/v1/compliance/run-e2e`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: makeAuthHeaders(token),
     body: JSON.stringify(params),
   });
   if (!res.ok) {
@@ -139,9 +159,12 @@ export async function runE2ECompliance(params: {
   return await res.json();
 }
 
-export async function fetchComplianceRuns(): Promise<E2ERunResult[]> {
+export async function fetchComplianceRuns(token: string): Promise<E2ERunResult[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/v1/compliance/runs`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/api/v1/compliance/runs`, {
+      cache: "no-store",
+      headers: makeAuthHeaders(token),
+    });
     if (!res.ok) return [];
     return await res.json();
   } catch {
@@ -152,9 +175,15 @@ export async function fetchComplianceRuns(): Promise<E2ERunResult[]> {
 // -------------------------------------------------------------
 // Live SCADA Telemetry & Jev Reflex Fraud Audit
 // -------------------------------------------------------------
-export async function fetchLiveScada(mode: "GENUINE" | "RESISTIVE_SPOOF" = "GENUINE"): Promise<ScadaLiveResponse | null> {
+export async function fetchLiveScada(
+  token: string,
+  mode: "GENUINE" | "RESISTIVE_SPOOF" = "GENUINE"
+): Promise<ScadaLiveResponse | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/v1/audit/scada/live?mode=${mode}`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/api/v1/audit/scada/live?mode=${mode}`, {
+      cache: "no-store",
+      headers: makeAuthHeaders(token),
+    });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
@@ -162,24 +191,30 @@ export async function fetchLiveScada(mode: "GENUINE" | "RESISTIVE_SPOOF" = "GENU
   }
 }
 
-export async function triggerAudit(params: {
-  recycler_id?: string;
-  plant_id?: string;
-  category?: string;
-  volume_tons?: number;
-  simulate_spoof?: boolean;
-}): Promise<any> {
+export async function triggerAudit(
+  token: string,
+  params: {
+    recycler_id?: string;
+    plant_id?: string;
+    category?: string;
+    volume_tons?: number;
+    simulate_spoof?: boolean;
+  }
+): Promise<any> {
   const res = await fetch(`${API_BASE}/api/v1/audit/trigger`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: makeAuthHeaders(token),
     body: JSON.stringify(params),
   });
   return await res.json();
 }
 
-export async function fetchAuditVerdicts(): Promise<any[]> {
+export async function fetchAuditVerdicts(token: string): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/v1/audit/verdicts`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/api/v1/audit/verdicts`, {
+      cache: "no-store",
+      headers: makeAuthHeaders(token),
+    });
     if (!res.ok) return [];
     return await res.json();
   } catch {
@@ -190,9 +225,12 @@ export async function fetchAuditVerdicts(): Promise<any[]> {
 // -------------------------------------------------------------
 // Liability & Upstream Planning
 // -------------------------------------------------------------
-export async function fetchLiabilityReport(companyId: string): Promise<any> {
+export async function fetchLiabilityReport(token: string, companyId: string): Promise<any> {
   try {
-    const res = await fetch(`${API_BASE}/api/v1/liability/report/${companyId}`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/api/v1/liability/report/${companyId}`, {
+      cache: "no-store",
+      headers: makeAuthHeaders(token),
+    });
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -200,10 +238,10 @@ export async function fetchLiabilityReport(companyId: string): Promise<any> {
   }
 }
 
-export async function calculateLiability(payload: any): Promise<any> {
+export async function calculateLiability(token: string, payload: any): Promise<any> {
   const res = await fetch(`${API_BASE}/api/v1/liability/calculate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: makeAuthHeaders(token),
     body: JSON.stringify(payload),
   });
   return await res.json();
@@ -212,9 +250,12 @@ export async function calculateLiability(payload: any): Promise<any> {
 // -------------------------------------------------------------
 // Liquidity & Continuous Double Auction
 // -------------------------------------------------------------
-export async function fetchAuctions(): Promise<any[]> {
+export async function fetchAuctions(token: string): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/v1/auctions/`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/api/v1/auctions/`, {
+      cache: "no-store",
+      headers: makeAuthHeaders(token),
+    });
     if (!res.ok) return [];
     return await res.json();
   } catch {
@@ -222,10 +263,10 @@ export async function fetchAuctions(): Promise<any[]> {
   }
 }
 
-export async function broadcastRfp(payload: any): Promise<any> {
+export async function broadcastRfp(token: string, payload: any): Promise<any> {
   const res = await fetch(`${API_BASE}/api/v1/auctions/rfp`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: makeAuthHeaders(token),
     body: JSON.stringify(payload),
   });
   return await res.json();
@@ -234,9 +275,12 @@ export async function broadcastRfp(payload: any): Promise<any> {
 // -------------------------------------------------------------
 // 80/20 Escrow Gate & CPCB Form-1 Dispatch
 // -------------------------------------------------------------
-export async function fetchEscrowPOs(): Promise<any[]> {
+export async function fetchEscrowPOs(token: string): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/v1/settlement/pos`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/api/v1/settlement/pos`, {
+      cache: "no-store",
+      headers: makeAuthHeaders(token),
+    });
     if (!res.ok) return [];
     return await res.json();
   } catch {
@@ -244,22 +288,24 @@ export async function fetchEscrowPOs(): Promise<any[]> {
   }
 }
 
-export async function approveEscrow(auditId: string, action: string = "APPROVE"): Promise<any> {
+export async function approveEscrow(
+  auditId: string,
+  token: string,
+  action: string = "APPROVE",
+): Promise<any> {
   const res = await fetch(`${API_BASE}/api/v1/settlement/approve`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer mock-firebase-token-cpcb-co",
-    },
+    headers: makeAuthHeaders(token),
     body: JSON.stringify({ audit_id: auditId, action }),
   });
+  if (!res.ok) throw new Error(`approveEscrow failed: ${res.status}`);
   return await res.json();
 }
 
-export async function dispatchForm1(poNumber: string): Promise<any> {
+export async function dispatchForm1(token: string, poNumber: string): Promise<any> {
   const res = await fetch(`${API_BASE}/api/v1/settlement/form1/dispatch`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: makeAuthHeaders(token),
     body: JSON.stringify({ po_number: poNumber }),
   });
   return await res.json();

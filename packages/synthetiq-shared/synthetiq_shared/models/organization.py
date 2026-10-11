@@ -89,6 +89,9 @@ class User(Base):
 
     role: Mapped[str] = mapped_column(String(32), default="viewer")
 
+    # Platform-level admin flag -- grants cross-tenant management capabilities
+    platform_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+
     org_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("organizations.org_id"), nullable=False
     )

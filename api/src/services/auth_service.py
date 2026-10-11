@@ -1,7 +1,8 @@
 """Firebase Auth middleware  -  verifies JWT tokens from the executive dashboard.
 
 In production mode, uses firebase_admin.auth.verify_id_token().
-In dev mode (AUTH_DEV_MODE=true), returns a mock user for local development.
+In dev mode (AUTH_DEV_MODE=true ENV=local), returns a mock user for local development.
+AUTH_DEV_MODE=true is not permitted outside ENV=local — the process will refuse to start.
 """
 
 from __future__ import annotations
@@ -32,7 +33,13 @@ def initialize_firebase() -> None:
 
     dev_mode = os.getenv("AUTH_DEV_MODE", "false").lower() in ("true", "1", "yes")
     if dev_mode:
-        logger.warning("Firebase Auth running in DEV MODE  -  tokens are NOT verified")
+        env = os.getenv("ENV", "local").lower()
+        if env != "local":
+            raise RuntimeError(
+                "AUTH_DEV_MODE=true is not permitted outside ENV=local. "
+                "Unset AUTH_DEV_MODE or set ENV=local."
+            )
+        logger.warning("Firebase Auth running in DEV MODE — tokens are NOT verified")
         return
 
     # Try service account JSON, then Application Default Credentials
@@ -83,27 +90,15 @@ class AuthService:
             ValueError: If token is missing or invalid
         """
         if not token:
-            if self.dev_mode:
-                return self._dev_user()
             raise ValueError("Authorization token missing")
 
         # Strip Bearer prefix
         clean_token = token.replace("Bearer ", "").strip()
 
         if not clean_token:
-            if self.dev_mode:
-                return self._dev_user()
             raise ValueError("Empty authorization token")
 
-        # 1. Dev / demo tokens or dev mode bypass
-        if (
-            self.dev_mode
-            or clean_token in ("dev-synthetiq-admin-token", "dev-token-fallback")
-            or clean_token.startswith("dev-")
-        ):
-            return self._dev_user(clean_token)
-
-        # 2. Check if it is our signed local HS256 JWT
+        # 1. Check if it is our signed local HS256 JWT
         try:
             from src.services.jwt_utils import decode_access_token
             decoded = decode_access_token(clean_token)
@@ -118,7 +113,7 @@ class AuthService:
         except Exception:
             pass
 
-        # 3. Production: verify with Firebase Admin SDK
+        # 2. Production: verify with Firebase Admin SDK
         try:
             decoded = firebase_auth.verify_id_token(clean_token)
 
@@ -143,7 +138,7 @@ class AuthService:
             raise ValueError(f"Authentication failed: {e}")
 
     def _dev_user(self, token_hint: str = "") -> dict[str, Any]:
-        """Return a mock user for development / demo mode."""
+        """Return a mock user for development / demo mode (dev_mode only)."""
         return {
             "uid": "USR-ADMIN-001",
             "email": "compliance_officer@synthetiq.ai",

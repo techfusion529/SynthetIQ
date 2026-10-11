@@ -315,7 +315,18 @@ class RESTAPIConnector(DataConnector):
     def __init__(self, org_id: str, config: dict[str, Any]) -> None:
         super().__init__(org_id, config)
         self.connector_type = "rest_api"
-        self.base_url       = config["base_url"].rstrip("/")
+        raw_url             = config["base_url"].rstrip("/")
+        # Validate base_url against REST_BASE_URL_ALLOWLIST env var.
+        # NOTE: when allowlist is empty this check is skipped (permissive dev default).
+        # Operators MUST set REST_BASE_URL_ALLOWLIST in production.
+        allowlist_env = os.getenv("REST_BASE_URL_ALLOWLIST", "")
+        allowlist = [u.strip().rstrip("/") for u in allowlist_env.split(",") if u.strip()]
+        if raw_url and allowlist and raw_url not in allowlist:
+            raise ValueError(
+                f"REST connector base_url {raw_url!r} is not in REST_BASE_URL_ALLOWLIST. "
+                f"Add it to the environment variable to permit access."
+            )
+        self.base_url       = raw_url
         self.auth_type      = config.get("auth_type", "none")
         self.token          = config.get("token", "") or os.getenv("REST_CONNECTOR_TOKEN", "")
         self.username       = config.get("username", "")
@@ -411,8 +422,28 @@ class CSVFileConnector(DataConnector):
         self.sales_file_path  = config.get("sales_file_path", "")
         self.telemetry_file   = config.get("telemetry_file_path", "")
         self.audit_file       = config.get("audit_file_path", f"/tmp/audits_{org_id}.csv")
+        # Guard absolute paths at construction time
+        for attr_name, path_val in [("sales_file_path", self.sales_file_path), ("telemetry_file", self.telemetry_file)]:
+            if path_val:
+                self._assert_relative_path(path_val)
+
+    @staticmethod
+    def _assert_relative_path(path: str) -> None:
+        """Raise ValueError for absolute filesystem paths (SSRF / path-traversal guard)."""
+        if os.path.isabs(path):
+            raise ValueError(
+                f"Absolute filesystem paths are not permitted for CSV connectors. "
+                f"Received: {path!r}. Use file upload (coming in Phase 4)."
+            )
+        # Also block Windows drive-letter paths (e.g. C:\...)
+        if len(path) >= 2 and path[1] == ":" and path[0].isalpha():
+            raise ValueError(
+                f"Absolute filesystem paths are not permitted for CSV connectors. "
+                f"Received: {path!r}. Use file upload (coming in Phase 4)."
+            )
 
     def _read_csv(self, file_path: str) -> list[dict[str, Any]]:
+        self._assert_relative_path(file_path)
         if not file_path or not os.path.exists(file_path):
             raise FileNotFoundError(f"CSV file not found: {file_path!r}")
         rows: list[dict[str, Any]] = []

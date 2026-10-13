@@ -3,12 +3,10 @@ import { createTheme, Theme } from "@mui/material/styles";
 
 /**
  * SynthetIQ Professional Theme System
- * Inspired by ABB's industrial precision design language.
  *
- * Primary: ABB Red (#E0001B)
- * Secondary: Industrial Cobalt (#0072CE)
- * Shape: 6px precision radius
- * Typography: Clean Swiss industrial typography (Inter / Roboto)
+ * Primary: Indigo (#6366F1 / #4F46E5)
+ * Secondary: Cyan (#06B6D4)
+ * Precision dark (#0B0F17) and clean light (#F4F6F9) modes.
  */
 export function getTheme(mode: "dark" | "light"): Theme {
   const isDark = mode === "dark";
@@ -17,15 +15,15 @@ export function getTheme(mode: "dark" | "light"): Theme {
     palette: {
       mode,
       primary: {
-        main: "#E0001B",
-        light: "#FF2D42",
-        dark: "#B80016",
+        main: isDark ? "#6366F1" : "#4F46E5",
+        light: "#818CF8",
+        dark: "#3730A3",
         contrastText: "#FFFFFF",
       },
       secondary: {
-        main: "#0072CE",
-        light: "#38A1F3",
-        dark: "#00569C",
+        main: "#06B6D4",
+        light: "#22D3EE",
+        dark: "#0891B2",
         contrastText: "#FFFFFF",
       },
       success: {
@@ -91,7 +89,7 @@ export function getTheme(mode: "dark" | "light"): Theme {
               : "0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02)",
             transition: "border-color 0.15s ease, box-shadow 0.15s ease",
             "&:hover": {
-              borderColor: isDark ? "rgba(224, 0, 27, 0.45)" : "rgba(224, 0, 27, 0.35)",
+              borderColor: isDark ? "rgba(99, 102, 241, 0.45)" : "rgba(79, 70, 229, 0.35)",
             },
           },
         },
@@ -116,10 +114,10 @@ export function getTheme(mode: "dark" | "light"): Theme {
             },
           },
           containedPrimary: {
-            backgroundColor: "#E0001B",
+            backgroundColor: isDark ? "#6366F1" : "#4F46E5",
             color: "#FFFFFF",
             "&:hover": {
-              backgroundColor: "#B80016",
+              backgroundColor: isDark ? "#4F46E5" : "#4338CA",
             },
           },
         },

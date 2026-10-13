@@ -59,21 +59,24 @@ export default function AppHeader({ drawerWidth, onMenuClick }: AppHeaderProps) 
             <MenuIcon />
           </IconButton>
 
-          {/* Logo with ABB Precision Industrial styling */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mr: 2 }}>
+          {/* SynthetIQ Brand Logo */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mr: 2 }}>
             <Box
               sx={{
+                width: 28,
+                height: 28,
+                borderRadius: "6px",
                 bgcolor: "primary.main",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 color: "#FFFFFF",
-                px: 0.9,
-                py: 0.2,
-                borderRadius: "4px",
                 fontWeight: 900,
-                fontSize: "0.75rem",
-                letterSpacing: "0.06em",
+                fontSize: "0.85rem",
+                boxShadow: "0 2px 8px rgba(79, 70, 229, 0.35)",
               }}
             >
-              ABB
+              S
             </Box>
             <Typography variant="h6" fontWeight={800} noWrap sx={{ letterSpacing: "-0.02em" }}>
               Synthet<Box component="span" sx={{ color: "primary.main" }}>IQ</Box>

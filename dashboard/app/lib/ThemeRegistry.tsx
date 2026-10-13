@@ -2,8 +2,8 @@
 
 /**
  * ThemeRegistry — Client Component wrapper for MUI ThemeProvider.
- * Provides ColorModeContext for real-time switching between ABB Industrial Dark
- * and ABB Precision Light modes, persisted in localStorage.
+ * Provides ColorModeContext for real-time switching between dark and light modes,
+ * persisted in localStorage.
  */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { ThemeProvider } from "@mui/material/styles";

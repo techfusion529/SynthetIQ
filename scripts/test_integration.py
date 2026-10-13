@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath('worker/src'))
 
 # JWT_SECRET_KEY must be set before importing the app (jwt_utils raises RuntimeError otherwise)
 if not os.getenv("JWT_SECRET_KEY"):
-    os.environ["JWT_SECRET_KEY"] = "test-only-secret-do-not-use-in-production-aabbcc"
+    os.environ["JWT_SECRET_KEY"] = "test-only-secret-do-not-use-in-production-dev123"
 
 import asyncio
 from httpx import AsyncClient, ASGITransport

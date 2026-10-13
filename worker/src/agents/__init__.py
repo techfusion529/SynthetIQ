@@ -1,18 +1,18 @@
-"""Multi-agent system for SynthetIQ EPR compliance  -  Google ADK based."""
+"""Multi-agent system for SynthetIQ EPR compliance  -  Google ADK based.
+
+Agents are imported lazily to avoid loading google.adk at module init time
+(google.adk requires a live runtime environment and service credentials).
+Import individual agents directly, e.g.:
+
+    from agents.logistics_agent import run_logistics_agent
+"""
 
 from __future__ import annotations
 
-from .auditor_agent import AUDITOR_INSTRUCTION, run_auditor_agent
-from .brand_liability_agent import BRAND_LIABILITY_INSTRUCTION, run_brand_liability_agent
-from .erp_agent import ERP_INSTRUCTION, run_erp_agent
-from .legal_agent import LEGAL_INSTRUCTION, run_legal_agent
-from .logistics_agent import LOGISTICS_INSTRUCTION, run_logistics_agent
-from .orchestrator import epr_compliance_pipeline, run_epr_pipeline
-from .regulatory_agent import REGULATORY_INSTRUCTION, run_regulatory_agent
-from .treasury_agent import TREASURY_INSTRUCTION, run_treasury_agent
+# Lazy __getattr__ so that `from agents.X import Y` still works without
+# importing every agent (and their google.adk deps) at package load time.
 
 __all__ = [
-    # ADK instruction constants (module-level, always available)
     "AUDITOR_INSTRUCTION",
     "BRAND_LIABILITY_INSTRUCTION",
     "ERP_INSTRUCTION",
@@ -20,9 +20,7 @@ __all__ = [
     "LOGISTICS_INSTRUCTION",
     "REGULATORY_INSTRUCTION",
     "TREASURY_INSTRUCTION",
-    # Pipeline
     "epr_compliance_pipeline",
-    # Convenience runners
     "run_brand_liability_agent",
     "run_regulatory_agent",
     "run_treasury_agent",
@@ -32,3 +30,30 @@ __all__ = [
     "run_legal_agent",
     "run_epr_pipeline",
 ]
+
+_MODULE_MAP: dict[str, str] = {
+    "AUDITOR_INSTRUCTION": "agents.auditor_agent",
+    "run_auditor_agent": "agents.auditor_agent",
+    "BRAND_LIABILITY_INSTRUCTION": "agents.brand_liability_agent",
+    "run_brand_liability_agent": "agents.brand_liability_agent",
+    "ERP_INSTRUCTION": "agents.erp_agent",
+    "run_erp_agent": "agents.erp_agent",
+    "LEGAL_INSTRUCTION": "agents.legal_agent",
+    "run_legal_agent": "agents.legal_agent",
+    "LOGISTICS_INSTRUCTION": "agents.logistics_agent",
+    "run_logistics_agent": "agents.logistics_agent",
+    "REGULATORY_INSTRUCTION": "agents.regulatory_agent",
+    "run_regulatory_agent": "agents.regulatory_agent",
+    "TREASURY_INSTRUCTION": "agents.treasury_agent",
+    "run_treasury_agent": "agents.treasury_agent",
+    "epr_compliance_pipeline": "agents.orchestrator",
+    "run_epr_pipeline": "agents.orchestrator",
+}
+
+
+def __getattr__(name: str):
+    if name in _MODULE_MAP:
+        import importlib
+        mod = importlib.import_module(_MODULE_MAP[name])
+        return getattr(mod, name)
+    raise AttributeError(f"module 'agents' has no attribute {name!r}")

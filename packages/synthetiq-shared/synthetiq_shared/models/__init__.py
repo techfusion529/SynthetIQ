@@ -17,6 +17,7 @@ from .organization import (
     EscrowPORecord,
     Form1Record,
     LegalEntity,
+    LlmUsageLog,
     Membership,
     InviteToken,
 )
@@ -60,6 +61,7 @@ __all__ = [
     "EscrowPORecord",
     "Form1Record",
     "LegalEntity",
+    "LlmUsageLog",
     "Membership",
     "InviteToken",
     # Dynamic Config ORM (Phase 3)

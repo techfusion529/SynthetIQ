@@ -76,6 +76,13 @@ async def get_tenant_ctx(
             detail="User is not associated with any organisation. No active membership found.",
         )
 
+    # Add org_id as an OTel span attribute for distributed tracing
+    try:
+        from opentelemetry import trace as _otel_trace
+        _otel_trace.get_current_span().set_attribute("org_id", org_id)
+    except Exception:
+        pass
+
     return TenantCtx(
         org_id=org_id,
         user_id=user_id,

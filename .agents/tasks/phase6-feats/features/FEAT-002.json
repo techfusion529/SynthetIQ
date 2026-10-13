@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "HITL Console dashboard page and /runs?hitl_required filter. Depends on FEAT-001 (new API endpoint and WorkflowRun columns). Independent of FEAT-003 and FEAT-004.",
+  "status": "pending",
+  "steps": [
+    "1. Before writing any code, read dashboard/node_modules/next/dist/docs/01-app/01-getting-started/05-server-and-client-components.md and 03-layouts-and-pages.md to confirm conventions for Next.js 16.3.7.",
+    "2. CREATE dashboard/app/lib/types/hitl.types.ts: HITLRun interface (run_id, org_id, workflow_type, status, hitl_required, triggered_by, started_at, completed_at, input_params), HITLRunDetail extending HITLRun (adds temporal_status, error_message, temporal_workflow_id), HITLResolvePayload interface (run_id, audit_id, reason_code, override_tons optional number, notes, resolver_id), REASON_CODES const array of 6 literal string values: ['DATA_VERIFIED_CORRECT','DATA_CORRECTED_BY_OPERATOR','SENSOR_CALIBRATION_ERROR','MANUAL_MEASUREMENT_ACCEPTED','FALSE_POSITIVE_TAMPER_ALERT','ESCALATED_TO_COMPLIANCE_TEAM'].",
+    "3. CREATE dashboard/app/lib/services/hitl.service.ts extending BaseService: listHitlRuns(limit=50) calls GET /api/v1/runs?hitl_required=true&limit={limit}, getRun(runId) calls GET /api/v1/runs/{runId}, resolveHitl(body: HITLResolvePayload) calls POST /api/v1/audit/resolve.",
+    "4. MODIFY dashboard/app/lib/services/index.ts: add `export { HitlService } from './hitl.service';`.",
+    "5. MODIFY dashboard/app/lib/hooks/useServices.ts: import HitlService, instantiate it in useServices() return object as key 'hitl', export `export function useHitlService() { return useServices().hitl; }`.",
+    "6. MODIFY api/src/routes/runs.py list_runs(): add `hitl_required: Optional[bool] = Query(None)` parameter; when not None, apply `.where(WorkflowRun.hitl_required == hitl_required)` to query.",
+    "7. CREATE dashboard/app/hitl/page.tsx: 'use client' directive. Two-column Grid layout matching audit/page.tsx style. Left pane (Grid xs=12 md=4): title 'HITL Pending Runs', list loaded from useHitlService().listHitlRuns() on mount, each run as a Card (run_id monospace, org_id, status Chip, started_at date, elapsed time in hours/minutes since started_at). Click on row calls setSelectedRunId(run.run_id). Right pane (Grid xs=12 md=8): shown when selectedRunId is set, loads run detail via useHitlService().getRun(selectedRunId). Shows: delta_percent from input_params.audit_result if available, sec_actual vs sec_baseline, chain_head hash. Stage history: show stage_reached number with label. Resolution form: Select for reason_code (options from REASON_CODES), TextField type=number for override_tons with helperText='max 10% override allowed', TextField multiline for notes, resolver_id defaults to user.user_id from useSession(). Submit button calls hitlSvc.resolveHitl({run_id, audit_id: '', reason_code, override_tons, notes, resolver_id: user.user_id}). Guard: only render form when user?.user_id !== selectedRun?.triggered_by (four-eyes); show info Alert when same user. Breadcrumbs: Executive Hub > HITL Console.",
+    "8. MODIFY dashboard/components/AppSidebar.tsx: add import `import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';` at top. Add to NAV_ITEMS array (after 'Quad-Core Audit' entry): `{ label: 'HITL Console', href: '/hitl', icon: <SupervisorAccountIcon />, roles: ['admin', 'platform_admin'] }`."
+  ],
+  "acceptance_criteria": [
+    "cd dashboard && npm run build exits 0 with no TypeScript errors",
+    "HITL Console nav entry visible in sidebar for admin and platform_admin roles",
+    "HITL Console nav entry NOT visible for viewer/auditor/compliance_officer roles",
+    "dashboard/app/hitl/page.tsx renders without 'use client' boundary errors",
+    "GET /api/v1/runs?hitl_required=true returns only runs where hitl_required=true",
+    "Resolution form only rendered when user.user_id != run.triggered_by"
+  ],
+  "verification": [
+    "cd dashboard && npm run build",
+    "cd api && python -c \"from src.routes.runs import router; print('runs ok')\"",
+    "cd api && python -m pytest tests/ -x -q"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

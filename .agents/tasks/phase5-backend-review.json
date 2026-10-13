@@ -1,0 +1,30 @@
+{
+  "verdict": "APPROVED",
+  "reviewDoc": ".agents/tasks/phase5-backend-review.md",
+  "findings": [
+    {
+      "item": "Auction fallback winner_org_id contract",
+      "file": "worker/src/activities/agent_activities.py",
+      "line": "241-265",
+      "description": "Fallback path calls run_treasury_agent then _require(result, 'winner_org_id', 'auction'). Treasury agent LLM output has no contract enforcing this key; a response that omits it raises ApplicationError with no recovery path. Add result.setdefault('winner_org_id', '') before the _require gate."
+    },
+    {
+      "item": "delta_threshold parameter unit ambiguity",
+      "file": "worker/src/activities/agent_activities.py",
+      "line": "396",
+      "description": "delta_threshold accepts percent values (e.g., 2.0) but is divided by 100 inside the activity. A caller passing 0.02 directly would set an effective threshold of 0.0002. Rename to delta_threshold_pct or add a docstring assertion clarifying the unit."
+    },
+    {
+      "item": "Single winner_org_id on multi-recycler fill",
+      "file": "worker/src/activities/agent_activities.py",
+      "line": "184-194",
+      "description": "winner_org_id is overwritten on each loop iteration, returning only the marginal recycler's ID even when multiple recyclers contribute volume. Confirm single-winner semantics match the contractual requirement; extend to winner_org_ids list if not."
+    },
+    {
+      "item": "E-way HITL gate bypassable when LLM drops status and requires_hitl",
+      "file": "worker/src/agents/logistics_agent.py",
+      "line": "182-186",
+      "description": "If the logistics LLM response is missing both 'status' and 'requires_hitl' keys at the top level, both workflow HITL gates evaluate to false and HITL is skipped. Add elif not parsed.get('verified', True): parsed['requires_hitl'] = True to cover the missing-status case."
+    }
+  ]
+}

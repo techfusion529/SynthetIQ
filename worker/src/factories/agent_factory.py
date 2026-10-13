@@ -9,12 +9,59 @@ its own agent instance to avoid cross-run state contamination.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
+
+from temporalio.exceptions import ApplicationError
+
+from utils.metrics import llm_tokens_total
 
 logger = logging.getLogger(__name__)
 
 ALLOWED_MODEL_IDS = frozenset(["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash"])
 FORBIDDEN_PROMPT_KEYWORDS = frozenset(["verdict=", "always_pass", "skip_gate"])
+
+MAX_LLM_TOKENS = int(os.getenv("MAX_LLM_TOKENS_PER_ORG_PER_MONTH", "1000000"))
+
+
+async def _check_cost_cap(org_id: str) -> None:
+    """Raise ApplicationError if the current-month token sum exceeds MAX_LLM_TOKENS.
+
+    Wraps DB query in try/except so a DB outage does not block agent creation.
+    """
+    try:
+        from datetime import date, timezone
+        from sqlalchemy import select, func as sa_func
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models import LlmUsageLog
+
+        now = date.today()
+        month_start_str = f"{now.year}-{now.month:02d}-01"
+
+        async with get_db_session() as session:
+            result = await session.execute(
+                select(
+                    sa_func.coalesce(
+                        sa_func.sum(LlmUsageLog.input_tokens + LlmUsageLog.output_tokens),
+                        0,
+                    )
+                ).where(
+                    LlmUsageLog.org_id == org_id,
+                    LlmUsageLog.created_at >= month_start_str,
+                )
+            )
+            total_tokens: int = result.scalar_one() or 0
+
+        if total_tokens > MAX_LLM_TOKENS:
+            raise ApplicationError(
+                f"LLM_COST_CAP_EXCEEDED: org {org_id} has used {total_tokens} tokens "
+                f"this month (cap: {MAX_LLM_TOKENS}).",
+                non_retryable=True,
+            )
+    except ApplicationError:
+        raise
+    except Exception as exc:
+        logger.warning(f"[AgentFactory] Cost-cap DB check failed for org={org_id}: {exc}; proceeding.")
 
 
 async def create_agent(agent_name: str, org_id: str, run_id: str) -> Any:
@@ -30,6 +77,9 @@ async def create_agent(agent_name: str, org_id: str, run_id: str) -> Any:
     Returns:
         A freshly constructed LlmAgent instance.
     """
+    # Cost-cap guard: raises ApplicationError(non_retryable=True) if over cap
+    await _check_cost_cap(org_id)
+
     from sqlalchemy import select
     from synthetiq_shared.database import get_db_session
     from synthetiq_shared.models import AgentConfiguration
@@ -73,9 +123,19 @@ async def create_agent(agent_name: str, org_id: str, run_id: str) -> Any:
         f"[AgentFactory] Building agent={agent_name!r} model={model_id!r} "
         f"org={org_id!r} run={run_id!r}"
     )
-    return _build_agent(
+    agent = _build_agent(
         agent_name, model_id=model_id, temperature=temperature, system_prompt=system_prompt
     )
+
+    # Emit Prometheus counter for observability (best-effort)
+    try:
+        llm_tokens_total.labels(
+            org_id=org_id, agent_name=agent_name, model=model_id
+        ).inc(0)  # Registers the label-set; actual token counts updated by activities
+    except Exception as _prom_exc:
+        logger.debug(f"[AgentFactory] Prometheus counter inc skipped: {_prom_exc}")
+
+    return agent
 
 
 def _build_agent(

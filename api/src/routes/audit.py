@@ -3,20 +3,44 @@
 import logging
 import time
 import uuid
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Literal, Optional
 
 import httpx
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 
 from src.middleware.auth import CurrentUser
-from src.middleware.rbac import require_permission
+from src.middleware.rbac import assert_same_org, require_permission
 from src.routes.config import get_runtime_config
 from src.services.temporal_service import temporal_service
 from src.utils.tenant import TenantCtx, get_tenant_ctx
 
 router = APIRouter(prefix="/audit", tags=["Workflow 3 - Fraud Audit"])
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: HITL Resolve Request model
+# ---------------------------------------------------------------------------
+
+class HITLResolveRequest(BaseModel):
+    """Validated payload for POST /audit/resolve."""
+
+    run_id: str
+    audit_id: str
+    reason_code: Literal[
+        "MANUAL_PHYSICS_OVERRIDE",
+        "SENSOR_CALIBRATION_ERROR",
+        "DATA_ENTRY_CORRECTION",
+        "REGULATORY_EXEMPTION",
+        "EWAY_BILL_RESUBMISSION",
+        "AUDITOR_JUDGMENT_OVERRIDE",
+    ]
+    override_tons: Optional[float] = None
+    notes: str
+    resolver_id: str
 
 
 async def _get_all_audits(org_id: str | None = None, is_platform_admin: bool = False, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
@@ -381,7 +405,101 @@ async def list_audit_exceptions(
 
 
 
-@router.post("/exceptions/{workflow_id}/resolve")
+@router.post("/resolve")
+async def hitl_resolve(
+    body: HITLResolveRequest,
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("audits:write")),
+) -> dict[str, Any]:
+    """Structured HITL resolution with reason-code validation and four-eyes check.
+
+    Returns 403 if resolver_id matches the run's triggered_by (four-eyes rule).
+    Returns 422 if override_tons exceeds original_tons * 1.1.
+    Returns 403 if the run belongs to a different org (cross-tenant guard).
+    """
+    from datetime import timezone as _tz
+
+    from sqlalchemy import select
+
+    from synthetiq_shared.database import get_db_session
+    from synthetiq_shared.models import WorkflowRun
+
+    async with get_db_session() as session:
+        run = (
+            await session.execute(
+                select(WorkflowRun).where(WorkflowRun.run_id == body.run_id)
+            )
+        ).scalar_one_or_none()
+
+    if not run:
+        raise HTTPException(status_code=404, detail=f"WorkflowRun '{body.run_id}' not found.")
+
+    # Cross-tenant guard
+    assert_same_org(tenant_ctx.org_id, run.org_id)
+
+    # Four-eyes check: resolver must not be the person who triggered the run
+    if body.resolver_id == run.triggered_by:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Four-eyes policy violated: resolver_id must differ from the run's triggered_by.",
+        )
+
+    # override_tons validation: must not exceed original volume * 1.1
+    if body.override_tons is not None:
+        original_tons: float = 0.0
+        if run.input_params:
+            original_tons = float(run.input_params.get("volume_tons", 0.0))
+        if body.override_tons > original_tons * 1.1:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"override_tons ({body.override_tons}) exceeds 110% of "
+                    f"original volume ({original_tons})."
+                ),
+            )
+
+    # Send Temporal signal 'human_approval'
+    signal_payload = {
+        "approved": True,
+        "reason_code": body.reason_code,
+        "override_tons": body.override_tons,
+        "resolver_id": body.resolver_id,
+        "notes": body.notes,
+    }
+    temporal_workflow_id = run.temporal_workflow_id or body.run_id
+    signal_res = await temporal_service.signal_workflow(
+        workflow_id=temporal_workflow_id,
+        signal_name="human_approval",
+        signal_args=[signal_payload],
+    )
+
+    # Update WorkflowRun columns
+    resolved_at = datetime.now(_tz.utc)
+    async with get_db_session() as session:
+        run_upd = (
+            await session.execute(
+                select(WorkflowRun).where(WorkflowRun.run_id == body.run_id)
+            )
+        ).scalar_one_or_none()
+        if run_upd:
+            run_upd.hitl_required = False
+            run_upd.hitl_resolved_at = resolved_at
+            run_upd.hitl_resolver_id = body.resolver_id
+            run_upd.hitl_reason_code = body.reason_code
+
+    return {
+        "status": "HITL_RESOLVED",
+        "run_id": body.run_id,
+        "audit_id": body.audit_id,
+        "reason_code": body.reason_code,
+        "resolver_id": body.resolver_id,
+        "resolved_at": resolved_at.isoformat(),
+        "signal_status": signal_res.get("status"),
+    }
+
+
+
 
 async def resolve_audit_exception(
 

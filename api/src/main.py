@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -10,6 +11,7 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -106,6 +108,36 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
+
+# ---- OpenTelemetry setup ------------------------------------------------
+# Only initialise a TracerProvider + OTLP exporter when OTLP_ENDPOINT is set.
+# FastAPIInstrumentor is always wired so spans are emitted even to a no-op exporter.
+_otlp_endpoint = os.getenv("OTLP_ENDPOINT", "")
+if _otlp_endpoint:
+    try:
+        from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        _provider = TracerProvider()
+        _provider.add_span_processor(
+            BatchSpanProcessor(OTLPSpanExporter(endpoint=_otlp_endpoint))
+        )
+        trace.set_tracer_provider(_provider)
+        logger.info(f"[OTel] TracerProvider initialised, exporting to {_otlp_endpoint}")
+    except Exception as _otel_exc:
+        logger.warning(f"[OTel] TracerProvider setup failed ({_otel_exc}); continuing without exporter")
+
+try:
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    FastAPIInstrumentor.instrument_app(app)
+    logger.info("[OTel] FastAPIInstrumentor wired")
+except Exception as _inst_exc:
+    logger.warning(f"[OTel] FastAPIInstrumentor unavailable ({_inst_exc})")
+
+# ---- Prometheus metrics -------------------------------------------------
+Instrumentator().instrument(app).expose(app)
 
 # Register slowapi rate-limit error handler
 from src.routes.auth import limiter  # noqa: E402

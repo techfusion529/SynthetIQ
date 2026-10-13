@@ -9,6 +9,7 @@ Features:
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
@@ -202,8 +203,17 @@ class QuadCoreAuditWorkflow:
 
         if needs_hitl:
             self.current_status = "PENDING_HITL_REVIEW"
-            # Block workflow until human auditor signal arrives
-            await workflow.wait_condition(lambda: self._approval_received)
+            # Block workflow until human auditor signal arrives (72h timeout)
+            try:
+                await workflow.wait_condition(
+                    lambda: self._approval_received,
+                    timeout=timedelta(hours=72),
+                )
+            except asyncio.TimeoutError:
+                raise ApplicationError(
+                    "HITL_TIMEOUT: No human approval received within 72 hours.",
+                    non_retryable=True,
+                )
 
             if self.auditor_approved:
                 self.current_status = "AUDIT_APPROVED_BY_HUMAN_AUDITOR"
@@ -484,7 +494,16 @@ class MasterEPRComplianceWorkflow:
             self.current_status = "PENDING_HITL_REVIEW"
 
             #  -  -  -  -  Priority 1: Block until Human Compliance Auditor Signal  -  -  -  - 
-            await workflow.wait_condition(lambda: self._approval_received)
+            try:
+                await workflow.wait_condition(
+                    lambda: self._approval_received,
+                    timeout=timedelta(hours=72),
+                )
+            except asyncio.TimeoutError:
+                raise ApplicationError(
+                    "HITL_TIMEOUT: No human approval received within 72 hours.",
+                    non_retryable=True,
+                )
 
             if not self.auditor_approved:
                 self.current_status = "HALTED_DUE_TO_AUDITOR_CONFIRMED_FRAUD"

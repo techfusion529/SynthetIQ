@@ -6,7 +6,6 @@ import json
 import logging
 from typing import Any
 
-from .base_adk import create_llm_agent, run_agent
 from .privacy import scrub
 
 logger = logging.getLogger(__name__)
@@ -142,6 +141,8 @@ async def run_logistics_agent(
     Returns:
         Logistics verification result
     """
+    from .base_adk import create_llm_agent, run_agent  # noqa: PLC0415
+
     agent = create_llm_agent(
         name="logistics_agent",
         instruction=LOGISTICS_INSTRUCTION,

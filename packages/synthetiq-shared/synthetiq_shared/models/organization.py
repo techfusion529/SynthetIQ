@@ -17,6 +17,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -256,6 +257,12 @@ class WorkflowRun(Base):
     input_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     hitl_required: Mapped[bool] = mapped_column(Boolean, default=False)
     temporal_run_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
+
+    # Phase 6: HITL hardening columns
+    initiated_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    hitl_resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    hitl_resolver_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    hitl_reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Relationships
     organization: Mapped[Organization] = relationship(back_populates="workflow_runs")
@@ -571,3 +578,28 @@ class InviteToken(Base):
 
     def __repr__(self) -> str:
         return f"InviteToken(email={self.email!r}, purpose={self.purpose!r})"
+
+
+# ---------------------------------------------------------------------------
+# LlmUsageLog  -  Per-call LLM token usage for cost-cap enforcement
+# ---------------------------------------------------------------------------
+
+class LlmUsageLog(Base):
+    """A record of LLM token consumption per org/agent/model call."""
+
+    __tablename__ = "llm_usage_log"
+
+    id: Mapped[str] = mapped_column(
+        String(64), primary_key=True, default=lambda: f"LLM-{uuid.uuid4().hex[:16].upper()}"
+    )
+    org_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    agent_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"LlmUsageLog(id={self.id!r}, org_id={self.org_id!r})"

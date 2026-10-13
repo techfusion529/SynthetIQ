@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-003",
+  "type": "test",
+  "description": "Two-org isolation test suite. Independent of FEAT-001/002 (tests existing endpoints that already enforce org isolation). Can run after FEAT-001 to also cover the new /audit/resolve endpoint.",
+  "status": "pending",
+  "steps": [
+    "1. Check whether api/tests/conftest.py exists. If it does, read it to understand existing fixtures. If not, create a minimal one with async_client fixture using httpx.AsyncClient and the FastAPI app.",
+    "2. CREATE api/tests/test_isolation.py with pytest + pytest-asyncio. At the top: detect DB dialect from DATABASE_URL env; add pytest.mark.skipif helper for SQLite-only tests. Define two async fixtures: org_a (creates an org + admin user via POST /api/v1/auth/register, returns {token, org_id, user_id}) and org_b (same, different email/org). These fixtures call the real API endpoints to register users; if registration creates a user in a random org, override by passing org_id in the register body or use the test DB directly via get_db_session.",
+    "3. Add parametrized cross-org tests: for each of the following endpoints, org_a_token must get 403 or 404 — NOT 200 — when accessing org_b resources: GET /api/v1/organizations/{org_b_id}/policy, GET /api/v1/organizations/{org_b_id}/calibrations, GET /api/v1/audit/verdicts (must return only org_a records — assert no org_b audit_ids), GET /api/v1/runs (must return only org_a runs), GET /api/v1/auctions/{org_b_auction_id}/bids, POST /api/v1/organizations/{org_b_id}/invites.",
+    "4. Add direct-DB RLS test: marked @pytest.mark.skipif(not IS_POSTGRES, reason='RLS only on PostgreSQL'). Open raw asyncpg connection without SET LOCAL app.org_id. Execute SELECT count(*) FROM workflow_runs. Assert result == 0.",
+    "5. Add test for new /audit/resolve four-eyes: POST /api/v1/audit/resolve with resolver_id == run.triggered_by must return 403.",
+    "6. Add test for /audit/resolve cross-org: org_a token trying to resolve org_b run must return 403.",
+    "7. Ensure all tests are properly marked with @pytest.mark.asyncio and use the async_client fixture."
+  ],
+  "acceptance_criteria": [
+    "cd api && python -m pytest tests/test_isolation.py -v exits 0",
+    "All cross-org endpoint tests assert status_code in (403, 404)",
+    "RLS direct-DB test is skipped on SQLite with a clear skip reason",
+    "No test relies on hardcoded IDs — all IDs come from fixture setup"
+  ],
+  "verification": [
+    "cd api && python -m pytest tests/test_isolation.py -v",
+    "cd api && python -m pytest tests/ -x -q"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

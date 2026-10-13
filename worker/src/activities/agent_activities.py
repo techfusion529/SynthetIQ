@@ -46,6 +46,7 @@ class AuditResult(BaseModel):
 
 class POResult(BaseModel):
     po_id: str
+    po_number: str = ""
     escrow_amount: float
     audit_verdict: str
     advance_amount: float = 0.0
@@ -360,7 +361,7 @@ async def audit_scada_telemetry_activity(
     from services.hash_chain import HashChain
     from synthetiq_shared.schemas.telemetry import TelemetryFrame
 
-    chain = HashChain()
+    chain = HashChain(org_id=org_id, plant_id=plant_id)
     frames: list[dict] = result.get("frames", [])
 
     if frames:

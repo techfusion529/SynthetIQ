@@ -132,6 +132,7 @@ async def get_preflight(
 
 
 @router.post("", status_code=202)
+@router.post("/run-e2e", status_code=202, include_in_schema=False)
 async def create_run(
     body: CreateRunRequest,
     user: CurrentUser,

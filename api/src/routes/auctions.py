@@ -1,4 +1,4 @@
-﻿"""Workflow 2: Liquidity & Continuous Double Auction routes  -  DB-backed."""
+"""Workflow 2: Liquidity & Continuous Double Auction routes  -  DB-backed."""
 from __future__ import annotations
 import logging
 import uuid
@@ -82,6 +82,27 @@ async def broadcast_rfp(
     ceiling_price = float(ceiling_price)
     target_tons = float(target_tons)
 
+    # CFG-03: fetch corridor from active regulatory pack; fall back to request body values
+    _corridor_min: float = floor_price
+    _corridor_max: float = ceiling_price
+    try:
+        from synthetiq_shared.database import get_db_session as _get_db
+        from synthetiq_shared.models.dynamic_config import RegulatoryPack as _RPack
+        from sqlalchemy import select as _select
+        async with _get_db() as _s:
+            _pack = (await _s.execute(
+                _select(_RPack)
+                .where(_RPack.status == "active")
+                .order_by(_RPack.approved_at.desc())
+                .limit(1)
+            )).scalar_one_or_none()
+            if _pack and _pack.payload:
+                _payload = _pack.payload
+                _corridor_min = float(_payload.get("price_corridor_min", floor_price))
+                _corridor_max = float(_payload.get("price_corridor_max", ceiling_price))
+    except Exception as _pack_exc:
+        logger.warning(f"Could not fetch pack corridor ({_pack_exc}); using request values")
+
     auction_id = f"AUC-{uuid.uuid4().hex[:8].upper()}"
     workflow_id = f"wf2-auction-{uuid.uuid4().hex[:8]}"
     try:
@@ -95,18 +116,21 @@ async def broadcast_rfp(
                 statutory_rate_per_kg=statutory_rate,
                 floor_price_inr=floor_price,
                 ceiling_price_inr=ceiling_price,
+                corridor_min=_corridor_min,
+                corridor_max=_corridor_max,
                 status="ACTIVE",
                 company_id=company_id,
                 winning_recyclers=[],
                 org_id=tenant_ctx.org_id or None,
             ))
+            await session.commit()
         logger.info(f"Persisted auction {auction_id}")
     except Exception as exc:
         logger.warning(f"Could not persist auction ({exc})")
     res = await temporal_service.start_workflow(
         workflow_name="AuctionLiquidityWorkflow",
         workflow_id=workflow_id,
-        args=[company_id, category, target_tons],
+        args=[company_id, category, float(target_tons), float(statutory_rate)],
     )
     return {
         "status": "auction_broadcast",

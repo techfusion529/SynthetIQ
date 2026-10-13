@@ -187,6 +187,7 @@ async def create_run(
                 hitl_required=False,
             )
             session.add(wf_run)
+            await session.commit()
     except Exception as exc:
         logger.warning(f"Could not persist WorkflowRun pre-dispatch ({exc})")
 

@@ -309,7 +309,7 @@ class SettlementDispatchWorkflow:
                 "verified_physical_melt_tons": plastic_tons,
                 "unit_price_inr": unit_price_inr,
                 "po_number": po["po_number"],
-                "audit_verdict": "APPROVED",
+                "audit_verdict": audit_verdict,
             }],
             retry_policy=_RETRY,
             start_to_close_timeout=_TIMEOUT,
@@ -436,9 +436,10 @@ class MasterEPRComplianceWorkflow:
             #  -  -  -  -  Stage 1: Liability (Brand Liability Agent)  -  -  -  -
             self.stage_reached = 1
             self.current_status = "STAGE_1_LIABILITY_ASSESSMENT"
+            # AGT-01: pass run_config so the activity can do deterministic pre-computation
             liability = await workflow.execute_activity(
                 calculate_brand_liability_activity,
-                args=[company_id, fiscal_year],
+                args=[company_id, fiscal_year, run_config.model_dump(), category, run_input.org_id],
                 retry_policy=_RETRY,
                 start_to_close_timeout=_TIMEOUT,
             )
@@ -457,9 +458,20 @@ class MasterEPRComplianceWorkflow:
             )
 
             #  -  -  -  -  Stage 2b: Auction (Treasury Agent)  -  -  -  -
+            # AGT-02: construct auction_id deterministically from org + run so DB bids are found
+            _auction_id = f"{run_input.org_id}-auction-{run_input.run_id}"
             auction = await workflow.execute_activity(
                 execute_double_auction_activity,
-                args=[f"RFP-{company_id}", category, auction_target_tons, run_config.pack.base_rate_inr_per_kg],
+                args=[
+                    f"RFP-{company_id}",
+                    category,
+                    auction_target_tons,
+                    run_config.pack.base_rate_inr_per_kg,
+                    run_input.org_id,       # org_id
+                    _auction_id,            # auction_id — enables DB-based clearing
+                    run_config.pack.price_corridor_min,   # corridor_min  (AGT-02 / CFG-03)
+                    run_config.pack.price_corridor_max,   # corridor_max
+                ],
                 retry_policy=_RETRY,
                 start_to_close_timeout=_TIMEOUT,
             )
@@ -482,10 +494,17 @@ class MasterEPRComplianceWorkflow:
             eway_requires_hitl = eway.get("status") == "UNVERIFIED" or eway.get("requires_hitl", False)
 
             #  -  -  -  -  Stage 3b: SCADA Audit (Auditor Agent - Nimble / Jev)  -  -  -  -
-            if not run_config.calibrations:
+            # AGT-03: look up the calibration for this specific plant and material grade
+            _cal = next(
+                (c for c in run_config.calibrations
+                 if c.plant_id == plant_id and c.material_grade == category),
+                None,
+            )
+            if _cal is None:
                 raise ApplicationError(
-                    "FAIL_CLOSED: no calibrations found",
-                    non_retryable=True,
+                    f"FAIL_CLOSED: no calibration found for plant_id={plant_id!r}, "
+                    f"material_grade={category!r}",
+                    non_retryable=False,
                 )
 
             torque = 1.8 if simulate_spoof else 46.5
@@ -499,9 +518,9 @@ class MasterEPRComplianceWorkflow:
                     effective_recycler_id, plant_id, volume_tons,
                     torque, pf, kw, 50.0, melt, category,
                     run_input.org_id,
-                    run_config.pack.delta_threshold_default,
-                    run_config.calibrations[0].sec_baseline_kwh_per_ton,
-                    run_config.calibrations[0].sec_variance,
+                    run_config.pack.delta_threshold_default,   # stored as fraction e.g. 0.02
+                    _cal.sec_baseline_kwh_per_ton,             # AGT-03: per-plant baseline
+                    _cal.sec_variance,                         # AGT-03: per-plant variance
                 ],
                 retry_policy=_RETRY,
                 start_to_close_timeout=_TIMEOUT,
@@ -511,8 +530,11 @@ class MasterEPRComplianceWorkflow:
             self.fraud_risk_score = float(audit.get("fraud_risk_score", 0.0))
 
             # Check if fraud gate or Delta_mass statutory threshold triggers HITL
+            # AGT-04: also trigger HITL when the deterministic verdict is "HITL"
+            _audit_verdict_raw = audit.get("verdict", "")
             is_fraudulent = (
-                audit.get("is_spoofed", False)
+                _audit_verdict_raw == "HITL"                    # AGT-04: direct verdict check
+                or audit.get("is_spoofed", False)
                 or not audit.get("physical_melt_verified", True)
                 or self.delta_mass > 0.02
                 or audit.get("requires_hitl", False)
@@ -589,7 +611,21 @@ class MasterEPRComplianceWorkflow:
             _audit_verdict: str = audit.get("verdict") or audit.get("audit_verdict", "")
             if not _audit_verdict:
                 raise ApplicationError("FAIL_CLOSED: audit verdict missing", non_retryable=True)
-            _human_approved: bool = bool(self.auditor_approved) if self.auditor_approved is not None else True
+            # For clean (non-fraud) runs HITL is never triggered so auditor_approved stays None;
+            # treat those as auto-approved. For fraud runs that reached HITL, use the auditor's decision.
+            _human_approved: bool = True if not is_fraudulent else bool(self.auditor_approved)
+
+            # AGT-05: fail-closed — do not create PO unless audit verdict is acceptable
+            _ALLOWED_VERDICTS = ("PASS", "APPROVED_BY_HUMAN_OVERRIDE")
+            if _audit_verdict not in _ALLOWED_VERDICTS:
+                raise ApplicationError(
+                    f"Cannot create PO: audit verdict is {_audit_verdict!r}; "
+                    f"allowed: {_ALLOWED_VERDICTS}",
+                    non_retryable=True,
+                )
+
+            # AGT-05: derive logistics verdict from eway result
+            _logistics_verdict = eway.get("verdict") or eway.get("status", "PENDING")
 
             #  -  -  -  -  Stage 4: Escrow PO (ERP Agent)  -  -  -  -
             self.stage_reached = 4
@@ -601,6 +637,7 @@ class MasterEPRComplianceWorkflow:
                     run_input.org_id, _audit_verdict, _human_approved,
                     run_config.pack.escrow_split_primary,
                     run_config.pack.escrow_split_holdback,
+                    _logistics_verdict,   # AGT-05: forwarded from eway
                 ],
                 retry_policy=_RETRY,
                 start_to_close_timeout=_TIMEOUT,
@@ -610,9 +647,19 @@ class MasterEPRComplianceWorkflow:
             self.stage_reached = 5
             self.current_status = "STAGE_5_STATUTORY_FORM1_DISPATCH"
             cf = run_config.pack.conversion_factors.get(category, 1.0)
+            # AGT-09: pass signatory info from org policy and cf from pack
             form1 = await workflow.execute_activity(
                 generate_and_dispatch_form1_activity,
-                args=[po["po_number"], audit["audit_id"], volume_tons, cf, run_input.org_id],
+                args=[
+                    po["po_number"], audit["audit_id"], volume_tons, cf, run_input.org_id,
+                    "",                                          # chain_head
+                    "",                                          # org_name (populated by activity from DB if needed)
+                    fiscal_year,                                 # fiscal_year
+                    category,                                    # category
+                    100.0,                                       # compliance_pct
+                    run_config.policy.signatory_name or "",      # AGT-09: signatory_name
+                    run_config.policy.signatory_designation or "",  # AGT-09: signatory_designation
+                ],
                 retry_policy=_RETRY,
                 start_to_close_timeout=_TIMEOUT,
             )

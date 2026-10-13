@@ -77,28 +77,24 @@ def sign_form1_dsc(
         "organization_gstin": organization_gstin,
         "dsc_signature": dsc_signature,
         "signing_algorithm": "SHA256withRSA",
-        "signed": True,
+        # AGT-09: signed=False — dsc_signature is a SHA-256 hash placeholder,
+        # NOT a real PKCS#12 DSC. KMS/HSM integration is pending.
+        "signed": False,
     }
 
 
 def dispatch_to_cpcb_portal(signed_form: dict[str, Any]) -> dict[str, Any]:
-    """Submit the signed Form-1 to the CPCB national portal.
+    """Prepare Form-1 for manual upload to the CPCB national portal.
 
-    Args:
-        signed_form: Signed form payload from sign_form1_dsc
-
-    Returns:
-        Portal acknowledgement
+    AGT-09: Real portal submission is pending CPCB API credentials.
+    portal_status is set to READY_FOR_MANUAL_UPLOAD; ack_number is not generated.
     """
-    # In production: calls CPCB_PORTAL_URL with retry via Temporal's backoff
-    ack_number = f"ACK-CPCB-2026-{uuid.uuid4().hex[:10].upper()}"
+    # AGT-09: ack_number, portal_url, and submission_timestamp removed —
+    # these are only valid after actual portal submission.
     return {
         "form_id": signed_form.get("form_id"),
-        "portal_status": "PORTAL_SUBMITTED",
-        "ack_number": ack_number,
+        "portal_status": "READY_FOR_MANUAL_UPLOAD",
         "registered_credits_tons": signed_form.get("net_credit_tons"),
-        "portal_url": "https://cpcb.nic.in/epr-portal",
-        "submission_timestamp": "2026-10-01T10:00:00Z",
     }
 
 
@@ -135,11 +131,17 @@ async def run_legal_agent(
     physical_melt_tons: float,
     category: str = "cat_i_rigid",
     recycling_method: str = "mechanical",
-    organization_gstin: str = "27AAACH1234F1Z5",
+    organization_gstin: str = "",            # AGT-09: no default — caller must supply; removed seed GSTIN
     session_id: str | None = None,
     org_id: str = "",
+    signatory_name: str = "",               # AGT-09: from run_config.policy
+    signatory_designation: str = "",        # AGT-09: from run_config.policy
+    conversion_factor: float | None = None, # AGT-09: from run_config.pack.conversion_factors
 ) -> dict[str, Any]:
     """Run the Legal Agent to dispatch Form-1.
+
+    AGT-09: organization_gstin has no default — the caller must supply a real GSTIN
+    (looked up from LegalEntity). The seed GSTIN "27AAACH1234F1Z5" has been removed.
 
     Args:
         po_number: Linked purchase order
@@ -147,8 +149,12 @@ async def run_legal_agent(
         physical_melt_tons: Verified physical volume
         category: Plastic category for Cf lookup
         recycling_method: mechanical or co_processing
-        organization_gstin: Company GSTIN
+        organization_gstin: Company GSTIN — required, no default
         session_id: Optional ADK session ID
+        org_id: Organisation ID for scrubbing
+        signatory_name: Authorised signatory name from org policy (AGT-09)
+        signatory_designation: Signatory designation from org policy (AGT-09)
+        conversion_factor: Statutory Cf from active regulatory pack (AGT-09)
 
     Returns:
         Form-1 dispatch result dict
@@ -164,10 +170,19 @@ async def run_legal_agent(
     form_id = f"FORM1-{uuid.uuid4().hex[:8].upper()}"
     logger.info(f"Running legal_agent  -  form_id={form_id}, PO={po_number}")
 
+    # AGT-09: include conversion factor hint and signatory in user message
+    cf_hint = ""
+    if conversion_factor is not None:
+        cf_hint = (
+            f" The statutory conversion factor for this transaction is {conversion_factor} "
+            f"(from the active regulatory pack); use this value in apply_conversion_factor."
+        )
     user_message = scrub(
         f"Generate and dispatch Form-1 for PO '{po_number}' (audit: {audit_id}). "
         f"Physical melt: {physical_melt_tons} tons, category: {category}, "
-        f"method: {recycling_method}, GSTIN: {organization_gstin}, form_id: {form_id}. "
+        f"method: {recycling_method}, GSTIN: {organization_gstin or 'NOT_PROVIDED'}, "
+        f"form_id: {form_id}. "
+        f"Signatory: {signatory_name or 'N/A'}, designation: {signatory_designation or 'N/A'}.{cf_hint} "
         "Return a single JSON object.",
         org_id,
     )

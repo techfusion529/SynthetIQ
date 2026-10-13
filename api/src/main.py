@@ -1,4 +1,4 @@
-﻿"""SynthetIQ API Gateway  -  FastAPI entry point (v0.2)."""
+"""SynthetIQ API Gateway  -  FastAPI entry point (v0.2)."""
 
 from __future__ import annotations
 
@@ -67,6 +67,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.warning(f"DB init skipped ({type(exc).__name__}: {exc})")
 
+    # CFG-01: idempotent platform bootstrap (seed admin, platform org, default pack)
+    try:
+        from synthetiq_shared.bootstrap import bootstrap_platform
+        await bootstrap_platform()
+        logger.info("[Bootstrap] Platform bootstrap completed")
+    except Exception as exc:
+        logger.warning(f"[Bootstrap] Platform bootstrap skipped ({type(exc).__name__}: {exc})")
+
     # 2. Firebase Auth (idempotent; dev-mode falls through silently)
     try:
         from src.services.auth_service import initialize_firebase
@@ -74,8 +82,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("[Auth] Firebase Auth ready")
     except Exception as exc:
         logger.warning(f"Firebase init skipped ({type(exc).__name__}: {exc})")
-
-    # 3. Temporal Schedule Service
     try:
         from src.services.scheduler_service import TemporalScheduleService
         from src.services.temporal_service import temporal_service

@@ -66,6 +66,7 @@ def create_llm_agent(
     model: str | None = None,
     description: str = "",
     output_key: str | None = None,
+    temperature: float | None = None,
 ) -> LlmAgent:
     """Create a configured LlmAgent with SynthetIQ defaults.
 
@@ -76,6 +77,7 @@ def create_llm_agent(
         model: Gemini model name (defaults to env GEMINI_MODEL)
         description: Human-readable description
         output_key: Session state key to store agent output
+        temperature: Sampling temperature (0.0–1.0); None uses LlmAgent default
 
     Returns:
         Configured LlmAgent instance
@@ -87,13 +89,18 @@ def create_llm_agent(
         else:
             agent_tools.append(tool)
 
-    agent = LlmAgent(
+    # Build kwargs; temperature is only passed when explicitly set (AGT-12)
+    agent_kwargs: dict = dict(
         name=name,
         model=model or DEFAULT_MODEL,
         instruction=instruction,
         description=description or name.replace("_", " ").title(),
         tools=agent_tools,
     )
+    if temperature is not None:
+        agent_kwargs["temperature"] = temperature
+
+    agent = LlmAgent(**agent_kwargs)
 
     if output_key:
         agent.output_key = output_key

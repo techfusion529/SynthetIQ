@@ -18,7 +18,13 @@ from utils.metrics import llm_tokens_total
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_MODEL_IDS = frozenset(["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash"])
+ALLOWED_MODEL_IDS = frozenset([
+    "gemini-1.5-pro",
+    "gemini-1.5-flash",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-exp",       # AGT-12: add experimental flash
+    "gemini-1.5-pro-latest",      # AGT-12: add latest pro alias
+])
 FORBIDDEN_PROMPT_KEYWORDS = frozenset(["verdict=", "always_pass", "skip_gate"])
 
 MAX_LLM_TOKENS = int(os.getenv("MAX_LLM_TOKENS_PER_ORG_PER_MONTH", "1000000"))
@@ -173,6 +179,8 @@ def _build_auditor(model_id: str, temperature: float, system_prompt: str | None)
         tools=[fetch_scada_telemetry, evaluate_scada_signature],
         description="SCADA telemetry fraud detection via Nimble System 1 / Jev ensemble",
         output_key="audit_result",
+        model=model_id,           # AGT-12: forward per-org model
+        temperature=temperature,  # AGT-12: forward per-org temperature
     )
 
 
@@ -187,6 +195,8 @@ def _build_brand_liability(model_id: str, temperature: float, system_prompt: str
         tools=[query_erp_sales, get_historic_debt, calculate_amortization],
         description="Calculates EPR plastic-waste liability from ERP sales + 1/3 amortization rule",
         output_key="liability_result",
+        model=model_id,           # AGT-12: forward per-org model
+        temperature=temperature,  # AGT-12: forward per-org temperature
     )
 
 
@@ -201,6 +211,8 @@ def _build_regulatory(model_id: str, temperature: float, system_prompt: str | No
         tools=[fetch_cpcb_gazette, extract_conversion_factors],
         description="Parses CPCB gazette notifications into structured EPR rules",
         output_key="regulatory_rules",
+        model=model_id,           # AGT-12: forward per-org model
+        temperature=temperature,  # AGT-12: forward per-org temperature
     )
 
 
@@ -215,6 +227,8 @@ def _build_treasury(model_id: str, temperature: float, system_prompt: str | None
         tools=[compute_statutory_corridor, fetch_recycler_bids, validate_price_corridor],
         description="Runs the continuous double auction within the statutory price corridor",
         output_key="auction_result",
+        model=model_id,           # AGT-12: forward per-org model
+        temperature=temperature,  # AGT-12: forward per-org temperature
     )
 
 
@@ -229,6 +243,8 @@ def _build_logistics(model_id: str, temperature: float, system_prompt: str | Non
         tools=[verify_eway_bill, scan_qr_packaging_ledger, assess_logistics_risk],
         description="Verifies material origin via E-Way bills and QR packaging ledger",
         output_key="logistics_result",
+        model=model_id,           # AGT-12: forward per-org model
+        temperature=temperature,  # AGT-12: forward per-org temperature
     )
 
 
@@ -243,6 +259,8 @@ def _build_erp(model_id: str, temperature: float, system_prompt: str | None) -> 
         tools=[validate_po_conditions, create_purchase_order],
         description="Creates 80/20 split escrow purchase order after validating audit verdicts",
         output_key="po_result",
+        model=model_id,           # AGT-12: forward per-org model
+        temperature=temperature,  # AGT-12: forward per-org temperature
     )
 
 
@@ -257,4 +275,6 @@ def _build_legal(model_id: str, temperature: float, system_prompt: str | None) -
         tools=[apply_conversion_factor, sign_form1_dsc, dispatch_to_cpcb_portal],
         description="Generates, DSC-signs, and submits CPCB Form-1 for EPR credit registration",
         output_key="form1_result",
+        model=model_id,           # AGT-12: forward per-org model
+        temperature=temperature,  # AGT-12: forward per-org temperature
     )

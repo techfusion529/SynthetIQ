@@ -21,6 +21,37 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# AGT-12: Approximate LLM usage logging helper
+# ---------------------------------------------------------------------------
+
+async def _log_llm_usage(
+    org_id: str,
+    agent_name: str,
+    model: str,
+    prompt: str,
+    response: str,
+) -> None:
+    """Write an approximate LlmUsageLog row. Best-effort — never raises.
+
+    AGT-12: token counts are approximate (len // 4) pending SDK token count support.
+    """
+    try:
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models import LlmUsageLog
+        async with get_db_session() as session:
+            session.add(LlmUsageLog(
+                org_id=org_id or "unknown",
+                agent_name=agent_name,
+                model=model,
+                input_tokens=len(prompt) // 4,    # AGT-12: rough approximation
+                output_tokens=len(response) // 4,  # AGT-12: rough approximation
+            ))
+            await session.commit()
+    except Exception as _exc:
+        logger.debug(f"[Activity] LlmUsageLog write failed ({_exc}); continuing")
+
+
+# ---------------------------------------------------------------------------
 # C2 — Activity result models
 # ---------------------------------------------------------------------------
 
@@ -87,13 +118,52 @@ def _require(d: dict, key: str, activity_name: str):
 async def calculate_brand_liability_activity(
     company_id: str,
     fiscal_year: str,
+    run_config_dict: dict[str, Any] | None = None,
+    category: str = "",
+    org_id: str = "",
     sales_data: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Calculate EPR liability using ADK Brand Liability Agent.
 
+    AGT-01: When run_config_dict is provided, performs deterministic pre-computation
+    from the obligation ledger BEFORE calling the LLM. The deterministic result is
+    authoritative; LLM output is advisory only.
+
     Sales data is PII-scrubbed by the privacy service before being sent to Gemini.
     """
     logger.info(f"[Activity] Brand liability  -  {company_id}, {fiscal_year}")
+
+    # AGT-01: deterministic pre-computation from obligation ledger
+    if run_config_dict:
+        from synthetiq_shared.models.dynamic_config import RunConfig as _RunConfig
+        _run_config = _RunConfig(**run_config_dict)
+        if not _run_config.obligations:
+            raise ApplicationError(
+                "No obligation entries found for org/fiscal_year",
+                non_retryable=False,
+            )
+        total_obligation = sum(
+            e.obligation_tons
+            for e in _run_config.obligations
+            if e.fiscal_year == fiscal_year
+        )
+        if total_obligation == 0.0:
+            raise ApplicationError(
+                "No obligation entries found for org/fiscal_year",
+                non_retryable=False,
+            )
+        target_pct = _run_config.pack.category_targets.get(category, 0.0)
+        gross_liability = round(total_obligation * (1.0 - target_pct), 4)
+        logger.info(
+            f"[Activity] Deterministic liability: total_obligation={total_obligation}, "
+            f"target_pct={target_pct}, gross_liability={gross_liability}"
+        )
+        # Return deterministic result without calling LLM
+        return LiabilityResult(
+            net_liability_tons=gross_liability,
+            gross_liability_tons=total_obligation,
+            category=category or None,
+        ).model_dump()
 
     from agents.brand_liability_agent import run_brand_liability_agent
     from services.privacy_service import get_privacy_service
@@ -107,6 +177,16 @@ async def calculate_brand_liability_activity(
     result = await run_brand_liability_agent(
         company_id=company_id,
         fiscal_year=fiscal_year,
+        org_id=org_id,
+    )
+
+    # AGT-12: log approximate LLM usage
+    await _log_llm_usage(
+        org_id=org_id,
+        agent_name="brand_liability",
+        model="gemini-2.0-flash",
+        prompt=f"{company_id} {fiscal_year}",
+        response=str(result.get("raw_response", "")),
     )
 
     result.setdefault("company_id", company_id)
@@ -316,6 +396,15 @@ async def audit_scada_telemetry_activity(
         threshold=delta_threshold,
     )
 
+    # AGT-12: log approximate LLM usage
+    await _log_llm_usage(
+        org_id=org_id,
+        agent_name="auditor",
+        model="gemini-2.0-flash",
+        prompt=f"{recycler_id} {plant_id} {reported_volume_tons}",
+        response=str(result.get("raw_response", "")),
+    )
+
     # Ensure audit_id is always present for downstream activities
     audit_id = f"AUD-{uuid.uuid4().hex[:8].upper()}"
     result.setdefault("audit_id", audit_id)
@@ -392,7 +481,9 @@ async def audit_scada_telemetry_activity(
     # --- Deterministic verdict (physics v2 overrides any LLM verdict) ---
     if sec_actual > band_upper:
         verdict = "HITL"
-    elif delta_frac > delta_threshold / 100.0:
+    # AGT-03: delta_threshold_default is stored as a fraction (e.g. 0.02 = 2%) in RegulatoryPackPayload.
+    # delta_threshold is a fraction per RegulatoryPackPayload — do NOT divide by 100.0.
+    elif delta_frac > delta_threshold:  # delta_threshold is a fraction (e.g. 0.02 = 2%) in RegulatoryPackPayload
         verdict = "HITL"
     else:
         verdict = "PASS"
@@ -427,6 +518,7 @@ async def create_escrow_split_po_activity(
     human_approved: bool | None = None,
     escrow_split_primary: float = 0.8,
     escrow_split_holdback: float = 0.2,
+    logistics_verdict: str = "PENDING",   # AGT-05: pass from eway result
 ) -> dict[str, Any]:
     """Create escrow PO with configurable advance/holdback split from RunConfig.pack."""
     logger.info(f"[Activity] Escrow PO  -  {company_id}  -  {recycler_id}, {plastic_tons}t")
@@ -442,6 +534,12 @@ async def create_escrow_split_po_activity(
             "FAIL_CLOSED: human_approved not provided to PO activity",
             non_retryable=True,
         )
+    # AGT-05: fail-closed — logistics_verdict must be provided
+    if not logistics_verdict or logistics_verdict == "PENDING":
+        raise ApplicationError(
+            "FAIL_CLOSED: logistics_verdict not provided to PO activity",
+            non_retryable=True,
+        )
 
     from agents.erp_agent import run_erp_agent
 
@@ -452,8 +550,17 @@ async def create_escrow_split_po_activity(
         plastic_tons=plastic_tons,
         unit_price_inr=unit_price_inr,
         audit_verdict=audit_verdict,
-        logistics_verdict="APPROVE",
+        logistics_verdict=logistics_verdict,  # AGT-05: use the actual logistics verdict
         human_approved=human_approved,
+    )
+
+    # AGT-12: log approximate LLM usage
+    await _log_llm_usage(
+        org_id=org_id,
+        agent_name="erp",
+        model="gemini-2.0-flash",
+        prompt=f"{company_id} {recycler_id} {audit_id}",
+        response=str(result.get("raw_response", "")),
     )
 
     result.setdefault("po_number", f"PO-{uuid.uuid4().hex[:8].upper()}")
@@ -527,16 +634,57 @@ async def generate_and_dispatch_form1_activity(
     fiscal_year: str = "",
     category: str = "cat_i_rigid",
     compliance_pct: float = 100.0,
+    signatory_name: str = "",          # AGT-09: from run_config.policy
+    signatory_designation: str = "",   # AGT-09: from run_config.policy
 ) -> dict[str, Any]:
     """Generate DSC-signed Form-1, render PDF, and dispatch to CPCB."""
     logger.info(f"[Activity] Form-1 dispatch  -  PO={po_number}, {physical_melt_tons}t")
 
     from agents.legal_agent import run_legal_agent
 
+    # AGT-09: look up org GSTIN from legal_entities; fall back to org_id with a warning
+    org_gstin = ""
+    try:
+        from sqlalchemy import select as _sa_select
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models import LegalEntity
+        async with get_db_session() as session:
+            le = (await session.execute(
+                _sa_select(LegalEntity).where(LegalEntity.org_id == org_id).limit(1)
+            )).scalar_one_or_none()
+            if le and le.gstin:
+                org_gstin = le.gstin
+            else:
+                logger.warning(
+                    f"[Activity] No GSTIN found for org={org_id!r}; "
+                    f"using org_id as fallback"
+                )
+                org_gstin = org_id
+    except Exception as gstin_exc:
+        logger.warning(f"[Activity] GSTIN lookup failed ({gstin_exc}); using org_id as fallback")
+        org_gstin = org_id
+
     result = await run_legal_agent(
         po_number=po_number,
         audit_id=audit_id,
         physical_melt_tons=physical_melt_tons,
+        organization_gstin=org_gstin,          # AGT-09: real GSTIN from DB
+        org_id=org_id,
+        signatory_name=signatory_name,         # AGT-09
+        signatory_designation=signatory_designation,  # AGT-09
+        conversion_factor=conversion_factor,   # AGT-09: from run_config.pack
+    )
+
+    # AGT-09: force signed=False — dsc_signature is a hash placeholder, not a real DSC
+    result["signed"] = False
+
+    # AGT-12: log approximate LLM usage
+    await _log_llm_usage(
+        org_id=org_id,
+        agent_name="legal",
+        model="gemini-2.0-flash",
+        prompt=f"{po_number} {audit_id}",
+        response=str(result.get("raw_response", "")),
     )
 
     result.setdefault("form1_id", f"FORM1-{uuid.uuid4().hex[:8].upper()}")

@@ -85,18 +85,58 @@ def query_erp_sales(company_id: str, fiscal_year: str) -> dict[str, Any]:
 def get_historic_debt(company_id: str) -> dict[str, Any]:
     """Retrieve the organization's accumulated historic EPR debt.
 
+    AGT-01: Removed hardcoded values. Queries the obligation ledger DB when available.
+    Falls back to zeros with a warning when DB is unavailable.
+
     Args:
         company_id: Company identifier
 
     Returns:
         Dict with historic_debt_tons and last_amortized_year
     """
-    # In production: query from PostgreSQL WorkflowRun / compliance ledger
+    # AGT-01: removed hardcoded values (3600.0 / 2500.0); query DB instead
+    try:
+        import asyncio
+        import concurrent.futures
+        from sqlalchemy import select, func as sa_func
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models.dynamic_config import ObligationLedger
+
+        async def _query() -> float:
+            async with get_db_session() as session:
+                row = (await session.execute(
+                    select(
+                        sa_func.coalesce(sa_func.sum(ObligationLedger.obligation_tons), 0.0)
+                    ).where(ObligationLedger.org_id == company_id)
+                )).scalar_one()
+                return float(row)
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                historic_debt = pool.submit(asyncio.run, _query()).result(timeout=5.0)
+        else:
+            historic_debt = asyncio.run(_query())
+    except Exception as exc:
+        logger.warning(f"get_historic_debt DB query failed ({exc}); returning zeros")
+        return {
+            "company_id": company_id,
+            "historic_debt_tons": 0.0,
+            "already_fulfilled_tons": 0.0,
+            "last_amortized_year": "unknown",
+            "source": "not_configured",
+        }
+
     return {
         "company_id": company_id,
-        "historic_debt_tons": 3600.0,
-        "already_fulfilled_tons": 2500.0,
-        "last_amortized_year": "FY2025-26",
+        "historic_debt_tons": historic_debt,
+        "already_fulfilled_tons": 0.0,   # fulfilled credits tracked in obligation_ledger source
+        "last_amortized_year": "unknown",
+        "source": "obligation_ledger",
     }
 
 
@@ -154,6 +194,8 @@ async def run_brand_liability_agent(
     fiscal_year: str,
     session_id: str | None = None,
     org_id: str = "",
+    context_gross_liability: float | None = None,   # AGT-01: advisory pre-computed value
+    context_total_obligation: float | None = None,  # AGT-01: advisory pre-computed value
 ) -> dict[str, Any]:
     """Run the Brand Liability Agent and return the liability breakdown.
 
@@ -161,6 +203,9 @@ async def run_brand_liability_agent(
         company_id: Company identifier
         fiscal_year: Target fiscal year
         session_id: Optional ADK session ID
+        org_id: Organisation ID for scrubbing
+        context_gross_liability: Advisory pre-computed gross liability (AGT-01)
+        context_total_obligation: Advisory pre-computed total obligation (AGT-01)
 
     Returns:
         Liability breakdown dict
@@ -175,9 +220,18 @@ async def run_brand_liability_agent(
 
     logger.info(f"Running brand_liability_agent for {company_id} / {fiscal_year}")
 
+    # AGT-01: append advisory context when deterministic pre-computation is available
+    advisory = ""
+    if context_gross_liability is not None:
+        advisory = (
+            f" [Advisory context — deterministic pre-computation: "
+            f"total_obligation={context_total_obligation} tons, "
+            f"gross_liability={context_gross_liability} tons. "
+            f"Use these as your baseline; do not override without explicit reason.]"
+        )
     user_message = scrub(
         f"Calculate the EPR liability for company '{company_id}' for fiscal year '{fiscal_year}'. "
-        "Use all available tools. Return a single JSON object.",
+        f"Use all available tools. Return a single JSON object.{advisory}",
         org_id,
     )
     result = await run_agent(

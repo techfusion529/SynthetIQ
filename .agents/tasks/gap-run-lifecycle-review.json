@@ -1,0 +1,10 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    "WorkflowRun never committed — create_run calls session.add(wf_run) inside an async with get_db_session() block but never calls await session.commit(). The row is rolled back on context-manager exit. Add await session.commit() before the block closes. This breaks RUN-04 end-to-end: the worker's update_workflow_run_activity SELECT finds no row and silently no-ops, and GET /runs/{run_id} returns 404 for every run.",
+    "_human_approved defaults to True for non-HITL runs — In workflows.py, _human_approved resolves to True whenever auditor_approved is None (all non-HITL runs). The PO activity receives human_approved=True without any human approval. The default should be False, or the PO activity should receive a sentinel indicating HITL was not required rather than treating it as approved.",
+    "SettlementDispatchWorkflow retains hardcoded audit_verdict APPROVED — SettlementDispatchWorkflow.run() passes audit_verdict: APPROVED as a literal to generate_audit_report_pdf_activity. RUN-05 fixed this in MasterEPRComplianceWorkflow but not in this sub-workflow. Thread the audit_verdict parameter through to the PDF activity args.",
+    "auctions.py does not pass statutory_rate to Temporal dispatch — broadcast_rfp validates statutory_rate_per_kg and stores it in AuctionRecord but passes only [company_id, category, target_tons] to AuctionLiquidityWorkflow. The workflow runs with its default statutory_base_rate=12.0 regardless. Add float(statutory_rate) as the fourth positional arg in the start_workflow call."
+  ],
+  "reviewDoc": "c:\\Users\\HP\\SynthetIQ\\.agents\\tasks\\gap-run-lifecycle-review.md"
+}

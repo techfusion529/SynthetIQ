@@ -246,7 +246,7 @@ class QuadCoreAuditWorkflow:
 
 @workflow.defn
 class SettlementDispatchWorkflow:
-    """W4  -  ERP Agent (80/20 PO)  - ' Legal Agent (Form-1 DSC dispatch)  - ' PDF Vault."""
+    """W4  -  ERP Agent (escrow PO with RunConfig split)  -  Legal Agent (Form-1 DSC dispatch)  -  PDF Vault."""
 
     @workflow.run
     async def run(
@@ -258,10 +258,28 @@ class SettlementDispatchWorkflow:
         unit_price_inr: float = 7.5,
         conversion_factor: float = 1.0,
         org_id: str = "",
+        audit_verdict: str = "APPROVED",
+        human_approved: bool = True,
+        regulatory_pack_version: str = "PWM_2026_v1",
     ) -> dict[str, Any]:
+        # Stage 0: fetch RunConfig so we honour the tenant's escrow-split policy
+        run_config_dict = await workflow.execute_activity(
+            fetch_run_config_activity,
+            args=[org_id, regulatory_pack_version],
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
+        )
+        from synthetiq_shared.models.dynamic_config import RunConfig as _RunConfig
+        run_config = _RunConfig(**run_config_dict)
+
         po = await workflow.execute_activity(
             create_escrow_split_po_activity,
-            args=[company_id, recycler_id, audit_id, plastic_tons, unit_price_inr, org_id],
+            args=[
+                company_id, recycler_id, audit_id, plastic_tons, unit_price_inr,
+                org_id, audit_verdict, human_approved,
+                run_config.pack.escrow_split_primary,
+                run_config.pack.escrow_split_holdback,
+            ],
             retry_policy=_RETRY,
             start_to_close_timeout=_TIMEOUT,
         )
@@ -499,12 +517,14 @@ class MasterEPRComplianceWorkflow:
         #  -  -  -  -  Stage 4: Escrow PO (ERP Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
         self.stage_reached = 4
         self.current_status = "STAGE_4_ESCROW_SETTLEMENT"
-        clearing_price = auction.get("clearing_price_inr", 7.8)
+        clearing_price = auction.get("clearing_price", 7.8)
+        _audit_verdict: str = audit.get("audit_verdict", "APPROVED")
+        _human_approved: bool = bool(self.auditor_approved) if self.auditor_approved is not None else True
         po = await workflow.execute_activity(
             create_escrow_split_po_activity,
             args=[
                 company_id, recycler_id, audit["audit_id"], volume_tons, clearing_price,
-                run_input.org_id, None, None,
+                run_input.org_id, _audit_verdict, _human_approved,
                 run_config.pack.escrow_split_primary,
                 run_config.pack.escrow_split_holdback,
             ],

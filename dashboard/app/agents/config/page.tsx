@@ -242,15 +242,31 @@ export default function AgentConfigStudioPage() {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
+      // Try with trailing slash first to avoid 307 Insecure Redirect / Mixed Content
+      const fetchWithFallback = async (pathSlash: string, pathNoSlash: string) => {
+        let r = await fetch(pathSlash, { headers }).catch((err) => {
+          console.warn("Fetch with slash error:", err);
+          return null;
+        });
+        if (!r || !r.ok) {
+          const r2 = await fetch(pathNoSlash, { headers }).catch((err) => {
+            console.warn("Fetch without slash error:", err);
+            return null;
+          });
+          if (r2 && r2.ok) return r2;
+        }
+        return r;
+      };
+
       const [cfgResp, dsResp] = await Promise.all([
-        fetch(`${API_BASE}/organizations/${orgId}/agents`, { headers }).catch((err) => {
-          console.warn("Agents API network error:", err);
-          return null;
-        }),
-        fetch(`${API_BASE}/organizations/${orgId}/data-sources`, { headers }).catch((err) => {
-          console.warn("Data sources API network error:", err);
-          return null;
-        }),
+        fetchWithFallback(
+          `${API_BASE}/organizations/${encodeURIComponent(orgId)}/agents/`,
+          `${API_BASE}/organizations/${encodeURIComponent(orgId)}/agents`
+        ),
+        fetchWithFallback(
+          `${API_BASE}/organizations/${encodeURIComponent(orgId)}/data-sources`,
+          `${API_BASE}/organizations/${encodeURIComponent(orgId)}/data-sources/`
+        ),
       ]);
 
       let cfgData: AgentConfig[] = [];
@@ -272,8 +288,9 @@ export default function AgentConfigStudioPage() {
         setConfigs(tenantDefaults);
         setCurrentConfig((prev) => prev ? tenantDefaults.find((c) => c.agent_name === prev.agent_name) || tenantDefaults[0] : tenantDefaults[0]);
         if (!cfgResp || !cfgResp.ok) {
+          const statusText = cfgResp ? `status ${cfgResp.status}` : "connection refused";
           setError(
-            `Live API server is unreachable (${API_BASE}). Loaded default agent configuration templates in offline inspection mode.`
+            `Backend API (${API_BASE}) returned ${statusText}. Showing default multi-agent configuration templates.`
           );
         }
       }

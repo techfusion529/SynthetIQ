@@ -415,6 +415,11 @@ class EscrowPORecord(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # Phase-5 escrow split columns
+    advance_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    holdback_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    escrow_status: Mapped[str] = mapped_column(String(32), default="advance_pending")
+
     def to_dict(self) -> dict:
         return {
             "po_number": self.po_number, "company_id": self.company_id,
@@ -427,6 +432,9 @@ class EscrowPORecord(Base):
             "audit_id": self.audit_id,
             "sap_purchase_order_number": self.sap_purchase_order_number,
             "sap_sync_status": self.sap_sync_status,
+            "advance_amount": self.advance_amount,
+            "holdback_amount": self.holdback_amount,
+            "escrow_status": self.escrow_status,
         }
 
 

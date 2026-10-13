@@ -172,55 +172,60 @@ async def execute_double_auction_activity(
                     )
                 ).scalars().all()
 
-                if bid_rows:
-                    # Uniform-price clearing: accumulate volume until >= target_tons
-                    accumulated: float = 0.0
-                    clearing_price: float = 0.0
-                    winner_org_id: str = ""
-                    accepted_bids: list[BidRecord] = []
-
-                    for bid in bid_rows:
-                        if accumulated >= target_tons:
-                            break
-                        accepted_bids.append(bid)
-                        accumulated += bid.volume_tons
-                        clearing_price = bid.price_per_kg
-                        winner_org_id = bid.recycler_id
-
-                    # Clamp to corridor when supplied
-                    if corridor_min > 0.0 and clearing_price < corridor_min:
-                        clearing_price = corridor_min
-                    if corridor_max > 0.0 and clearing_price > corridor_max:
-                        clearing_price = corridor_max
-
-                    total_cleared = min(accumulated, target_tons)
-
-                    # Persist clearing result
-                    auction_rec = (
-                        await session.execute(
-                            select(AuctionRecord).where(AuctionRecord.auction_id == auction_id)
-                        )
-                    ).scalar_one_or_none()
-
-                    if auction_rec:
-                        auction_rec.status = "CLEARED"
-                        auction_rec.clearing_price_inr = clearing_price
-                        auction_rec.total_cleared_tons = total_cleared
-
-                    for bid in accepted_bids:
-                        bid.status = "ACCEPTED"
-
-                    await session.commit()
-
-                    logger.info(
-                        f"[Activity] DB auction cleared: price={clearing_price}, "
-                        f"winner={winner_org_id}, tons={total_cleared}"
+                if not bid_rows:
+                    raise ApplicationError(
+                        f"FAIL_CLOSED: no bids found for auction_id={auction_id}",
+                        non_retryable=False,
                     )
-                    return AuctionResult(
-                        clearing_price=clearing_price,
-                        winner_org_id=winner_org_id,
-                        total_volume_tons=total_cleared,
-                    ).model_dump()
+
+                # Uniform-price clearing: accumulate volume until >= target_tons
+                accumulated: float = 0.0
+                clearing_price: float = 0.0
+                winner_org_id: str = ""
+                accepted_bids: list[BidRecord] = []
+
+                for bid in bid_rows:
+                    if accumulated >= target_tons:
+                        break
+                    accepted_bids.append(bid)
+                    accumulated += bid.volume_tons
+                    clearing_price = bid.price_per_kg
+                    winner_org_id = bid.recycler_id
+
+                # Clamp to corridor when supplied
+                if corridor_min > 0.0 and clearing_price < corridor_min:
+                    clearing_price = corridor_min
+                if corridor_max > 0.0 and clearing_price > corridor_max:
+                    clearing_price = corridor_max
+
+                total_cleared = min(accumulated, target_tons)
+
+                # Persist clearing result
+                auction_rec = (
+                    await session.execute(
+                        select(AuctionRecord).where(AuctionRecord.auction_id == auction_id)
+                    )
+                ).scalar_one_or_none()
+
+                if auction_rec:
+                    auction_rec.status = "CLEARED"
+                    auction_rec.clearing_price_inr = clearing_price
+                    auction_rec.total_cleared_tons = total_cleared
+
+                for bid in accepted_bids:
+                    bid.status = "ACCEPTED"
+
+                await session.commit()
+
+                logger.info(
+                    f"[Activity] DB auction cleared: price={clearing_price}, "
+                    f"winner={winner_org_id}, tons={total_cleared}"
+                )
+                return AuctionResult(
+                    clearing_price=clearing_price,
+                    winner_org_id=winner_org_id,
+                    total_volume_tons=total_cleared,
+                ).model_dump()
 
         except Exception as exc:
             logger.warning(f"[Activity] DB auction clearing failed ({exc}); falling back to agent")

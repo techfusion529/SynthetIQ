@@ -60,9 +60,11 @@ export interface Form1Payload {
   portal_status?: string;
   portal_ack_number?: string;
   dsc_signature?: string;
+  signed?: boolean;
 }
 
 export interface ApproveEscrowParams {
+  run_id: string;
   audit_id: string;
   workflow_id?: string;
   action?: "APPROVE" | "REJECT";

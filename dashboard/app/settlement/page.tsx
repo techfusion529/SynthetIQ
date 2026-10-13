@@ -81,7 +81,7 @@ export default function SettlementPage() {
     setApproving(true);
     setApproveError(null);
     try {
-      const res = await settlementSvc.approve({ audit_id: activePO.audit_id, action: "APPROVE" });
+      const res = await settlementSvc.approve({ run_id: "", audit_id: activePO.audit_id, action: "APPROVE" });
       setApproveResult(`Approved by ${res.approved_by}. 80% advance released in ERP.`);
       setApproveOpen(false);
       fetchPOs();

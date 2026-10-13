@@ -42,3 +42,6 @@ export function useCompanyService()      { return useServices().company; }
 export function useOrganizationService() { return useServices().organization; }
 export function useScheduleService()     { return useServices().schedule; }
 export function useConfigService()       { return useServices().config; }
+
+/** Alias for useComplianceService — used by the run submission & polling panel. */
+export function useRunService() { return useServices().compliance; }

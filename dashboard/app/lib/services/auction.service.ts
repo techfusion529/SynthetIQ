@@ -1,7 +1,7 @@
 /** AuctionService — liquidity & continuous double auction endpoints. */
 
 import { BaseService } from "./base.service";
-import type { Auction, Bid, BroadcastRfpParams } from "../types/auction.types";
+import type { Auction, Bid, BroadcastRfpParams, SubmitBidParams } from "../types/auction.types";
 
 export class AuctionService extends BaseService {
   /** Lists all auctions sorted by created_at descending. */
@@ -35,5 +35,15 @@ export class AuctionService extends BaseService {
    */
   async broadcastRfp(params: BroadcastRfpParams): Promise<{ auction_id: string; workflow_id: string; status: string }> {
     return this.request("POST", "/api/v1/auctions/rfp", { body: params });
+  }
+
+  /**
+   * Submits a bid for an active auction.
+   * Only recycler orgs may call this.
+   */
+  async submitBid(auctionId: string, bid: SubmitBidParams): Promise<Bid> {
+    return this.request<Bid>("POST", `/api/v1/auctions/${encodeURIComponent(auctionId)}/bids`, {
+      body: bid,
+    });
   }
 }

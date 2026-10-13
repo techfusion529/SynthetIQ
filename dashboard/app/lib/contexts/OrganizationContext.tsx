@@ -71,8 +71,8 @@ function toContextOrg(o: OrgType): Organization {
   return {
     id: o.org_id,
     name: o.name,
-    org_type: undefined,
-    status: undefined,
+    org_type: o.role,
+    status: o.is_active ? "active" : "inactive",
     company_id: o.org_id,
     gstin: o.gstin,
     industry_sector: o.industry_sector,

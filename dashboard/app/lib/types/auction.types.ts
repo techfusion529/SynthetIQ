@@ -13,6 +13,8 @@ export interface Bid {
   price_per_kg: number;
   status: BidStatus;
   timestamp: string; // ISO 8601
+  /** The recycler's org ID — used for bid filtering by current org. */
+  org_id?: string;
 }
 
 export interface Auction {
@@ -28,10 +30,18 @@ export interface Auction {
   status: string;
   winning_recyclers: string[];
   created_at: string;
+  winner_org_id?: string;
+  corridor_min?: number;
+  corridor_max?: number;
 }
 
 export interface BroadcastRfpParams {
   company_id: string;
   category: string;
   target_tons: number;
+}
+
+export interface SubmitBidParams {
+  volume_tons: number;
+  price_per_kg: number;
 }

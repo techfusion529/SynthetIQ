@@ -28,22 +28,33 @@ import GavelIcon from "@mui/icons-material/Gavel";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import AddIcon from "@mui/icons-material/Add";
 import SignalCellularAltIcon from "@mui/icons-material/SignalCellularAlt";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 
 import { useOrganization as useCompany } from "../lib/contexts/OrganizationContext";
+import { useSession } from "../lib/contexts/SessionContext";
 import { useAuctionService } from "../lib/hooks/useServices";
 import { ApiError } from "../lib/services/base.service";
 import type { Auction, Bid } from "../lib/types/auction.types";
 
+/** Bid-level status → chip colour */
 const STATUS_COLOR: Record<string, "success" | "warning" | "error" | "default"> = {
   MATCHED: "success",
   BIDDING: "warning",
   OUT_OF_CORRIDOR: "error",
 };
 
+/** Auction-level status → chip colour */
+const AUCTION_STATUS_COLOR: Record<string, "success" | "warning" | "error" | "info" | "default"> = {
+  open:      "info",
+  cleared:   "success",
+  cancelled: "error",
+  BIDDING:   "warning",
+  MATCHED:   "success",
+};
+
 function CorridorVisualizer({ auction }: { auction: Auction | null }) {
   if (!auction) return <Skeleton variant="rounded" height={60} />;
   const { floor_price_inr: floor, ceiling_price_inr: ceiling, clearing_price_inr: clearing } = auction;
-  // Clearing marker position within the 30–100% band (0–100%)
   const pct = ceiling > floor ? Math.round(((clearing - floor) / (ceiling - floor)) * 100) : 50;
   return (
     <Box>
@@ -75,21 +86,29 @@ function CorridorVisualizer({ auction }: { auction: Auction | null }) {
 
 export default function AuctionPage() {
   const router = useRouter();
-  const { companyId } = useCompany();
+  const { companyId, currentOrg } = useCompany();
+  const { user } = useSession();
   const auctionSvc = useAuctionService();
 
-  const [auctions, setAuctions]         = useState<Auction[]>([]);
-  const [activeAuction, setActiveAuction] = useState<Auction | null>(null);
-  const [bids, setBids]                 = useState<Bid[]>([]);
+  const [auctions, setAuctions]             = useState<Auction[]>([]);
+  const [activeAuction, setActiveAuction]   = useState<Auction | null>(null);
+  const [bids, setBids]                     = useState<Bid[]>([]);
   const [loadingAuctions, setLoadingAuctions] = useState(true);
-  const [loadingBids, setLoadingBids]   = useState(false);
-  const [auctionsError, setAuctionsError] = useState<string | null>(null);
-  const [bidsError, setBidsError]       = useState<string | null>(null);
-  const [broadcasting, setBroadcasting] = useState(false);
+  const [loadingBids, setLoadingBids]       = useState(false);
+  const [auctionsError, setAuctionsError]   = useState<string | null>(null);
+  const [bidsError, setBidsError]           = useState<string | null>(null);
+  const [broadcasting, setBroadcasting]     = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
-  const [targetTons, setTargetTons]     = useState("1000");
-  const [category, setCategory]         = useState("cat_i_rigid");
+  const [targetTons, setTargetTons]         = useState("1000");
+  const [category, setCategory]             = useState("cat_i_rigid");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Submit Bid form state
+  const [bidVolume, setBidVolume]           = useState("");
+  const [bidPrice, setBidPrice]             = useState("");
+  const [submittingBid, setSubmittingBid]   = useState(false);
+  const [bidSubmitResult, setBidSubmitResult] = useState<string | null>(null);
+  const [bidSubmitError, setBidSubmitError] = useState<string | null>(null);
 
   // ── fetch auctions (initial) ───────────────────────────────────────────────
   const fetchAuctions = useCallback(async () => {
@@ -145,6 +164,39 @@ export default function AuctionPage() {
       setBroadcasting(false);
     }
   };
+
+  // ── submit bid ────────────────────────────────────────────────────────────
+  const handleSubmitBid = async () => {
+    if (!activeAuction) return;
+    setSubmittingBid(true);
+    setBidSubmitResult(null);
+    setBidSubmitError(null);
+    try {
+      const result = await auctionSvc.submitBid(activeAuction.id, {
+        volume_tons: Number(bidVolume),
+        price_per_kg: Number(bidPrice),
+      });
+      setBidSubmitResult(`Bid ${result.bid_id} submitted successfully.`);
+      setBidVolume("");
+      setBidPrice("");
+      await fetchBids(activeAuction.id);
+    } catch (e) {
+      setBidSubmitError(e instanceof ApiError ? e.message : "Bid submission failed");
+    } finally {
+      setSubmittingBid(false);
+    }
+  };
+
+  // ── filtered bids ─────────────────────────────────────────────────────────
+  const visibleBids = (() => {
+    if (currentOrg?.org_type === "recycler") {
+      return bids.filter((b) => b.org_id === currentOrg.id);
+    }
+    return bids; // admin or producer sees all
+  })();
+
+  const isRecycler = currentOrg?.org_type === "recycler";
+  const canSubmitBid = isRecycler && activeAuction !== null && activeAuction.status !== "cleared";
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
@@ -221,18 +273,112 @@ export default function AuctionPage() {
       {!loadingAuctions && auctions.length === 0 ? (
         <Alert severity="info">No auctions found. Broadcast an RFP to create one.</Alert>
       ) : (
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
           {auctions.map((a) => (
             <Chip
               key={a.id}
-              label={`${a.auction_id} · ${a.category} · ${a.status}`}
+              label={`${a.auction_id} · ${a.category}`}
               onClick={() => setActiveAuction(a)}
               color={activeAuction?.id === a.id ? "primary" : "default"}
               variant={activeAuction?.id === a.id ? "filled" : "outlined"}
               size="small"
             />
           ))}
+          {activeAuction && (
+            <Chip
+              label={activeAuction.status}
+              size="small"
+              color={AUCTION_STATUS_COLOR[activeAuction.status] ?? "default"}
+              variant="outlined"
+              sx={{ fontWeight: 700, fontSize: "0.65rem", ml: 1 }}
+            />
+          )}
         </Box>
+      )}
+
+      {/* Active auction header with status chip */}
+      {activeAuction && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Typography variant="subtitle2" fontWeight={700} color="text.secondary">
+            Active: {activeAuction.auction_id} · {activeAuction.category}
+          </Typography>
+          <Chip
+            label={activeAuction.status}
+            size="small"
+            color={AUCTION_STATUS_COLOR[activeAuction.status] ?? "default"}
+            sx={{ fontSize: "0.65rem", fontWeight: 700 }}
+          />
+        </Box>
+      )}
+
+      {/* Cleared auction summary panel */}
+      {activeAuction?.status === "cleared" && (
+        <Card variant="outlined" sx={{ borderColor: "success.main", bgcolor: "rgba(16,185,129,0.06)" }}>
+          <CardContent>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
+              <EmojiEventsIcon color="success" />
+              <Typography variant="subtitle1" fontWeight={700} color="success.light">Auction Cleared</Typography>
+              <Chip label="cleared" size="small" color="success" sx={{ fontSize: "0.65rem" }} />
+            </Box>
+            <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 16px", fontSize: "0.8rem" }}>
+              <Typography variant="caption" color="text.secondary">Clearing Price:</Typography>
+              <Typography variant="caption" fontWeight={700} color="success.main" fontFamily="monospace">
+                {activeAuction.clearing_price_inr != null ? `₹${activeAuction.clearing_price_inr.toFixed(2)}/kg` : "—"}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">Winner Org ID:</Typography>
+              <Typography variant="caption" fontWeight={700} fontFamily="monospace">
+                {activeAuction.winner_org_id ?? "—"}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">Total Cleared:</Typography>
+              <Typography variant="caption" fontWeight={700}>
+                {activeAuction.total_cleared_tons?.toLocaleString()} T
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Submit Bid form — recycler only, auction must be open */}
+      {canSubmitBid && (
+        <Card variant="outlined">
+          <CardContent>
+            <Typography variant="subtitle1" fontWeight={700} mb={1}>Submit Bid</Typography>
+            <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+              Enter your bid for auction <strong>{activeAuction?.auction_id}</strong>. Price must be within the statutory corridor.
+            </Typography>
+            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", alignItems: "flex-start" }}>
+              <TextField
+                size="small"
+                label="Volume (Tons)"
+                type="number"
+                value={bidVolume}
+                onChange={(e) => setBidVolume(e.target.value)}
+                sx={{ width: 160 }}
+                inputProps={{ min: 0, step: 0.01 }}
+              />
+              <TextField
+                size="small"
+                label="Price per kg (₹)"
+                type="number"
+                value={bidPrice}
+                onChange={(e) => setBidPrice(e.target.value)}
+                sx={{ width: 160 }}
+                inputProps={{ min: 0, step: 0.01 }}
+              />
+              <Button
+                variant="contained"
+                color="secondary"
+                startIcon={submittingBid ? <CircularProgress size={14} color="inherit" /> : <GavelIcon />}
+                onClick={handleSubmitBid}
+                disabled={submittingBid || !bidVolume || !bidPrice}
+              >
+                {submittingBid ? "Submitting…" : "Submit Bid"}
+              </Button>
+            </Box>
+            {bidSubmitResult && <Alert severity="success" sx={{ mt: 1.5 }}>{bidSubmitResult}</Alert>}
+            {bidSubmitError && <Alert severity="error" sx={{ mt: 1.5 }}>{bidSubmitError}</Alert>}
+          </CardContent>
+        </Card>
       )}
 
       {/* Live Order Book */}
@@ -243,10 +389,13 @@ export default function AuctionPage() {
               <SignalCellularAltIcon color="success" fontSize="small" />
               <Typography variant="subtitle1" fontWeight={700}>Live Double Auction Order Book</Typography>
               <Chip label="10s refresh" size="small" variant="outlined" color="secondary" sx={{ fontSize: "0.65rem" }} />
+              {isRecycler && (
+                <Chip label="My bids only" size="small" variant="outlined" color="info" sx={{ fontSize: "0.65rem" }} />
+              )}
             </Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <Typography variant="caption" color="text.secondary" fontFamily="monospace">
-                Matched: {bids.filter((b) => b.status === "MATCHED").reduce((s, b) => s + b.volume_tons, 0).toLocaleString()} T
+                Matched: {visibleBids.filter((b) => b.status === "MATCHED").reduce((s, b) => s + b.volume_tons, 0).toLocaleString()} T
               </Typography>
               <Tooltip title="Refresh bids">
                 <IconButton size="small" onClick={() => activeAuction && fetchBids(activeAuction.id)}>
@@ -279,7 +428,7 @@ export default function AuctionPage() {
                       ))}
                     </TableRow>
                   ))
-                : bids.length === 0
+                : visibleBids.length === 0
                   ? (
                     <TableRow>
                       <TableCell colSpan={8}>
@@ -287,7 +436,7 @@ export default function AuctionPage() {
                       </TableCell>
                     </TableRow>
                   )
-                  : bids.map((bid) => (
+                  : visibleBids.map((bid) => (
                     <TableRow key={bid.bid_id} hover>
                       <TableCell sx={{ fontFamily: "monospace", fontWeight: 700, color: "primary.light" }}>{bid.bid_id}</TableCell>
                       <TableCell>{bid.recycler_name}</TableCell>

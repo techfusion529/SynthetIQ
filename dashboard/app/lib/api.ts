@@ -279,13 +279,14 @@ export async function fetchEscrowPOs(token: string): Promise<any[]> {
 
 export async function approveEscrow(
   auditId: string,
+  runId: string,
   token: string,
   action: string = "APPROVE",
 ): Promise<any> {
   const res = await fetch(`${API_BASE}/api/v1/settlement/approve`, {
     method: "POST",
     headers: makeAuthHeaders(token),
-    body: JSON.stringify({ audit_id: auditId, action }),
+    body: JSON.stringify({ audit_id: auditId, run_id: runId, action }),
   });
   if (!res.ok) throw new Error(`approveEscrow failed: ${res.status}`);
   return await res.json();

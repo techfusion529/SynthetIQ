@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from src.middleware.auth import CurrentUser
 from src.middleware.rbac import require_permission
 from src.services.temporal_service import temporal_service
@@ -33,12 +33,20 @@ async def trigger_liability_calculation(
 @router.get("/report/{company_id}")
 async def get_liability_report(
     company_id: str, user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
     _: Any = Depends(require_permission("workflows:read")),
     fiscal_year: str = "",
 ) -> dict[str, Any]:
     """Returns liability data from the latest completed compliance run for this company.
     Returns a prompt to run the E2E pipeline if no run exists yet.
     """
+    # Cross-tenant ownership check
+    if not tenant_ctx.is_platform_admin:
+        if company_id != tenant_ctx.org_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cross-tenant access denied",
+            )
     try:
         from sqlalchemy import select
         from synthetiq_shared.database import get_db_session

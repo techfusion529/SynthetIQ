@@ -40,6 +40,9 @@ async def get_tenant_ctx(
 
     # Platform admins bypass org scoping
     if current_user.get("role") == "platform_admin" or current_user.get("platform_admin"):
+        # Set empty string so RLS SET LOCAL runs but with bypass value
+        from synthetiq_shared.database import set_current_org_id
+        set_current_org_id("")
         return TenantCtx(
             org_id="",
             user_id=user_id,
@@ -83,12 +86,19 @@ async def get_tenant_ctx(
     except Exception:
         pass
 
-    return TenantCtx(
+    ctx = TenantCtx(
         org_id=org_id,
         user_id=user_id,
         role=role,
         is_platform_admin=False,
     )
+
+    # Engage RLS: bind org_id so every subsequent get_db_session() call in this
+    # request issues SET LOCAL app.org_id automatically.
+    from synthetiq_shared.database import set_current_org_id
+    set_current_org_id(ctx.org_id)
+
+    return ctx
 
 
 async def set_rls_context(session: AsyncSession, org_id: str) -> None:

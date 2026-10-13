@@ -180,7 +180,9 @@ services:
     image: temporalio/auto-setup:latest
     container_name: synthetiq-temporal
     ports:
-      - "7233:7233"
+      # SECURITY: Temporal gRPC must not be exposed to the public network.
+      # Workers connect internally via container name; only bind to loopback for local tooling.
+      - "127.0.0.1:7233:7233"
     environment:
       - DB=postgres12
       - DB_PORT=5432
@@ -197,7 +199,8 @@ services:
     depends_on:
       - temporal-server
     ports:
-      - "8080:8080"
+      # SECURITY: Temporal UI is admin-only. Loopback binding prevents public exposure.
+      - "127.0.0.1:8080:8080"
     environment:
       - TEMPORAL_ADDRESS=temporal-server:7233
       - TEMPORAL_CORS_ORIGINS=http://localhost:3000

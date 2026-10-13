@@ -1,10 +1,15 @@
-"""SynthetIQ Zero-Trust MCP Server  -  tool execution gateway for AI agents."""
+"""SynthetIQ Zero-Trust MCP Server  -  tool execution gateway for AI agents.
+
+# WARNING: This MCP server must only be accessible from the internal network.
+# Never expose it directly to the internet.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import os
+import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
 from typing import Any
@@ -13,6 +18,10 @@ from src.constants import DEFAULT_MCP_PORT, MCP_SERVER_NAME, MCP_SERVER_VERSION
 from src.tools import cpcb_tool, gst_tool
 from src.tools.bigquery_tool import initialize_bigquery_tool, get_bigquery_tool
 from src.tools.pubsub_tool import initialize_pubsub_tool, get_pubsub_tool
+
+# Internal auth token for all /call endpoints.
+# Must be set to a strong random value in production via MCP_INTERNAL_TOKEN env var.
+_MCP_TOKEN: str | None = os.getenv("MCP_INTERNAL_TOKEN")
 
 
 def init_gcp_tools() -> None:
@@ -48,6 +57,25 @@ def init_gcp_tools() -> None:
 class MCPHTTPHandler(BaseHTTPRequestHandler):
     """HTTP gateway for MCP healthchecks and tool invocations."""
 
+    def _check_bearer_auth(self) -> bool:
+        """Return True if request carries a valid MCP_INTERNAL_TOKEN.
+
+        When MCP_INTERNAL_TOKEN is not set, access is allowed but a warning is
+        logged — this permits local dev without a token while enforcing auth in
+        any environment where the variable is configured.
+        """
+        if not _MCP_TOKEN:
+            print(
+                "WARNING: MCP_INTERNAL_TOKEN not set — unauthenticated access permitted. "
+                "Set this variable before any production deployment.",
+                file=sys.stderr,
+            )
+            return True
+        auth_header = self.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return False
+        return auth_header[len("Bearer "):].strip() == _MCP_TOKEN
+
     def do_GET(self) -> None:
         if self.path == "/health":
             self.send_response(200)
@@ -76,6 +104,14 @@ class MCPHTTPHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         if self.path.startswith("/call"):
+            # Authenticate before processing any tool call
+            if not self._check_bearer_auth():
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("WWW-Authenticate", 'Bearer realm="mcp"')
+                self.end_headers()
+                self.wfile.write(b'{"error": "Unauthorized"}')
+                return
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length)
             try:

@@ -90,8 +90,11 @@ async def list_organizations(
     """List all active organisations. Non-admins see only their own org."""
     async with get_db_session() as session:
         query = select(Organization).where(Organization.is_active.is_(True))
-        if user.get("role") != "admin":
-            query = query.where(Organization.org_id == user.get("org_id", ""))
+        if user.get("role") != "platform_admin":
+            org_id = user.get("org_id", "")
+            if not org_id:
+                return []
+            query = query.where(Organization.org_id == org_id)
 
         result = await session.execute(query)
         orgs = result.scalars().all()
@@ -118,7 +121,15 @@ async def create_organization(
     user: CurrentUser,
     _: Any = Depends(require_permission("orgs:write")),
 ) -> dict[str, Any]:
-    """Onboard a new organisation. Requires admin role."""
+    """Onboard a new organisation. Requires platform_admin role."""
+    if user.get("role") != "platform_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Only platform_admin can create new organisations via this endpoint. "
+                "Use POST /auth/register to self-register."
+            ),
+        )
     org_id = f"ORG-{uuid.uuid4().hex[:8].upper()}"
 
     async with get_db_session() as session:
@@ -457,6 +468,29 @@ async def create_invite(
     # Allow same-org admin OR platform_admin
     if caller_role != "platform_admin":
         assert_same_org(caller_org, org_id)
+
+    # Role allowlist: prevent privilege escalation via invite
+    ALLOWED_ORG_ROLES = {
+        "brand_admin", "recycler_admin", "auditor", "viewer",
+        "compliance_officer", "admin",
+    }
+    if caller_role != "platform_admin":
+        # Org admins may only invite org-level roles
+        if payload.role not in ALLOWED_ORG_ROLES:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Role '{payload.role}' cannot be assigned via org invite. "
+                    f"Allowed roles: {sorted(ALLOWED_ORG_ROLES)}"
+                ),
+            )
+    else:
+        # platform_admin may invite any role except superuser
+        if payload.role == "superuser":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Role 'superuser' cannot be assigned via invite",
+            )
 
     async with get_db_session() as session:
         # Check org exists

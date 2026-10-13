@@ -350,7 +350,10 @@ async def list_audit_verdicts(
 
 async def get_audit_verdict(
 
-    audit_id: str, user: CurrentUser, _: Any = Depends(require_permission("audits:read"))
+    audit_id: str,
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("audits:read")),
 
 ) -> dict[str, Any]:
 
@@ -359,6 +362,10 @@ async def get_audit_verdict(
     if not record:
 
         return {"audit_id": audit_id, "audit_verdict": "PENDING", "physical_melt_verified": False}
+
+    if not tenant_ctx.is_platform_admin:
+        if record.get("org_id") and record["org_id"] != tenant_ctx.org_id:
+            raise HTTPException(status_code=403, detail="Cross-tenant access denied")
 
     return record
 
@@ -616,7 +623,7 @@ async def download_audit_report_pdf(
     audit_id: str,
 
     user: CurrentUser,
-
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
     _: Any = Depends(require_permission("audits:read")),
 
 ) -> Any:
@@ -635,7 +642,9 @@ async def download_audit_report_pdf(
 
         raise HTTPException(status_code=404, detail=f"Audit {audit_id} not found")
 
-
+    if not tenant_ctx.is_platform_admin:
+        if record.get("org_id") and record["org_id"] != tenant_ctx.org_id:
+            raise HTTPException(status_code=403, detail="Cross-tenant access denied")
 
     pdf_bytes = generate_cpcb_form1_pdf(record)
 
@@ -664,7 +673,7 @@ async def get_audit_report_json(
     audit_id: str,
 
     user: CurrentUser,
-
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
     _: Any = Depends(require_permission("audits:read")),
 
 ) -> dict[str, Any]:
@@ -676,6 +685,10 @@ async def get_audit_report_json(
     if not record:
 
         raise HTTPException(status_code=404, detail=f"Audit {audit_id} not found")
+
+    if not tenant_ctx.is_platform_admin:
+        if record.get("org_id") and record["org_id"] != tenant_ctx.org_id:
+            raise HTTPException(status_code=403, detail="Cross-tenant access denied")
 
     return {
 

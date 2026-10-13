@@ -410,6 +410,17 @@ async def accept_invite(payload: AcceptInviteRequest) -> AuthResponse:
         org_id = token_row.org_id or ""
         role = token_row.role
 
+        # Sanity check: reject privileged roles that should never be on an invite token
+        PRIVILEGED_ROLES = {"platform_admin", "superuser"}
+        if role in PRIVILEGED_ROLES:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Invite token carries a privileged role '{role}' "
+                    "that cannot be accepted through this endpoint."
+                ),
+            )
+
         # Check email not already registered
         from synthetiq_shared.models import User as UserModel
         existing = await session.execute(select(UserModel).where(UserModel.email == email))

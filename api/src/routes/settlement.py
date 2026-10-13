@@ -180,7 +180,10 @@ async def list_form1_records(
 
 @router.get("/form1/{form_id}")
 async def get_form1(
-    form_id: str, user: CurrentUser, _: Any = Depends(require_permission("audits:read"))
+    form_id: str,
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("audits:read")),
 ) -> dict[str, Any]:
     try:
         from sqlalchemy import select
@@ -191,7 +194,11 @@ async def get_form1(
                 select(Form1Record).where(Form1Record.form_id == form_id)
             )).scalar_one_or_none()
             if row:
+                if not tenant_ctx.is_platform_admin and row.org_id != tenant_ctx.org_id:
+                    raise HTTPException(status_code=403, detail="Cross-tenant access denied")
                 return row.to_dict()
+    except HTTPException:
+        raise
     except Exception:
         pass
     raise HTTPException(status_code=404, detail=f"Form-1 not found: {form_id}")

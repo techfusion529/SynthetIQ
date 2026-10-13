@@ -80,13 +80,13 @@ function toContextOrg(o: OrgType): Organization {
 }
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const { token } = useSession();
+  const { token, user } = useSession();
   const [currentOrg, setCurrentOrgState] = useState<Organization | null>(null);
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchOrgs = useCallback(async (tok: string) => {
+  const fetchOrgs = useCallback(async (tok: string, userOrgId?: string) => {
     if (!tok) return;
     setIsLoading(true);
     setError(null);
@@ -96,35 +96,44 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       const mapped = list.map(toContextOrg);
       setOrgs(mapped);
 
-      // Restore previously selected org from localStorage, else default to first
-      const storedId =
-        typeof window !== "undefined"
-          ? (localStorage.getItem(STORAGE_KEY) ?? "")
-          : "";
+      // Lock to user's assigned organization from authenticated session
+      const targetOrgId = userOrgId || (typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) ?? "" : "");
+      let selected = mapped.find((o) => o.id === targetOrgId) ?? null;
 
-      const restored = storedId
-        ? (mapped.find((o) => o.id === storedId) ?? null)
-        : null;
+      if (!selected && userOrgId) {
+        selected = {
+          id: userOrgId,
+          name: user?.organization_name || userOrgId,
+          company_id: userOrgId,
+        };
+      } else if (!selected && mapped.length > 0) {
+        selected = mapped[0];
+      }
 
-      const selected = restored ?? (mapped.length > 0 ? mapped[0] : null);
       setCurrentOrgState(selected);
 
-      if (selected && !storedId && typeof window !== "undefined") {
+      if (selected && typeof window !== "undefined") {
         localStorage.setItem(STORAGE_KEY, selected.id);
       }
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : "Failed to load organizations";
       setError(msg);
+      if (userOrgId) {
+        setCurrentOrgState({
+          id: userOrgId,
+          name: user?.organization_name || userOrgId,
+          company_id: userOrgId,
+        });
+      }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (!token) return;
-    fetchOrgs(token);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+    fetchOrgs(token, user?.org_id);
+  }, [token, user?.org_id, fetchOrgs]);
 
   const setCurrentOrg = useCallback((org: Organization) => {
     setCurrentOrgState(org);

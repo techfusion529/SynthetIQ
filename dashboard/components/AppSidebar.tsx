@@ -23,6 +23,7 @@ import MemoryIcon from "@mui/icons-material/Memory";
 import StorageIcon from "@mui/icons-material/Storage";
 import TuneIcon from "@mui/icons-material/Tune";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "../app/lib/contexts/SessionContext";
 
@@ -40,6 +41,7 @@ const NAV_ITEMS = [
   { label: "Liability & Sourcing", href: "/liability",    icon: <ScaleIcon />,                 roles: [] },
   { label: "Double Auction",       href: "/auction",      icon: <GavelIcon />,                 roles: [] },
   { label: "Quad-Core Audit",      href: "/audit",        icon: <RadarIcon />,                 roles: [] },
+  { label: "HITL Console",         href: "/hitl",         icon: <SupervisorAccountIcon />,     roles: ["admin", "platform_admin"] },
   { label: "Escrow & Approval",    href: "/settlement",   icon: <AccountBalanceWalletIcon />,  roles: [] },
   { label: "CPCB Form-1 Vault",    href: "/dispatch",     icon: <DescriptionIcon />,           roles: [] },
   { label: "Organizations & Team", href: "/organizations", icon: <BusinessIcon />,             roles: ["admin", "compliance_officer"] },

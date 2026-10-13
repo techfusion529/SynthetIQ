@@ -11,10 +11,11 @@ import { CompanyService } from "../services/company.service";
 import { OrganizationService } from "../services/organization.service";
 import { ScheduleService } from "../services/schedule.service";
 import { ConfigService } from "../services/config.service";
+import { HitlService } from "../services/hitl.service";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-/** Returns all nine service instances bound to the current auth token. */
+/** Returns all ten service instances bound to the current auth token. */
 export function useServices() {
   const { token } = useSession();
   return useMemo(
@@ -28,6 +29,7 @@ export function useServices() {
       organization: new OrganizationService(BASE_URL, token),
       schedule:     new ScheduleService(BASE_URL, token),
       config:       new ConfigService(BASE_URL, token),
+      hitl:         new HitlService(BASE_URL, token),
     }),
     [token]
   );
@@ -42,6 +44,7 @@ export function useCompanyService()      { return useServices().company; }
 export function useOrganizationService() { return useServices().organization; }
 export function useScheduleService()     { return useServices().schedule; }
 export function useConfigService()       { return useServices().config; }
+export function useHitlService()         { return useServices().hitl; }
 
 /** Alias for useComplianceService — used by the run submission & polling panel. */
 export function useRunService() { return useServices().compliance; }

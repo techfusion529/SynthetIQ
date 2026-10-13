@@ -66,14 +66,28 @@ export abstract class BaseService {
           url
         );
       }
-      let msg = res.statusText;
-      try {
-        const err = await res.json();
-        msg = err?.detail ?? err?.message ?? msg;
-      } catch {
-        // ignore parse failure
+
+      const body = await res.json().catch(() => ({}));
+      const raw =
+        (body as { detail?: unknown; message?: unknown }).detail ??
+        (body as { message?: unknown }).message;
+      const message =
+        raw == null
+          ? `HTTP ${res.status}`
+          : typeof raw === "string"
+          ? raw
+          : JSON.stringify(raw);
+
+      if (res.status === 401 && typeof window !== "undefined") {
+        // Clear session state to match logout behaviour
+        localStorage.removeItem("synthetiq_auth_token");
+        localStorage.removeItem("synthetiq_auth_user");
+        localStorage.removeItem("synthetiq_refresh_token");
+        document.cookie = "auth_token=; SameSite=Strict; Path=/; Max-Age=0";
+        window.location.href = "/login";
       }
-      throw new ApiError(res.status, msg, url);
+
+      throw new ApiError(res.status, message, url);
     }
 
     // Empty body (e.g. 204) — return empty object cast to T

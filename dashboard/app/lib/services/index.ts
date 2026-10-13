@@ -8,3 +8,4 @@ export { CompanyService } from "./company.service";
 export { OrganizationService } from "./organization.service";
 export { ScheduleService } from "./schedule.service";
 export { ConfigService } from "./config.service";
+export { HitlService } from "./hitl.service";

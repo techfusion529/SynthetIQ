@@ -16,9 +16,12 @@ import MenuIcon from "@mui/icons-material/Menu";
 import SettingsIcon from "@mui/icons-material/Settings";
 import SecurityIcon from "@mui/icons-material/Security";
 import LogoutIcon from "@mui/icons-material/Logout";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import LightModeIcon from "@mui/icons-material/LightMode";
 import { useRouter } from "next/navigation";
 import { useOrganization as useCompany } from "../app/lib/contexts/OrganizationContext";
 import { useSession } from "../app/lib/contexts/SessionContext";
+import { useColorMode } from "../app/lib/ThemeRegistry";
 import ConfigModal from "./ConfigModal";
 
 interface AppHeaderProps {
@@ -29,6 +32,7 @@ interface AppHeaderProps {
 export default function AppHeader({ drawerWidth, onMenuClick }: AppHeaderProps) {
   const router = useRouter();
   const { user, logout } = useSession();
+  const { mode, toggleColorMode } = useColorMode();
   const { companyId, company, companies, loadingCompany, companyError, setCompanyId } =
     useCompany();
   const [configOpen, setConfigOpen] = useState(false);
@@ -55,11 +59,26 @@ export default function AppHeader({ drawerWidth, onMenuClick }: AppHeaderProps) 
             <MenuIcon />
           </IconButton>
 
-          {/* Logo */}
-          <SecurityIcon sx={{ color: "primary.light", mr: 0.5 }} />
-          <Typography variant="h6" fontWeight={700} noWrap sx={{ flexGrow: 0, mr: 2 }}>
-            SynthetIQ
-          </Typography>
+          {/* Logo with ABB Precision Industrial styling */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mr: 2 }}>
+            <Box
+              sx={{
+                bgcolor: "primary.main",
+                color: "#FFFFFF",
+                px: 0.9,
+                py: 0.2,
+                borderRadius: "4px",
+                fontWeight: 900,
+                fontSize: "0.75rem",
+                letterSpacing: "0.06em",
+              }}
+            >
+              ABB
+            </Box>
+            <Typography variant="h6" fontWeight={800} noWrap sx={{ letterSpacing: "-0.02em" }}>
+              Synthet<Box component="span" sx={{ color: "primary.main" }}>IQ</Box>
+            </Typography>
+          </Box>
 
           {/* Company selector */}
           <Box sx={{ flexGrow: 1, display: "flex", alignItems: "center", gap: 1.5 }}>
@@ -127,6 +146,17 @@ export default function AppHeader({ drawerWidth, onMenuClick }: AppHeaderProps) 
               />
             </Box>
           )}
+
+          {/* Dark / Light Mode Toggle */}
+          <Tooltip title={mode === "dark" ? "Switch to Light Mode (Precision)" : "Switch to Dark Mode (Industrial)"}>
+            <IconButton color="inherit" onClick={toggleColorMode} sx={{ mr: 0.5 }}>
+              {mode === "dark" ? (
+                <LightModeIcon sx={{ color: "#F59E0B" }} />
+              ) : (
+                <DarkModeIcon sx={{ color: "#0072CE" }} />
+              )}
+            </IconButton>
+          </Tooltip>
 
           {/* Settings icon */}
           <Tooltip title="Engine configuration">

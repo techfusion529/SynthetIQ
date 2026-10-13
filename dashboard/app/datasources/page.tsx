@@ -42,6 +42,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import VerifiedIcon from "@mui/icons-material/Verified";
+import SyncIcon from "@mui/icons-material/Sync";
 
 import { useRouter } from "next/navigation";
 import { useSession } from "../lib/contexts/SessionContext";
@@ -131,6 +132,10 @@ export default function DataSourcesPage() {
     sample_rows: Record<string, unknown>[];
   } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Real-time Sync states per datasource
+  const [syncLoading, setSyncLoading] = useState<Record<string, boolean>>({});
+  const [syncResults, setSyncResults] = useState<Record<string, { ok: boolean; message: string; rows: number }>>({});
 
   // Upload states per datasource
   const [uploadStates, setUploadStates] = useState<Record<string, UploadState>>({});
@@ -241,6 +246,31 @@ export default function DataSourcesPage() {
       console.error(e);
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  const handleSync = async (sourceId: string) => {
+    setSyncLoading((prev) => ({ ...prev, [sourceId]: true }));
+    try {
+      const resp = await fetch(`${API_BASE}/datasources/${sourceId}/sync`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await resp.json();
+      setSyncResults((prev) => ({
+        ...prev,
+        [sourceId]: {
+          ok: resp.ok,
+          message: data.message || (resp.ok ? `Synced ${data.rows_synced} records` : "Sync failed"),
+          rows: data.rows_synced || 0,
+        },
+      }));
+      fetchSources();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Sync failed";
+      setSyncResults((prev) => ({ ...prev, [sourceId]: { ok: false, message: msg, rows: 0 } }));
+    } finally {
+      setSyncLoading((prev) => ({ ...prev, [sourceId]: false }));
     }
   };
 
@@ -423,10 +453,10 @@ export default function DataSourcesPage() {
           </Button>
           <Button
             variant="contained"
+            color="primary"
             startIcon={<AddIcon />}
             onClick={() => setModalOpen(true)}
             sx={{
-              background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)",
               fontWeight: 600,
               textTransform: "none",
             }}
@@ -512,6 +542,17 @@ export default function DataSourcesPage() {
                     sx={{ py: 0.5, px: 1.5, fontSize: "0.8rem" }}
                   >
                     {test.message}
+                  </Alert>
+                )}
+
+                {/* Real-time Sync Result Banner */}
+                {syncResults[src.source_id] && (
+                  <Alert
+                    severity={syncResults[src.source_id].ok ? "success" : "warning"}
+                    icon={<SyncIcon />}
+                    sx={{ py: 0.5, px: 1.5, fontSize: "0.8rem" }}
+                  >
+                    {syncResults[src.source_id].message}
                   </Alert>
                 )}
 
@@ -730,12 +771,12 @@ export default function DataSourcesPage() {
                       <Button
                         size="small"
                         variant="contained"
+                        color="primary"
                         disabled={mappingSaving[src.source_id]}
                         onClick={() => saveMapping(src.source_id)}
                         sx={{
                           textTransform: "none",
                           fontSize: "0.78rem",
-                          background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)",
                         }}
                       >
                         {mappingSaving[src.source_id] ? "Saving…" : "Save Mapping"}
@@ -829,6 +870,23 @@ export default function DataSourcesPage() {
                       sx={{ textTransform: "none" }}
                     >
                       {validateLoading[src.source_id] ? "Validating…" : "Validate"}
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="primary"
+                      startIcon={
+                        syncLoading[src.source_id] ? (
+                          <CircularProgress size={14} color="inherit" />
+                        ) : (
+                          <SyncIcon />
+                        )
+                      }
+                      onClick={() => handleSync(src.source_id)}
+                      disabled={syncLoading[src.source_id]}
+                      sx={{ textTransform: "none" }}
+                    >
+                      {syncLoading[src.source_id] ? "Syncing…" : "Sync / Onboard"}
                     </Button>
                   </Box>
 
@@ -996,9 +1054,9 @@ export default function DataSourcesPage() {
           <Button onClick={() => setModalOpen(false)}>Cancel</Button>
           <Button
             variant="contained"
+            color="primary"
             disabled={!name || saving}
             onClick={handleCreate}
-            sx={{ background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)" }}
           >
             {saving ? "Registering..." : "Connect Source"}
           </Button>

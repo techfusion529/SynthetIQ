@@ -41,6 +41,7 @@ class TestAgentRequest(BaseModel):
 
 
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def list_agent_configurations(
     org_id: str,
@@ -58,6 +59,31 @@ async def list_agent_configurations(
             .order_by(AgentConfiguration.agent_name.asc())
         )
         rows = res.all()
+
+        if not rows:
+            # Auto-seed default 7 agents for this tenant if not yet configured
+            from synthetiq_shared.seed import DEFAULT_AGENTS_CONFIG
+            for agent_def in DEFAULT_AGENTS_CONFIG:
+                cfg = AgentConfiguration(
+                    org_id=org_id,
+                    agent_name=agent_def["agent_name"],
+                    data_source_id=None,
+                    model_name=agent_def["model_name"],
+                    temperature=agent_def["temperature"],
+                    system_prompt=agent_def["system_prompt"],
+                    parameters=agent_def["parameters"],
+                    is_active=True,
+                )
+                session.add(cfg)
+            await session.commit()
+
+            res = await session.execute(
+                select(AgentConfiguration, DataSource)
+                .outerjoin(DataSource, AgentConfiguration.data_source_id == DataSource.source_id)
+                .where(AgentConfiguration.org_id == org_id)
+                .order_by(AgentConfiguration.agent_name.asc())
+            )
+            rows = res.all()
 
         results = []
         for agent_cfg, ds in rows:
@@ -97,10 +123,27 @@ async def get_agent_configuration(
         )
         row = res.first()
         if not row:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Configuration for agent {agent_name!r} not found in org {org_id}",
-            )
+            from synthetiq_shared.seed import DEFAULT_AGENTS_CONFIG
+            agent_def = next((a for a in DEFAULT_AGENTS_CONFIG if a["agent_name"] == agent_name), None)
+            if agent_def:
+                cfg = AgentConfiguration(
+                    org_id=org_id,
+                    agent_name=agent_name,
+                    data_source_id=None,
+                    model_name=agent_def["model_name"],
+                    temperature=agent_def["temperature"],
+                    system_prompt=agent_def["system_prompt"],
+                    parameters=agent_def["parameters"],
+                    is_active=True,
+                )
+                session.add(cfg)
+                await session.commit()
+                row = (cfg, None)
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Configuration for agent {agent_name!r} not found in org {org_id}",
+                )
 
         agent_cfg, ds = row
         return {

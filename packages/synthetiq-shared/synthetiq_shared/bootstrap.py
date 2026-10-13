@@ -224,6 +224,30 @@ async def bootstrap_platform() -> None:
             ))
             logger.info("[Bootstrap] Seeded default OrgPolicy for ORG-DEV-001")
 
+        # 9. Default Agent Configurations for all 7 agents
+        from synthetiq_shared.models import AgentConfiguration
+        from synthetiq_shared.seed import DEFAULT_AGENTS_CONFIG
+        for agent_def in DEFAULT_AGENTS_CONFIG:
+            agent_name = agent_def["agent_name"]
+            existing_cfg = (await session.execute(
+                select(AgentConfiguration).where(
+                    AgentConfiguration.org_id == "ORG-DEV-001",
+                    AgentConfiguration.agent_name == agent_name,
+                ).limit(1)
+            )).scalar_one_or_none()
+            if not existing_cfg:
+                session.add(AgentConfiguration(
+                    org_id="ORG-DEV-001",
+                    agent_name=agent_name,
+                    data_source_id="DS-DEV-SALES-001" if agent_name == "brand_liability" else None,
+                    model_name=agent_def["model_name"],
+                    temperature=agent_def["temperature"],
+                    system_prompt=agent_def["system_prompt"],
+                    parameters=agent_def["parameters"],
+                    is_active=True,
+                ))
+                logger.info(f"[Bootstrap] Seeded default AgentConfiguration: {agent_name}")
+
         await session.commit()
 
     logger.info("[Bootstrap] Platform bootstrap complete")

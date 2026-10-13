@@ -9,7 +9,7 @@ const PUBLIC_PATHS = [
   "/auth/verify-email",
 ];
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Always allow public auth paths (exact match or with query string)
@@ -25,7 +25,9 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get("auth_token")?.value;
   if (!token) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
+    if (pathname !== "/") {
+      loginUrl.searchParams.set("next", pathname);
+    }
     return NextResponse.redirect(loginUrl);
   }
 
@@ -34,7 +36,7 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Run on all paths except Next.js internals, static assets, and API proxy routes
-    "/((?!_next/static|_next/image|favicon\\.ico|api/).*)",
+    // Run on all paths except Next.js internals, static assets, and API routes
+    "/((?!api|_next/static|_next/image|favicon\\.ico).*)",
   ],
 };

@@ -94,12 +94,131 @@ const AGENT_LABELS: Record<string, { label: string; role: string; defaultPurpose
   },
 };
 
+const DEFAULT_FALLBACK_CONFIGS: AgentConfig[] = [
+  {
+    config_id: "default-brand_liability",
+    org_id: "ORG-DEV-001",
+    agent_name: "brand_liability",
+    data_source_id: "DS-DEV-SALES-001",
+    data_source_name: "Google BigQuery ERP Sales Connection",
+    model_name: "gemini-2.0-flash",
+    temperature: 0.2,
+    system_prompt:
+      "You are the Brand Liability Agent. Query ERP sales data, calculate plastic category weights, apply statutory 1/3 historic debt amortization, and compute net EPR obligation.",
+    parameters: {
+      amortization_fraction: 0.333,
+      categories: ["cat_i_rigid", "cat_ii_flexible", "cat_iii_mlp", "cat_iv_compostable"],
+    },
+    is_active: true,
+  },
+  {
+    config_id: "default-regulatory_watchdog",
+    org_id: "ORG-DEV-001",
+    agent_name: "regulatory_watchdog",
+    data_source_id: null,
+    data_source_name: null,
+    model_name: "gemini-2.0-flash",
+    temperature: 0.1,
+    system_prompt:
+      "You are the Regulatory Watchdog Agent. Parse CPCB Gazette notifications, extract plastic waste management rules, and identify statutory base clearing rates and compliance deadlines.",
+    parameters: {
+      jurisdiction: "IN",
+      active_framework: "CPCB Plastic Waste Management Amendment Rules 2026",
+    },
+    is_active: true,
+  },
+  {
+    config_id: "default-treasury",
+    org_id: "ORG-DEV-001",
+    agent_name: "treasury",
+    data_source_id: null,
+    data_source_name: null,
+    model_name: "gemini-2.0-flash",
+    temperature: 0.2,
+    system_prompt:
+      "You are the Treasury Agent. Run a continuous double auction matching EPR liability bids with verified recycler offers within the 30%-100% price corridor.",
+    parameters: {
+      price_corridor_min_pct: 30.0,
+      price_corridor_max_pct: 100.0,
+      clearing_algorithm: "uniform_price",
+    },
+    is_active: true,
+  },
+  {
+    config_id: "default-logistics",
+    org_id: "ORG-DEV-001",
+    agent_name: "logistics",
+    data_source_id: null,
+    data_source_name: null,
+    model_name: "gemini-2.0-flash",
+    temperature: 0.1,
+    system_prompt:
+      "You are the Logistics Agent. Validate GST E-Way bills, match RFID weighbridge timestamps, and compute waypoint telemetry distance vectors to verify plastic batch movements.",
+    parameters: {
+      gps_max_drift_km: 15.0,
+      eway_bill_tolerance_pct: 2.0,
+    },
+    is_active: true,
+  },
+  {
+    config_id: "default-auditor",
+    org_id: "ORG-DEV-001",
+    agent_name: "auditor",
+    data_source_id: "DS-DEV-SCADA-001",
+    data_source_name: "Extruder SCADA Live Telemetry",
+    model_name: "gemini-2.0-flash",
+    temperature: 0.05,
+    system_prompt:
+      "You are the Auditor Agent (Nimble/Jev). Execute real-time VFD physics auditing on extruder motor torque and power factor to detect resistive heater spoofing.",
+    parameters: {
+      torque_threshold_nm: 8.0,
+      power_factor_min: 0.78,
+      power_factor_max: 0.96,
+      audit_mode: "hybrid_ensemble",
+    },
+    is_active: true,
+  },
+  {
+    config_id: "default-erp",
+    org_id: "ORG-DEV-001",
+    agent_name: "erp",
+    data_source_id: null,
+    data_source_name: null,
+    model_name: "gemini-2.0-flash",
+    temperature: 0.1,
+    system_prompt:
+      "You are the ERP Agent. Post structured Purchase Orders for verified plastic recycling credits with an automated 80/20 escrow payment split.",
+    parameters: {
+      escrow_primary_ratio: 0.8,
+      escrow_retention_ratio: 0.2,
+      erp_system: "sap_s4hana",
+    },
+    is_active: true,
+  },
+  {
+    config_id: "default-legal",
+    org_id: "ORG-DEV-001",
+    agent_name: "legal",
+    data_source_id: null,
+    data_source_name: null,
+    model_name: "gemini-2.0-flash",
+    temperature: 0.1,
+    system_prompt:
+      "You are the Legal Agent. Generate statutory CPCB Form-1 filing packets, apply cryptographic Digital Signature Certificates (DSC), and compute SHA-256 audit manifest hashes.",
+    parameters: {
+      dsc_key_id: "DSC-IN-2026-COMPLIANCE",
+      form_template: "CPCB_EPR_ANNUAL_FORM_1",
+    },
+    is_active: true,
+  },
+];
+
 export default function AgentConfigStudioPage() {
   const router = useRouter();
   const { user, token } = useSession();
   const orgId = user?.org_id || "ORG-DEV-001";
 
-  const [configs, setConfigs] = useState<AgentConfig[]>([]);
+  const [configs, setConfigs] = useState<AgentConfig[]>(DEFAULT_FALLBACK_CONFIGS);
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -108,7 +227,7 @@ export default function AgentConfigStudioPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Active selected agent editing state
-  const [currentConfig, setCurrentConfig] = useState<AgentConfig | null>(null);
+  const [currentConfig, setCurrentConfig] = useState<AgentConfig | null>(DEFAULT_FALLBACK_CONFIGS[0]);
 
   // Test state
   const [testing, setTesting] = useState(false);
@@ -118,31 +237,58 @@ export default function AgentConfigStudioPage() {
     setLoading(true);
     setError(null);
     try {
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const [cfgResp, dsResp] = await Promise.all([
-        fetch(`${API_BASE}/organizations/${orgId}/agents`, {
-          headers: { Authorization: `Bearer ${token}` },
+        fetch(`${API_BASE}/organizations/${orgId}/agents`, { headers }).catch((err) => {
+          console.warn("Agents API network error:", err);
+          return null;
         }),
-        fetch(`${API_BASE}/organizations/${orgId}/data-sources`, {
-          headers: { Authorization: `Bearer ${token}` },
+        fetch(`${API_BASE}/organizations/${orgId}/data-sources`, { headers }).catch((err) => {
+          console.warn("Data sources API network error:", err);
+          return null;
         }),
       ]);
 
-      if (!cfgResp.ok) throw new Error("Failed to load agent configurations");
-      const cfgData = await cfgResp.json();
-      const dsData = dsResp.ok ? await dsResp.json() : [];
+      let cfgData: AgentConfig[] = [];
+      let dsData: DataSource[] = [];
 
-      setConfigs(cfgData);
-      setDataSources(dsData);
-
-      if (cfgData.length > 0 && !currentConfig) {
-        setCurrentConfig(cfgData[0]);
+      if (cfgResp && cfgResp.ok) {
+        cfgData = await cfgResp.json();
       }
+      if (dsResp && dsResp.ok) {
+        dsData = await dsResp.json();
+      }
+
+      if (cfgData.length > 0) {
+        setConfigs(cfgData);
+        setCurrentConfig((prev) => prev ? cfgData.find((c) => c.agent_name === prev.agent_name) || cfgData[0] : cfgData[0]);
+      } else {
+        // Fall back to template defaults for this tenant
+        const tenantDefaults = DEFAULT_FALLBACK_CONFIGS.map((c) => ({ ...c, org_id: orgId }));
+        setConfigs(tenantDefaults);
+        setCurrentConfig((prev) => prev ? tenantDefaults.find((c) => c.agent_name === prev.agent_name) || tenantDefaults[0] : tenantDefaults[0]);
+        if (!cfgResp || !cfgResp.ok) {
+          setError(
+            `Live API server is unreachable (${API_BASE}). Loaded default agent configuration templates in offline inspection mode.`
+          );
+        }
+      }
+
+      setDataSources(dsData);
     } catch (e: any) {
-      setError(e.message);
+      console.warn("Agent studio load error:", e);
+      const tenantDefaults = DEFAULT_FALLBACK_CONFIGS.map((c) => ({ ...c, org_id: orgId }));
+      setConfigs(tenantDefaults);
+      setCurrentConfig((prev) => prev || tenantDefaults[0]);
+      setError(`Notice: Using default agent templates (${e?.message || "Offline"}).`);
     } finally {
       setLoading(false);
     }
-  }, [orgId, token, currentConfig]);
+  }, [orgId, token]);
 
   useEffect(() => {
     loadData();

@@ -111,15 +111,6 @@ Mandatory JSON output keys:
   total_amount_inr, advance_amount_inr, retention_amount_inr, status
 """
 
-erp_agent = create_llm_agent(
-    name="erp_agent",
-    instruction=ERP_INSTRUCTION,
-    tools=[validate_po_conditions, create_purchase_order],
-    description="Creates 80/20 split escrow purchase order after validating audit and logistics verdicts",
-    output_key="po_result",
-)
-
-
 # ---------------------------------------------------------------------------
 # Convenience runner
 # ---------------------------------------------------------------------------
@@ -151,10 +142,18 @@ async def run_erp_agent(
     Returns:
         Purchase order dict
     """
+    agent = create_llm_agent(
+        name="erp_agent",
+        instruction=ERP_INSTRUCTION,
+        tools=[validate_po_conditions, create_purchase_order],
+        description="Creates 80/20 split escrow purchase order after validating audit and logistics verdicts",
+        output_key="po_result",
+    )
+
     logger.info(f"Running erp_agent for {company_id}  - ' {recycler_id}, {plastic_tons}t")
 
     result = await run_agent(
-        agent=erp_agent,
+        agent=agent,
         user_message=(
             f"Create escrow PO: company={company_id}, recycler={recycler_id}, "
             f"audit_id={audit_id}, {plastic_tons} tons at INR {unit_price_inr}/kg. "

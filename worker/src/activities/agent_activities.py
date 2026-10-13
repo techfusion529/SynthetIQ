@@ -193,6 +193,7 @@ async def audit_scada_telemetry_activity(
     melt_rate_kg_h: float,
     category: str = "cat_i_rigid",
     org_id: str = "",
+    delta_threshold: float = 2.0,
 ) -> dict[str, Any]:
     """SCADA telemetry fraud audit via ADK Auditor Agent (Nimble / Jev ensemble)."""
     logger.info(f"[Activity] SCADA audit  -  {recycler_id}/{plant_id}, category={category}")
@@ -209,6 +210,7 @@ async def audit_scada_telemetry_activity(
         vfd_frequency_hz=vfd_frequency_hz,
         melt_rate_kg_h=melt_rate_kg_h,
         category=category,
+        threshold=delta_threshold,
     )
 
     # Ensure audit_id is always present for downstream activities
@@ -230,7 +232,7 @@ async def audit_scada_telemetry_activity(
 
     # C3: deterministic verdict — do NOT trust any LLM verdict string
     delta = result["delta_percent"]
-    threshold = result.get("threshold", 2.0)
+    threshold = result.get("threshold", delta_threshold)
     if delta > threshold * 2:
         verdict = "FAIL"
     elif delta > threshold:

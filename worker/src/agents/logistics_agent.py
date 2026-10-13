@@ -135,15 +135,6 @@ Mandatory JSON output keys:
   origin_verified, destination_verified, provenance_verified, recommendation
 """
 
-logistics_agent = create_llm_agent(
-    name="logistics_agent",
-    instruction=LOGISTICS_INSTRUCTION,
-    tools=[verify_eway_bill, scan_qr_packaging_ledger, assess_logistics_risk],
-    description="Verifies material origin and transportation via E-Way bills and QR packaging ledger",
-    output_key="logistics_result",
-)
-
-
 # ---------------------------------------------------------------------------
 # Convenience runner
 # ---------------------------------------------------------------------------
@@ -163,11 +154,19 @@ async def run_logistics_agent(
     Returns:
         Logistics verification result
     """
+    agent = create_llm_agent(
+        name="logistics_agent",
+        instruction=LOGISTICS_INSTRUCTION,
+        tools=[verify_eway_bill, scan_qr_packaging_ledger, assess_logistics_risk],
+        description="Verifies material origin and transportation via E-Way bills and QR packaging ledger",
+        output_key="logistics_result",
+    )
+
     logger.info(f"Running logistics_agent for E-Way bill: {eway_bill_number}")
 
     qr_part = f" and QR code '{qr_code_id}'" if qr_code_id else ""
     result = await run_agent(
-        agent=logistics_agent,
+        agent=agent,
         user_message=(
             f"Verify the logistics for E-Way bill '{eway_bill_number}'{qr_part}. "
             "Use all tools and return a single JSON object."

@@ -122,14 +122,6 @@ Mandatory JSON output keys:
   confidence_score, is_spoofed, verdict, flags, verified_tons, detection_mode
 """
 
-auditor_agent = create_llm_agent(
-    name="auditor_agent",
-    instruction=AUDITOR_INSTRUCTION,
-    tools=[fetch_scada_telemetry, evaluate_scada_signature],
-    description="SCADA telemetry fraud detection via Nimble System 1 / Jev ensemble",
-    output_key="audit_result",
-)
-
 
 # ---------------------------------------------------------------------------
 # Convenience runner
@@ -145,6 +137,7 @@ async def run_auditor_agent(
     vfd_frequency_hz: float = 50.0,
     melt_rate_kg_h: float = 250.0,
     category: str = "cat_i_rigid",
+    threshold: float = 2.0,
     session_id: str | None = None,
 ) -> dict[str, Any]:
     """Run the Auditor Agent for a recycling plant.
@@ -159,11 +152,20 @@ async def run_auditor_agent(
         vfd_frequency_hz: VFD drive frequency
         melt_rate_kg_h: Reported melt rate
         category: Polymer category
+        threshold: Delta-mass fraud threshold (%)
         session_id: Optional ADK session ID
 
     Returns:
         Audit verdict dict
     """
+    agent = create_llm_agent(
+        name="auditor_agent",
+        instruction=AUDITOR_INSTRUCTION,
+        tools=[fetch_scada_telemetry, evaluate_scada_signature],
+        description="SCADA telemetry fraud detection via Nimble System 1 / Jev ensemble",
+        output_key="audit_result",
+    )
+
     logger.info(
         f"Running auditor_agent for {recycler_id}/{plant_id}  -  {reported_volume_tons}t, "
         f"torque={torque_nm}Nm, pf={power_factor}, kw={active_power_kw}, category={category}"
@@ -178,7 +180,7 @@ async def run_auditor_agent(
     )
 
     result = await run_agent(
-        agent=auditor_agent,
+        agent=agent,
         user_message=prompt,
         session_id=session_id,
         user_id=recycler_id,
@@ -197,7 +199,7 @@ async def run_auditor_agent(
         logger.warning("Could not parse JSON from auditor agent; evaluating deterministically")
 
     # High-reliability fallback: deterministic evaluation
-    return evaluate_scada_signature(
+    fallback = evaluate_scada_signature(
         torque_nm=torque_nm,
         power_factor=power_factor,
         active_power_kw=active_power_kw,
@@ -206,3 +208,5 @@ async def run_auditor_agent(
         reported_volume_tons=reported_volume_tons,
         category=category,
     )
+    fallback.setdefault("threshold", threshold)
+    return fallback

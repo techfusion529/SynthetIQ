@@ -96,15 +96,6 @@ Always output a single JSON object with keys:
   statutory_base_rate_inr, compliance_deadline, key_changes
 """
 
-regulatory_agent = create_llm_agent(
-    name="regulatory_watchdog_agent",
-    instruction=REGULATORY_INSTRUCTION,
-    tools=[fetch_cpcb_gazette, extract_conversion_factors],
-    description="Parses CPCB gazette notifications into structured EPR conversion factors and deadlines",
-    output_key="regulatory_rules",
-)
-
-
 # ---------------------------------------------------------------------------
 # Convenience runner
 # ---------------------------------------------------------------------------
@@ -122,10 +113,18 @@ async def run_regulatory_agent(
     Returns:
         Structured regulatory rules dict
     """
+    agent = create_llm_agent(
+        name="regulatory_watchdog_agent",
+        instruction=REGULATORY_INSTRUCTION,
+        tools=[fetch_cpcb_gazette, extract_conversion_factors],
+        description="Parses CPCB gazette notifications into structured EPR conversion factors and deadlines",
+        output_key="regulatory_rules",
+    )
+
     logger.info(f"Running regulatory_watchdog_agent for: {gazette_reference}")
 
     result = await run_agent(
-        agent=regulatory_agent,
+        agent=agent,
         user_message=(
             f"Fetch and parse the CPCB gazette '{gazette_reference}'. "
             "Extract all conversion factors, amortization rules, base rate, and deadline. "

@@ -20,51 +20,102 @@ import logging
 from typing import Any
 
 from .base_adk import (
+    create_llm_agent,
     create_parallel_group,
     create_sequential_pipeline,
     run_agent,
 )
-from .brand_liability_agent import brand_liability_agent
-from .regulatory_agent import regulatory_agent
-from .treasury_agent import treasury_agent
-from .logistics_agent import logistics_agent
-from .auditor_agent import auditor_agent
-from .erp_agent import erp_agent
-from .legal_agent import legal_agent
+from .auditor_agent import AUDITOR_INSTRUCTION, fetch_scada_telemetry, evaluate_scada_signature
+from .brand_liability_agent import BRAND_LIABILITY_INSTRUCTION, query_erp_sales, get_historic_debt, calculate_amortization
+from .regulatory_agent import REGULATORY_INSTRUCTION, fetch_cpcb_gazette, extract_conversion_factors
+from .treasury_agent import TREASURY_INSTRUCTION, compute_statutory_corridor, fetch_recycler_bids, validate_price_corridor
+from .logistics_agent import LOGISTICS_INSTRUCTION, verify_eway_bill, scan_qr_packaging_ledger, assess_logistics_risk
+from .erp_agent import ERP_INSTRUCTION, validate_po_conditions, create_purchase_order
+from .legal_agent import LEGAL_INSTRUCTION, apply_conversion_factor, sign_form1_dsc, dispatch_to_cpcb_portal
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Compose the pipeline
+# Compose the pipeline (module-level agents for the SequentialAgent pipeline)
 # ---------------------------------------------------------------------------
 
-# Stage 1: Brand liability + Regulatory rules in parallel
-upstream_parallel = create_parallel_group(
-    name="upstream_parallel",
-    agents=[brand_liability_agent, regulatory_agent],
-    description="Parallel computation of EPR liability and regulatory conversion factors",
-)
+def _build_pipeline():
+    """Build the EPR compliance SequentialAgent pipeline with fresh agent instances."""
+    _brand_liability = create_llm_agent(
+        name="brand_liability_agent",
+        instruction=BRAND_LIABILITY_INSTRUCTION,
+        tools=[query_erp_sales, get_historic_debt, calculate_amortization],
+        description="Calculates EPR plastic-waste liability from ERP sales + 1/3 amortization rule",
+        output_key="liability_result",
+    )
+    _regulatory = create_llm_agent(
+        name="regulatory_watchdog_agent",
+        instruction=REGULATORY_INSTRUCTION,
+        tools=[fetch_cpcb_gazette, extract_conversion_factors],
+        description="Parses CPCB gazette notifications into structured EPR conversion factors and deadlines",
+        output_key="regulatory_rules",
+    )
+    _treasury = create_llm_agent(
+        name="treasury_agent",
+        instruction=TREASURY_INSTRUCTION,
+        tools=[compute_statutory_corridor, fetch_recycler_bids, validate_price_corridor],
+        description="Runs the continuous double auction within the statutory price corridor",
+        output_key="auction_result",
+    )
+    _logistics = create_llm_agent(
+        name="logistics_agent",
+        instruction=LOGISTICS_INSTRUCTION,
+        tools=[verify_eway_bill, scan_qr_packaging_ledger, assess_logistics_risk],
+        description="Verifies material origin and transportation via E-Way bills and QR packaging ledger",
+        output_key="logistics_result",
+    )
+    _auditor = create_llm_agent(
+        name="auditor_agent",
+        instruction=AUDITOR_INSTRUCTION,
+        tools=[fetch_scada_telemetry, evaluate_scada_signature],
+        description="SCADA telemetry fraud detection via Nimble System 1 / Jev ensemble",
+        output_key="audit_result",
+    )
+    _erp = create_llm_agent(
+        name="erp_agent",
+        instruction=ERP_INSTRUCTION,
+        tools=[validate_po_conditions, create_purchase_order],
+        description="Creates 80/20 split escrow purchase order after validating audit and logistics verdicts",
+        output_key="po_result",
+    )
+    _legal = create_llm_agent(
+        name="legal_agent",
+        instruction=LEGAL_INSTRUCTION,
+        tools=[apply_conversion_factor, sign_form1_dsc, dispatch_to_cpcb_portal],
+        description="Generates, DSC-signs, and submits CPCB Form-1 for EPR credit registration",
+        output_key="form1_result",
+    )
 
-# Stage 3: Logistics verification + SCADA audit in parallel
-audit_parallel = create_parallel_group(
-    name="audit_parallel",
-    agents=[logistics_agent, auditor_agent],
-    description="Parallel logistics origin verification and SCADA telemetry fraud detection",
-)
+    upstream_parallel = create_parallel_group(
+        name="upstream_parallel",
+        agents=[_brand_liability, _regulatory],
+        description="Parallel computation of EPR liability and regulatory conversion factors",
+    )
+    audit_parallel = create_parallel_group(
+        name="audit_parallel",
+        agents=[_logistics, _auditor],
+        description="Parallel logistics origin verification and SCADA telemetry fraud detection",
+    )
+    return create_sequential_pipeline(
+        name="epr_compliance_pipeline",
+        agents=[
+            upstream_parallel,
+            _treasury,
+            audit_parallel,
+            _erp,
+            _legal,
+        ],
+        description="End-to-end EPR compliance pipeline: liability  - ' auction  - ' audit  - ' PO  - ' Form-1",
+    )
 
-# Full pipeline  -  sequential stages
-epr_compliance_pipeline = create_sequential_pipeline(
-    name="epr_compliance_pipeline",
-    agents=[
-        upstream_parallel,   # Stage 1: Liability + Regulatory (parallel)
-        treasury_agent,      # Stage 2: Auction
-        audit_parallel,      # Stage 3: Logistics + SCADA Audit (parallel)
-        erp_agent,           # Stage 4: Escrow PO
-        legal_agent,         # Stage 5: Form-1 dispatch
-    ],
-    description="End-to-end EPR compliance pipeline: liability  - ' auction  - ' audit  - ' PO  - ' Form-1",
-)
+
+epr_compliance_pipeline = _build_pipeline()
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +151,7 @@ async def run_epr_pipeline(
         Aggregated pipeline result dict with keys for each stage
     """
     logger.info(
-        f"🚀 Starting EPR pipeline  -  company={company_id}, FY={fiscal_year}, "
+        f"Starting EPR pipeline  -  company={company_id}, FY={fiscal_year}, "
         f"category={category}, volume={volume_tons}t"
     )
 

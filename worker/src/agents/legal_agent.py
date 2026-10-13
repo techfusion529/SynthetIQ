@@ -124,15 +124,6 @@ Mandatory JSON output keys:
   dsc_signature, portal_status, ack_number
 """
 
-legal_agent = create_llm_agent(
-    name="legal_agent",
-    instruction=LEGAL_INSTRUCTION,
-    tools=[apply_conversion_factor, sign_form1_dsc, dispatch_to_cpcb_portal],
-    description="Generates, DSC-signs, and submits CPCB Form-1 for EPR credit registration",
-    output_key="form1_result",
-)
-
-
 # ---------------------------------------------------------------------------
 # Convenience runner
 # ---------------------------------------------------------------------------
@@ -160,11 +151,19 @@ async def run_legal_agent(
     Returns:
         Form-1 dispatch result dict
     """
+    agent = create_llm_agent(
+        name="legal_agent",
+        instruction=LEGAL_INSTRUCTION,
+        tools=[apply_conversion_factor, sign_form1_dsc, dispatch_to_cpcb_portal],
+        description="Generates, DSC-signs, and submits CPCB Form-1 for EPR credit registration",
+        output_key="form1_result",
+    )
+
     form_id = f"FORM1-{uuid.uuid4().hex[:8].upper()}"
     logger.info(f"Running legal_agent  -  form_id={form_id}, PO={po_number}")
 
     result = await run_agent(
-        agent=legal_agent,
+        agent=agent,
         user_message=(
             f"Generate and dispatch Form-1 for PO '{po_number}' (audit: {audit_id}). "
             f"Physical melt: {physical_melt_tons} tons, category: {category}, "

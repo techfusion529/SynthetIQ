@@ -27,6 +27,7 @@ with workflow.unsafe.imports_passed_through():
         parse_regulatory_rules_activity,
         verify_eway_bill_activity,
     )
+    from src.activities.config_activities import fetch_run_config_activity
     from synthetiq_shared.models import RunInput
 
 # Shared retry policy applied to every activity execution
@@ -349,13 +350,36 @@ class MasterEPRComplianceWorkflow:
     async def run(self, run_input: RunInput) -> dict[str, Any]:
         # Extract fields from the unified input model
         company_id = run_input.company_id
-        fiscal_year = run_input.fiscal_year
         category = run_input.category
         volume_tons = run_input.volume_tons
         simulate_spoof = run_input.simulate_spoof
         recycler_id = run_input.recycler_id
         plant_id = run_input.plant_id
         eway_bill_ref = run_input.eway_bill_ref
+
+        # ---- Stage 0: Fetch run config (regulatory pack + org policy + calibrations) ----
+        self.stage_reached = 0
+        self.current_status = "STAGE_0_FETCHING_RUN_CONFIG"
+        run_config_dict = await workflow.execute_activity(
+            fetch_run_config_activity,
+            args=[run_input.org_id, run_input.regulatory_pack_version],
+            retry_policy=_RETRY,
+            start_to_close_timeout=_TIMEOUT,
+        )
+        from synthetiq_shared.models.dynamic_config import RunConfig as _RunConfig
+        run_config = _RunConfig(**run_config_dict)
+
+        # Derive fiscal_year from input or from Temporal clock + pack config
+        if run_input.fiscal_year:
+            fiscal_year = run_input.fiscal_year
+        else:
+            from datetime import date as _date
+            today = workflow.now().date()  # deterministic Temporal clock
+            fy_start_month = run_config.pack.fiscal_year_start_month
+            if today.month >= fy_start_month:
+                fiscal_year = f"FY{today.year}-{str(today.year + 1)[2:]}"
+            else:
+                fiscal_year = f"FY{today.year - 1}-{str(today.year)[2:]}"
 
         #  -  -  -  -  Stage 1: Liability (Brand Liability Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
         self.stage_reached = 1
@@ -380,7 +404,7 @@ class MasterEPRComplianceWorkflow:
         #  -  -  -  -  Stage 2b: Auction (Treasury Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
         auction = await workflow.execute_activity(
             execute_double_auction_activity,
-            args=[f"RFP-{company_id}", category, volume_tons, 12.0],
+            args=[f"RFP-{company_id}", category, volume_tons, run_config.pack.base_rate_inr_per_kg],
             retry_policy=_RETRY,
             start_to_close_timeout=_TIMEOUT,
         )
@@ -407,6 +431,7 @@ class MasterEPRComplianceWorkflow:
                 recycler_id, plant_id, volume_tons,
                 torque, pf, kw, 50.0, melt, category,
                 run_input.org_id,
+                run_config.pack.delta_threshold_default,
             ],
             retry_policy=_RETRY,
             start_to_close_timeout=_TIMEOUT,
@@ -472,9 +497,10 @@ class MasterEPRComplianceWorkflow:
         #  -  -  -  -  Stage 5: Form-1 (Legal Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
         self.stage_reached = 5
         self.current_status = "STAGE_5_STATUTORY_FORM1_DISPATCH"
+        cf = run_config.pack.conversion_factors.get(category, 1.0)
         form1 = await workflow.execute_activity(
             generate_and_dispatch_form1_activity,
-            args=[po["po_number"], audit["audit_id"], volume_tons, 1.0, run_input.org_id],
+            args=[po["po_number"], audit["audit_id"], volume_tons, cf, run_input.org_id],
             retry_policy=_RETRY,
             start_to_close_timeout=_TIMEOUT,
         )

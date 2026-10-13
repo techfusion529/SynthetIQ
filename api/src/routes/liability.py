@@ -16,7 +16,7 @@ async def trigger_liability_calculation(
     _: Any = Depends(require_permission("workflows:execute")),
 ) -> dict[str, Any]:
     company_id = payload.get("company_id", "COMP-IN-001")
-    fiscal_year = payload.get("fiscal_year", "FY2026-27")
+    fiscal_year = payload.get("fiscal_year", "")
     workflow_id = f"wf1-liability-{company_id}-{uuid.uuid4().hex[:8]}"
     res = await temporal_service.start_workflow(
         workflow_name="UpstreamLiabilityWorkflow",
@@ -30,7 +30,7 @@ async def trigger_liability_calculation(
 async def get_liability_report(
     company_id: str, user: CurrentUser,
     _: Any = Depends(require_permission("workflows:read")),
-    fiscal_year: str = "FY2026-27",
+    fiscal_year: str = "",
 ) -> dict[str, Any]:
     """Returns liability data from the latest completed compliance run for this company.
     Returns a prompt to run the E2E pipeline if no run exists yet.

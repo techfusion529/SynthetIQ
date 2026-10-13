@@ -66,8 +66,6 @@ DEFAULT_AGENTS_CONFIG = [
         ),
         "parameters": {
             "amortization_fraction": 0.333,
-            "target_fiscal_year": "FY2026-27",
-            "historical_debt_default_tons": 3600.0,
             "categories": ["cat_i_rigid", "cat_ii_flexible", "cat_iii_mlp", "cat_iv_compostable"],
         },
     },
@@ -82,7 +80,6 @@ DEFAULT_AGENTS_CONFIG = [
         "parameters": {
             "jurisdiction": "IN",
             "active_framework": "CPCB Plastic Waste Management Amendment Rules 2026",
-            "statutory_base_rate_inr": 12.0,
         },
     },
     {

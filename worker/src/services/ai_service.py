@@ -190,7 +190,7 @@ class GeminiAIService:
 
 Return a JSON object with this exact structure:
 {{
-    "fiscal_year": "FY2026-27",
+    "fiscal_year": "",
     "statutory_conversion_factors": {{
         "cat_i_rigid": {{"mechanical": float, "co_processing": float}},
         "cat_ii_flexible": {{"mechanical": float, "co_processing": float}},

@@ -34,6 +34,7 @@ def setup_test_db():
             Organization, User, DataSource, AgentConfiguration, Schedule,
             WorkflowRun, AuctionRecord, BidRecord, AuditRecord,
             EscrowPORecord, Form1Record, LegalEntity, Membership, InviteToken,
+            IngestionRun,
         )
         # Create all tables
         async with engine.begin() as conn:

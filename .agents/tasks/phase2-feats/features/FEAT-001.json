@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Model and DB layer: create RunInput Pydantic model, standardize HumanApprovalSignal, update MasterEPRComplianceWorkflow to accept RunInput (removing 5 positional args), add Alembic migration extending workflow_runs with input_params/hitl_required/temporal_run_id.",
+  "status": "pending",
+  "steps": [
+    "Create packages/synthetiq-shared/synthetiq_shared/models/runs.py with RunInput(BaseModel) containing: org_id: str, company_id: str, fiscal_year: str = 'FY2026-27', category: str = 'cat_i_rigid', volume_tons: float, simulate_spoof: bool = False, schedule_id: str | None = None, recycler_id: str = '', plant_id: str = '', eway_bill_ref: str = ''. Import from __future__ import annotations. Add 'from .runs import RunInput' to packages/synthetiq-shared/synthetiq_shared/models/__init__.py __all__ list.",
+    "In worker/src/flows/workflows.py, rename AuditDecisionInput dataclass to HumanApprovalSignal (same fields: approved: bool, notes: str = '', auditor_id: str = 'COMPLIANCE-AUDITOR-01', reason_code: str = 'MANUAL_PHYSICS_OVERRIDE', override_tons: float | None = None, signature_hash: str | None = None). Update both @workflow.signal handler type annotations in QuadCoreAuditWorkflow and MasterEPRComplianceWorkflow. Keep signal method name 'resolve_audit_exception' unchanged for wire compatibility.",
+    "In worker/src/flows/workflows.py, change MasterEPRComplianceWorkflow.run() to accept a single argument 'run_input: RunInput' (import RunInput via 'with workflow.unsafe.imports_passed_through(): from synthetiq_shared.models import RunInput'). Extract company_id, fiscal_year, category, volume_tons, simulate_spoof, org_id, recycler_id, plant_id, eway_bill_ref from run_input. Replace hardcoded 'RECYC-DELHI-01' with run_input.recycler_id, 'PLANT-OKHLA-2' with run_input.plant_id, 'EWB-2026-99210' with run_input.eway_bill_ref (default to empty string if blank). Do the same in QuadCoreAuditWorkflow.run() — add eway_bill_ref: str = '' parameter and replace the hardcoded literal. Update the call site in MasterEPRComplianceWorkflow to pass run_input.eway_bill_ref.",
+    "Create Alembic migration file packages/synthetiq-shared/alembic/versions/<new_rev>_phase2_runs.py. Set down_revision = 'a3f9c8e1d42b'. In upgrade(): op.add_column('workflow_runs', sa.Column('input_params', sa.JSON(), nullable=True)); op.add_column('workflow_runs', sa.Column('hitl_required', sa.Boolean(), server_default=sa.false(), nullable=False)); op.add_column('workflow_runs', sa.Column('temporal_run_id', sa.String(256), nullable=True)). Also add RLS on workflow_runs (same pattern as a3f9c8e1d42b, PostgreSQL-only). In downgrade(): drop the three columns, drop RLS. In packages/synthetiq-shared/synthetiq_shared/models/organization.py, add three Mapped columns to WorkflowRun: input_params: Mapped[dict | None] = mapped_column(JSON, nullable=True); hitl_required: Mapped[bool] = mapped_column(Boolean, default=False); temporal_run_id: Mapped[str | None] = mapped_column(String(256), nullable=True).",
+    "Generate the migration revision ID by running: cd c:\\Users\\HP\\SynthetIQ && alembic revision --autogenerate -m phase2_runs (or manually pick a unique 12-char hex string like 'c1d2e3f4a5b6'). The file must chain correctly from a3f9c8e1d42b."
+  ],
+  "acceptance_criteria": [
+    "python -c 'from synthetiq_shared.models import RunInput; r = RunInput(org_id=\"O1\", company_id=\"C1\", volume_tons=250.0); print(r.model_dump())' executes without error from the repo root",
+    "python -c 'from flows.workflows import MasterEPRComplianceWorkflow, HumanApprovalSignal' executes without ImportError from worker/src/",
+    "python -c 'from flows.workflows import AuditDecisionInput' raises ImportError (old name removed)",
+    "DATABASE_URL=sqlite+aiosqlite:///./test_feat001.db alembic upgrade head exits 0 from repo root",
+    "python -c 'from synthetiq_shared.models.organization import WorkflowRun; print(WorkflowRun.__table__.columns.keys())' includes 'input_params', 'hitl_required', 'temporal_run_id'",
+    "No occurrence of 'RECYC-DELHI-01', 'PLANT-OKHLA-2', or 'EWB-2026-99210' in worker/src/flows/workflows.py"
+  ],
+  "verification": [
+    "From repo root: python -c 'from synthetiq_shared.models import RunInput; print(RunInput.model_fields.keys())'",
+    "From worker/src/: python -c 'from flows.workflows import MasterEPRComplianceWorkflow, HumanApprovalSignal; print(\"ok\")'",
+    "From repo root: DATABASE_URL=sqlite+aiosqlite:///./test_feat001.db alembic upgrade head"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

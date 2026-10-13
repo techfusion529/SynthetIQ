@@ -1,0 +1,45 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "API layer tenancy wiring: create TenantCtx dependency, add org_id filters + pagination to all business-table list routes, add invite/accept-invite/verify-email endpoints, create Membership row on user registration, harden auth middleware (fail-closed on DB error with HTTP 503), retire the _COMPANIES_DB in-memory store and companies.py router, and replace _RUNS_DB in-memory list in orchestrator.py with WorkflowRun DB queries. FEAT-002 is independent of FEAT-003 (dashboard); it depends on FEAT-001 models being in place.",
+  "status": "pending",
+  "steps": [
+    "Step 1 — Create api/src/utils/tenant.py. This is a new file. Contents:\n  - Import: from pydantic import BaseModel; from fastapi import Depends, HTTPException, status; from sqlalchemy import select, text; from synthetiq_shared.database import get_db_session; from synthetiq_shared.models import User as UserModel\n  - class TenantCtx(BaseModel): org_id: str; user_id: str; role: str; is_platform_admin: bool = False\n  - async def get_tenant_ctx(user: dict = Depends(get_current_user)) -> TenantCtx:\n      uid = user.get('uid', ''); org_id = user.get('org_id', ''); role = user.get('role', 'viewer')\n      if not org_id: raise HTTPException(status_code=403, detail='User has no org_id — not a tenant member')\n      is_admin = user.get('role') == 'platform_admin' or bool(user.get('platform_admin'))\n      return TenantCtx(org_id=org_id, user_id=uid, role=role, is_platform_admin=is_admin)\n  - async def set_tenant_context(session, org_id: str) -> None:\n      try: await session.execute(text(f\"SET LOCAL app.current_org_id = '{org_id}'\"))\n      except Exception: pass  # SQLite does not support SET LOCAL — ignore silently\n  Import get_current_user from src.middleware.auth inside the function to avoid circular imports.",
+
+    "Step 2 — Harden api/src/middleware/auth.py: in the except block that catches DB errors during re-verification (currently logs a warning and continues), change it to: if the exception is NOT an HTTPException, raise HTTPException(status_code=503, detail='Auth service temporarily unavailable — retry later') so the middleware is fail-closed on DB error. Exact location: the `except Exception as db_err:` block at the end of get_current_user().",
+
+    "Step 3 — Add org_id filter and limit/offset pagination to audit list route. In api/src/routes/audit.py, modify _get_all_audits() to accept optional org_id: str | None = None, limit: int = 100, offset: int = 0 parameters. Add `.where(AuditRecord.org_id == org_id)` if org_id is provided. Add `.limit(limit).offset(offset)`. Update list_audit_verdicts() to extract org_id from user dict and pass it: `org_id = user.get('org_id')`, then `return await _get_all_audits(org_id=org_id)`. Also update _persist_audit() to write the org_id from the caller when provided — add an optional `org_id: str | None = None` parameter and set `audit_record.org_id = org_id` on the new AuditRecord row. Update trigger_fraud_audit to pass `user.get('org_id')` to _persist_audit().",
+
+    "Step 4 — Add org_id filter and pagination to settlement list routes. In api/src/routes/settlement.py, modify _get_all_pos() to accept org_id: str | None = None, limit: int = 100, offset: int = 0. Add `.where(EscrowPORecord.org_id == org_id)` if org_id provided, plus .limit/.offset. Update list_escrow_pos() to pass `user.get('org_id')`. Add org_id to Form1Record queries in list_form1_records() similarly. Update approve_audit_and_settle to set org_id on EscrowPORecord when created (extract from user). In orchestrator.py Stage 4 persist block, set org_id=org_id on EscrowPORecord. In orchestrator.py Stage 5 persist block, set org_id=org_id on Form1Record.",
+
+    "Step 5 — Add org_id filter and pagination to auction list routes. In api/src/routes/auctions.py, modify _get_all_auctions() to accept org_id: str | None = None, limit: int = 100, offset: int = 0. Filter and paginate. Update list_auctions() and list_active_auctions() to pass org_id from user. In broadcast_rfp() AuctionRecord persist block, set org_id=user.get('org_id'). Also set org_id on BidRecord when bids are created (if bid creation exists). In orchestrator.py Stage 2 persist (if any AuctionRecord is created there), set org_id=org_id.",
+
+    "Step 6 — Add org_id to AuditRecord, EscrowPORecord, Form1Record rows created in api/src/routes/orchestrator.py. In execute_e2e_compliance_run(): Stage 3 AuditRecord.add — set `org_id=org_id`. Stage 4 EscrowPORecord.add — set `org_id=org_id`. Stage 5 Form1Record.add — set `org_id=org_id`. Also replace the _RUNS_DB in-memory list: remove `_RUNS_DB: list[dict[str, Any]] = []` global. Replace all `_RUNS_DB.insert(0, ...)` with the WorkflowRun DB persist block (already present at end of the function). Replace `get_compliance_run_steps` which reads `_RUNS_DB` — change it to query WorkflowRun by run_id and return result.get('steps', []) from the JSON result column. Replace `get_compliance_run` to query WorkflowRun by run_id and return its result dict. Both functions already have a DB query path in list_compliance_runs — follow the same pattern.",
+
+    "Step 7 — Retire companies.py router. In api/src/routes/companies.py, keep the file but empty the router of all route handlers and add a single comment: `# Retired in Phase 1 — use /organizations endpoints instead`. Remove the `companies_router` include from api/src/main.py (delete the `app.include_router(companies_router, ...)` line and the companies_router import). Remove `companies_router` from api/src/routes/__init__.py (read that file first to find the exact import line).",
+
+    "Step 8 — Add Membership creation on registration. In api/src/routes/auth.py, inside the register() function, after `session.add(new_user)`, add:\n  `from synthetiq_shared.models import Membership`\n  `session.add(Membership(user_id=user_id, org_id=org_id, role='admin', is_active=True))`\n  Also add the same Membership row in api/src/routes/users.py invite_or_create_user() after `session.add(new_user)`: `session.add(Membership(user_id=new_user.user_id, org_id=org_id, role=payload.role, is_active=True))`.",
+
+    "Step 9 — Add invite and verify-email endpoints to api/src/routes/organizations.py.\n  a) Add CreateInviteRequest(BaseModel): email: str; role: str = 'viewer'; purpose: str = 'invite'\n  b) Add POST /organizations/{org_id}/invites endpoint that:\n    - Requires assert_same_org + require_permission('users:write')\n    - Creates an InviteToken row: token = secrets.token_urlsafe(48)[:64], expires_at = datetime.now(UTC) + timedelta(days=7)\n    - Returns {invite_id, email, org_id, role, token, expires_at}\n  c) Add AcceptInviteRequest(BaseModel): token: str; password: str; display_name: str to auth.py router\n  d) Add POST /auth/accept-invite endpoint in auth.py that:\n    - Looks up InviteToken by token, checks not used_at and not expired\n    - Creates User row with org_id from token, role from token, password hash\n    - Creates Membership row\n    - Marks token used_at = now()\n    - Returns AuthResponse with access_token\n  e) Add VerifyEmailRequest(BaseModel): token: str to auth.py router\n  f) Add POST /auth/verify-email endpoint in auth.py:\n    - Looks up InviteToken where purpose='verify_email', checks not expired\n    - Marks organization is_active=True (or sets a verified_at field on org)\n    - Marks token used_at\n    - Returns {status: 'verified', org_id}\n  g) Modify POST /auth/register to also create an InviteToken with purpose='verify_email' and log it (do not send email yet — log the token value at INFO level for dev use).",
+
+    "Step 10 — Verify: run ruff, verify routes import cleanly, run alembic upgrade head."
+  ],
+  "acceptance_criteria": [
+    "uv run ruff check api/src passes with no errors",
+    "api/src/main.py no longer imports or includes companies_router",
+    "GET /api/v1/compliance/runs reads from WorkflowRun DB table, not _RUNS_DB list",
+    "GET /api/v1/audit/verdicts accepts org_id scoping via user token",
+    "POST /api/v1/organizations/{org_id}/invites exists and returns a token",
+    "POST /api/v1/auth/accept-invite exists",
+    "POST /api/v1/auth/verify-email exists",
+    "Membership row is created in auth.py register() and users.py invite_or_create_user()",
+    "get_current_user() raises HTTP 503 on DB error instead of silently continuing"
+  ],
+  "verification": [
+    "uv run ruff check api/src",
+    "uv run python -c 'from api.src.main import app; routes = [r.path for r in app.routes]; assert not any(\"/companies\" in r for r in routes), \"companies router still present\"; print(\"FEAT-002 router check OK\")'",
+    "uv run python -c 'from api.src.routes.auth import router; paths = [r.path for r in router.routes]; assert \"/auth/accept-invite\" in paths and \"/auth/verify-email\" in paths; print(\"FEAT-002 auth routes OK\")'"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

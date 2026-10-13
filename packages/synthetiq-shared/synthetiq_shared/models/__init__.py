@@ -2,6 +2,8 @@
 
 # ORM Models (SQLAlchemy)
 from .agent_config import AgentConfiguration
+from .ingestion_run import IngestionRun
+from .runs import RunInput
 from .organization import (
     DataSource,
     Organization,
@@ -19,6 +21,19 @@ from .organization import (
     InviteToken,
 )
 
+# Dynamic Configuration ORM + Pydantic models (Phase 3)
+from .dynamic_config import (
+    RegulatoryPack,
+    OrgPolicy,
+    PlantCalibration,
+    ObligationLedger,
+    RegulatoryPackPayload,
+    OrgPolicySnapshot,
+    PlantCalibrationSnapshot,
+    ObligationLedgerEntry,
+    RunConfig,
+)
+
 # Pydantic Domain Models
 from .company import CompanyERPConfig, CompanyProfile, OnboardedCompany
 from .regulatory import ConsentToOperate, ConversionFactor, GovernmentMandate
@@ -28,7 +43,10 @@ from .audit import AuditVerdict, EWayBill, TelemetryReading, ThermodynamicSignat
 from .settlement import DigitalSignature, DispatchResult, EscrowPurchaseOrder, Form1
 
 __all__ = [
+    # Run input
+    "RunInput",
     # ORM
+    "IngestionRun",
     "Organization",
     "OrgType",
     "User",
@@ -44,6 +62,17 @@ __all__ = [
     "LegalEntity",
     "Membership",
     "InviteToken",
+    # Dynamic Config ORM (Phase 3)
+    "RegulatoryPack",
+    "OrgPolicy",
+    "PlantCalibration",
+    "ObligationLedger",
+    # Dynamic Config Pydantic (Phase 3)
+    "RegulatoryPackPayload",
+    "OrgPolicySnapshot",
+    "PlantCalibrationSnapshot",
+    "ObligationLedgerEntry",
+    "RunConfig",
     # Pydantic
     "OnboardedCompany",
     "CompanyProfile",

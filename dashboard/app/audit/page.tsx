@@ -75,8 +75,8 @@ export default function AuditPage() {
   const [streamAlert, setStreamAlert]   = useState<string | null>(null);
 
   // Dynamic audit inputs (zero hardcoding)
-  const [recyclerId, setRecyclerId]     = useState("RECYC-DELHI-01");
-  const [plantId, setPlantId]           = useState("PLANT-OKHLA-2");
+  const [recyclerId, setRecyclerId]     = useState("");
+  const [plantId, setPlantId]           = useState("");
   const [category, setCategory]         = useState("cat_i_rigid");
   const [volumeTons, setVolumeTons]     = useState("250");
 
@@ -323,12 +323,14 @@ export default function AuditPage() {
                   label="Recycler ID"
                   value={recyclerId}
                   onChange={(e) => setRecyclerId(e.target.value)}
+                  placeholder="e.g. RECYC-ORG-001"
                   fullWidth
                 />
                 <TextField
                   label="Plant ID / Extrusion Line"
                   value={plantId}
                   onChange={(e) => setPlantId(e.target.value)}
+                  placeholder="e.g. PLANT-001"
                   fullWidth
                 />
                 <TextField

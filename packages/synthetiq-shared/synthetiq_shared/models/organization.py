@@ -252,6 +252,11 @@ class WorkflowRun(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    # Phase 2: extended run metadata
+    input_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    hitl_required: Mapped[bool] = mapped_column(Boolean, default=False)
+    temporal_run_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
+
     # Relationships
     organization: Mapped[Organization] = relationship(back_populates="workflow_runs")
 

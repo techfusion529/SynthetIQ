@@ -1,0 +1,7 @@
+{
+  "task_id": "task-phase1-tenancy",
+  "task_description": "Phase 1 Tenancy: add org_id FK + tenant isolation to all five business tables (AuditRecord, AuctionRecord, BidRecord, EscrowPORecord, Form1Record), add Membership/InviteToken/LegalEntity models and migrations, introduce TenantCtx FastAPI dependency, add invite/verify-email endpoints, replace _COMPANIES_DB and _RUNS_DB in-memory stores with DB queries, retire companies.py router, and migrate the dashboard CompanyContext to OrganizationContext.",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

@@ -1,0 +1,8 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    "410 swallowed in fetchComplianceRuns — the throw inside fetchComplianceRuns sits within a try/catch {} that returns [] on any error. The 410 message never reaches the caller; the UI silently shows an empty run list instead of surfacing 'This endpoint has moved. Please refresh the page.' Fix: remove the outer try/catch or rethrow on 410 specifically.",
+    "E2ERunResult in api.ts diverges from compliance.types.ts — api.ts defines its own E2ERunResult with steps: E2EStep[] (required) and no temporal_run_id or hitl_required fields. Callers importing from api.ts see the old shape and miss the new fields at compile time. Fix: delete the duplicate definition and import E2ERunResult from compliance.types.ts."
+  ],
+  "reviewDoc": "c:\\Users\\HP\\SynthetIQ\\.agents\\tasks\\phase2-feat004-review.md"
+}

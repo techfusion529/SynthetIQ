@@ -1,0 +1,41 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Dashboard migration: rename CompanyContext.tsx to OrganizationContext.tsx, expose currentOrg and orgs[] from memberships using the /organizations endpoint, update layout.tsx, update all /api/companies references to /api/organizations, update company.service.ts and company.types.ts references, and update dashboard pages that consume useCompany(). FEAT-003 is independent of FEAT-002 (API changes) but depends on the /organizations endpoint existing (it already does from Phase 0). This is a pure frontend change — no Python files touched. NOTE: Next.js version is 16.3.7 with React 19 (App Router). Read node_modules/next/dist/docs/ if unsure about any API before writing code.",
+  "status": "pending",
+  "steps": [
+    "Step 1 — Read dashboard/node_modules/next/dist/docs/ to confirm any App Router APIs used. Specifically confirm: 'use client' directive, useContext, useCallback, useEffect are still the correct patterns for React 19 / Next.js 16. Confirm that localStorage access in useEffect is still the correct pattern for SSR-safe client-side storage.",
+
+    "Step 2 — Create dashboard/app/lib/contexts/OrganizationContext.tsx as a new file. This replaces CompanyContext.tsx functionally but keep CompanyContext.tsx as a thin re-export shim to avoid breaking imports that haven't been updated yet. OrganizationContext.tsx should:\n  - Export interface OrgContextValue { orgId: string; currentOrg: Organization | null; orgs: Organization[]; loadingOrg: boolean; orgError: string | null; setOrgId: (id: string) => void; }\n  - Export OrganizationProvider component that on token available: fetches GET /api/v1/organizations/ (using fetch with Authorization header) and stores orgs[]. Restores selected orgId from localStorage key 'synthetiq_selected_org'. Falls back to user.org_id from SessionContext if nothing stored. Exposes setOrgId that updates localStorage and re-fetches the org profile.\n  - Export useOrganization(): OrgContextValue hook (useContext)\n  - Organization type imported from '../types/organization.types' (already has org_id, name, etc.)\n  - STORAGE_KEY = 'synthetiq_selected_org' (different from the old 'synthetiq_selected_company' to avoid stale data conflicts)",
+
+    "Step 3 — Update dashboard/app/lib/contexts/CompanyContext.tsx to be a thin compatibility shim. Replace the entire file contents with:\n  'use client';\n  export { OrganizationProvider as CompanyProvider, useOrganization as useCompany } from './OrganizationContext';\n  // Legacy type alias for pages that import Company\n  export type { OrgContextValue as CompanyContextValue } from './OrganizationContext';\n  This keeps all existing `import { useCompany } from './CompanyContext'` and `CompanyProvider` usages working without any changes in consuming files.",
+
+    "Step 4 — Update dashboard/app/layout.tsx: change `import { CompanyProvider } from './lib/contexts/CompanyContext'` to `import { OrganizationProvider } from './lib/contexts/OrganizationContext'`. Replace `<CompanyProvider>` with `<OrganizationProvider>` and `</CompanyProvider>` with `</OrganizationProvider>`.",
+
+    "Step 5 — Update dashboard/app/lib/services/company.service.ts to point at /organizations instead of /companies:\n  - listCompanies() → calls GET /api/v1/organizations/ (returns Organization[] — compatible shape since Organization has org_id, name, gstin, etc.)\n  - getCompany(companyId) → calls GET /api/v1/organizations/{companyId} (using org_id)\n  - createCompany() → calls POST /api/v1/organizations/\n  Rename methods to listOrganizations/getOrganization/createOrganization and keep old names as aliases for backward compatibility: `listCompanies = this.listOrganizations; getCompany = this.getOrganization`.\n  Change return types from Company to Organization (import from '../types/organization.types').",
+
+    "Step 6 — Update dashboard/app/page.tsx: change `import { useCompany } from './lib/contexts/CompanyContext'` to keep working via shim (no change needed if shim exports useCompany). BUT update the destructured properties: the old CompanyContext had `{ companyId, company }` — the new OrgContextValue has `{ orgId, currentOrg }`. In page.tsx find `const { companyId, company } = useCompany()` and replace with `const { orgId: companyId, currentOrg: company } = useOrganization()` (import useOrganization from OrganizationContext) so the rest of the file works unchanged. The handleLaunch() call passes `company_id: companyId` to complianceSvc.runE2E — this still works since companyId is now org_id.",
+
+    "Step 7 — Update dashboard/app/organizations/page.tsx: it currently imports { useSession } and makes raw fetch calls to /api/v1/organizations/. This is fine. No changes needed here except: the 'Add Team Member' dialog currently POSTs to /organizations/{orgId}/users/ without a password field but the CreateUserRequest requires password. Update the handleInviteUser() function to instead POST to /api/v1/organizations/{orgId}/invites (the new invite endpoint from FEAT-002) with { email: newEmail, role: newRole, purpose: 'invite' } — this avoids needing a password field at invite time. Update the dialog UI to remove the Name field (invite flow does not need display_name at invite creation time). Update the feedback message accordingly.",
+
+    "Step 8 — Check all remaining dashboard pages for CompanyContext usage. Scan these files for 'useCompany' or 'companyId' or 'CompanyContext':\n  - dashboard/app/agents/page.tsx\n  - dashboard/app/agents/config/page.tsx\n  - dashboard/app/auction/page.tsx\n  - dashboard/app/dispatch/page.tsx\n  - dashboard/app/liability/page.tsx\n  - dashboard/app/settlement/page.tsx\n  - dashboard/app/schedules/page.tsx\n  For each file that uses useCompany() and destructures companyId: update to also destructure `orgId` OR use the shim (which exports useCompany pointing to useOrganization). Because the shim exports useCompany and OrgContextValue has orgId (not companyId), you must map the destructure. The safest approach: in each consuming page, add `const orgId = companyId` after the destructure, or rename destructure to `const { orgId: companyId, currentOrg: company } = useOrganization()`. Read each file to confirm actual usage before editing.",
+
+    "Step 9 — Update dashboard/app/lib/hooks/useServices.ts: ensure useCompanyService() still works (it does via shim). Add/confirm useOrganizationService() is exported (it already is in the current file).",
+
+    "Step 10 — Run `cd dashboard && npm run build` to confirm no TypeScript errors. Fix any type errors found before marking complete."
+  ],
+  "acceptance_criteria": [
+    "cd dashboard && npm run build completes without TypeScript errors",
+    "OrganizationContext.tsx exists and exports OrganizationProvider and useOrganization",
+    "CompanyContext.tsx is a shim re-exporting from OrganizationContext.tsx",
+    "layout.tsx wraps with OrganizationProvider",
+    "company.service.ts calls /api/v1/organizations/ not /api/v1/companies/",
+    "page.tsx (dashboard root) uses orgId/currentOrg from useOrganization without runtime errors",
+    "organizations/page.tsx invite flow calls /api/v1/organizations/{orgId}/invites"
+  ],
+  "verification": [
+    "cd c:\\Users\\HP\\SynthetIQ\\dashboard && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

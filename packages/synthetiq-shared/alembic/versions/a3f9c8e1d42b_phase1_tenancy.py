@@ -146,13 +146,16 @@ def upgrade() -> None:
         )
 
     # Make org_id NOT NULL and add FK + index
+    # Use batch_alter_table for SQLite compatibility (render_as_batch=True in env.py handles
+    # the rewrite, but direct op.alter_column still needs the batch context on SQLite).
     for table in ('audit_records', 'auctions', 'bids', 'escrow_pos', 'form1_records'):
-        op.alter_column(table, 'org_id', nullable=False)
-        op.create_foreign_key(
-            f'fk_{table}_org_id',
-            table, 'organizations',
-            ['org_id'], ['org_id'],
-        )
+        with op.batch_alter_table(table) as batch_op:
+            batch_op.alter_column('org_id', nullable=False)
+            batch_op.create_foreign_key(
+                f'fk_{table}_org_id',
+                'organizations',
+                ['org_id'], ['org_id'],
+            )
         op.create_index(f'ix_{table}_org_id', table, ['org_id'])
 
     # -------------------------------------------------------------------------
@@ -217,18 +220,21 @@ def upgrade() -> None:
     # -------------------------------------------------------------------------
     # 1h. RLS on the 5 domain tables (PostgreSQL only — skipped on SQLite)
     # -------------------------------------------------------------------------
-    # We wrap in a try/execute so it degrades gracefully on SQLite dev environments.
+    # We wrap in a try/except so it degrades gracefully on SQLite dev environments.
     for table in ('audit_records', 'auctions', 'bids', 'escrow_pos', 'form1_records'):
-        op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
-        op.execute(
-            f"CREATE POLICY tenant_isolation ON {table} "
-            f"USING (org_id::text = current_setting('app.org_id', true)) "
-            f"WITH CHECK (org_id::text = current_setting('app.org_id', true))"
-        )
-        op.execute(
-            f"CREATE POLICY platform_admin_bypass ON {table} "
-            f"USING (current_setting('app.org_id', true) = '')"
-        )
+        try:
+            op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
+            op.execute(
+                f"CREATE POLICY tenant_isolation ON {table} "
+                f"USING (org_id::text = current_setting('app.org_id', true)) "
+                f"WITH CHECK (org_id::text = current_setting('app.org_id', true))"
+            )
+            op.execute(
+                f"CREATE POLICY platform_admin_bypass ON {table} "
+                f"USING (current_setting('app.org_id', true) = '')"
+            )
+        except Exception:
+            pass  # SQLite does not support RLS — skip silently
 
 
 def downgrade() -> None:
@@ -236,9 +242,12 @@ def downgrade() -> None:
 
     # Remove RLS (PostgreSQL only)
     for table in ('audit_records', 'auctions', 'bids', 'escrow_pos', 'form1_records'):
-        op.execute(f"DROP POLICY IF EXISTS platform_admin_bypass ON {table}")
-        op.execute(f"DROP POLICY IF EXISTS tenant_isolation ON {table}")
-        op.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY")
+        try:
+            op.execute(f"DROP POLICY IF EXISTS platform_admin_bypass ON {table}")
+            op.execute(f"DROP POLICY IF EXISTS tenant_isolation ON {table}")
+            op.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY")
+        except Exception:
+            pass  # SQLite does not support RLS — skip silently
 
     # Remove platform_admin from users
     op.drop_column('users', 'platform_admin')
@@ -255,8 +264,9 @@ def downgrade() -> None:
     # Remove org_id from domain tables
     for table in ('audit_records', 'auctions', 'bids', 'escrow_pos', 'form1_records'):
         op.drop_index(f'ix_{table}_org_id', table)
-        op.drop_constraint(f'fk_{table}_org_id', table, type_='foreignkey')
-        op.drop_column(table, 'org_id')
+        with op.batch_alter_table(table) as batch_op:
+            batch_op.drop_constraint(f'fk_{table}_org_id', type_='foreignkey')
+            batch_op.drop_column('org_id')
 
     # Drop domain tables (created in this migration)
     op.drop_table('form1_records')

@@ -114,7 +114,7 @@ export default function AgentsPage() {
                 <Chip label="Vertex AI" size="small" color="primary" sx={{ fontSize: "0.65rem", height: 20 }} />
               </Box>
               <Typography variant="body1" fontWeight={700} fontFamily="monospace">
-                {config?.gemini?.model || "Gemini 3.8 Flash"}
+                {config?.gemini?.model || "—"}
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
                 Key: {config?.gemini?.api_key_masked || "Configured via ADC/Env"}

@@ -292,7 +292,7 @@ class SchedulerService:
             # Build payload for the API compliance endpoint
             payload: dict[str, Any] = {
                 "company_id": params.get("company_id", org_id),
-                "fiscal_year": params.get("fiscal_year", "FY2026-27"),
+                "fiscal_year": params.get("fiscal_year", ""),
                 "category": params.get("category", "cat_i_rigid"),
                 "volume_tons": float(params.get("volume_tons", 250.0)),
                 "simulate_spoof": bool(params.get("simulate_spoof", False)),

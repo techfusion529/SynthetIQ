@@ -1,7 +1,16 @@
 """EPR constants  -  plastic categories, conversion factors, and regulatory boundaries."""
 
 from __future__ import annotations
+import enum
 from enum import Enum
+
+
+class RegulatoryPackStatus(str, Enum):
+    """Lifecycle states for a regulatory pack (approval workflow)."""
+    draft = "draft"
+    pending_approval = "pending_approval"
+    active = "active"
+    superseded = "superseded"
 
 
 class PlasticCategory(str, Enum):

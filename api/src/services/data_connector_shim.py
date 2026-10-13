@@ -2,13 +2,55 @@
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
+import socket
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse as _urlparse
 
 logger = logging.getLogger(__name__)
+
+
+class ConfigurationError(Exception):
+    """Raised when a connector is misconfigured."""
+
+
+class DataSourceNotConfigured(Exception):
+    """Raised when no DataSource is configured for an org."""
+
+    def __init__(self, org_id: str) -> None:
+        super().__init__(f"No DataSource configured for org {org_id!r}")
+        self.org_id = org_id
+
+
+# ---------------------------------------------------------------------------
+# Module-level SSRF helpers
+# ---------------------------------------------------------------------------
+
+_PRIVATE_NETWORKS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("169.254.0.0/16"),
+]
+
+
+def _is_private_ip(ip_str: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip_str)
+        return any(addr in net for net in _PRIVATE_NETWORKS)
+    except ValueError:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Worker path injection
+# ---------------------------------------------------------------------------
 
 # Ensure worker/src is reachable to import the full DataConnector implementations
 worker_src = str(Path(__file__).resolve().parent.parent.parent.parent / "worker" / "src")
@@ -27,8 +69,8 @@ try:
     )
 except ImportError:
     # Minimal fallback implementation
-    import csv
     import httpx
+    from sqlalchemy import text
 
     class DataConnector:  # type: ignore[no-redef]
         def __init__(self, org_id: str, config: dict[str, Any]) -> None:
@@ -45,6 +87,18 @@ except ImportError:
         async def health_check(self) -> bool:
             return True
 
+    class PostgreSQLConnector(DataConnector):  # type: ignore[no-redef]
+        def __init__(self, org_id: str, config: dict[str, Any]) -> None:
+            super().__init__(org_id, config)
+            self.connector_type = "postgresql"
+
+        async def _enforce_read_only(self, conn) -> None:
+            """Best-effort read-only enforcement. Real enforcement requires a read-only DB user."""
+            try:
+                await conn.execute(text("SET default_transaction_read_only = on"))
+            except Exception as exc:
+                logger.warning("[Postgres] Could not enforce read-only mode: %s", exc)
+
     class CSVFileConnector(DataConnector):  # type: ignore[no-redef]
         def __init__(self, org_id: str, config: dict[str, Any]) -> None:
             super().__init__(org_id, config)
@@ -52,27 +106,7 @@ except ImportError:
             self.path = config.get("sales_file_path", "./data/seed/sales.csv")
 
         async def query_sales_data(self, company_id: str, fiscal_year: str) -> list[dict[str, Any]]:
-            path = str(self.path)
-            # Block absolute filesystem paths — only relative/upload paths are permitted
-            if os.path.isabs(path):
-                raise ValueError(
-                    f"Absolute filesystem paths are not permitted for CSV connectors. "
-                    f"Received: {path!r}. Use file upload (coming in Phase 4)."
-                )
-            # Also block Windows drive-letter paths (e.g. C:\...)
-            if len(path) >= 2 and path[1] == ":" and path[0].isalpha():
-                raise ValueError(
-                    f"Absolute filesystem paths are not permitted for CSV connectors. "
-                    f"Received: {path!r}. Use file upload (coming in Phase 4)."
-                )
-            if not os.path.exists(path):
-                return []
-            records = []
-            with open(path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    records.append(dict(row))
-            return records
+            raise NotImplementedError("CSV file path access disabled; use file upload")
 
         async def health_check(self) -> bool:
             return os.path.exists(str(self.path))
@@ -94,6 +128,21 @@ except ImportError:
                 )
             self.base_url = raw_url
 
+            # SSRF protection: block URLs that resolve to private/loopback IPs
+            if self.base_url:
+                _hostname = _urlparse(self.base_url).hostname or ""
+                if _hostname:
+                    try:
+                        _addrinfos = socket.getaddrinfo(_hostname, None)
+                        for _ai in _addrinfos:
+                            _ip = _ai[4][0]
+                            if _is_private_ip(_ip):
+                                raise ValueError(
+                                    f"SSRF protection: {_hostname!r} resolves to private IP {_ip!r}"
+                                )
+                    except OSError:
+                        pass  # DNS resolution failure — allow through; connection will fail at request time
+
         async def health_check(self) -> bool:
             if not self.base_url:
                 return False
@@ -104,6 +153,15 @@ except ImportError:
             except Exception:
                 return False
 
+    class BigQueryConnector(DataConnector):  # type: ignore[no-redef]
+        def __init__(self, org_id: str, config: dict[str, Any]) -> None:
+            if not config.get("service_account_ref"):
+                raise ConfigurationError(
+                    "BigQuery connector requires service_account_ref; platform ADC not permitted"
+                )
+            super().__init__(org_id, config)
+            self.connector_type = "bigquery"
+
     def create_connector(  # type: ignore[no-redef]
         connector_type: str,
         org_id: str,
@@ -113,13 +171,19 @@ except ImportError:
             return CSVFileConnector(org_id, config)
         if connector_type.lower() in ("rest_api", "rest"):
             return RESTAPIConnector(org_id, config)
+        if connector_type.lower() == "postgresql":
+            return PostgreSQLConnector(org_id, config)
+        if connector_type.lower() == "bigquery":
+            return BigQueryConnector(org_id, config)
         return DataConnector(org_id, config)
 
     async def get_connector_for_org(org_id: str, purpose: str = "erp_sales") -> DataConnector:  # type: ignore[no-redef]
-        return CSVFileConnector(org_id, {"sales_file_path": "./data/seed/sales.csv"})
+        raise DataSourceNotConfigured(org_id)
 
 
 __all__ = [
+    "ConfigurationError",
+    "DataSourceNotConfigured",
     "DataConnector",
     "BigQueryConnector",
     "PostgreSQLConnector",

@@ -1,0 +1,10 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    "Auction `clearing_price` field mismatch — `_require(result, \"clearing_price\", \"auction\")` fires on every run because the treasury agent returns `clearing_price_inr`, not `clearing_price`. Add `result.setdefault(\"clearing_price\", result.get(\"clearing_price_inr\"))` before the `_require` call, or rename the agent output key.",
+    "`delta_percent` vs `delta_mass` key contract — The auditor agent may return `delta_mass` rather than `delta_percent`. The `_require` gate is correct fail-closed behavior, but the audit activity breaks on every real run until the agent is updated to return `delta_percent`.",
+    "`POResult` model unused — `create_escrow_split_po_activity` returns the raw agent dict rather than `POResult(**result).model_dump()`. A missing `po_id` or `escrow_amount` from `run_erp_agent` passes silently. Fix: replace `return result` with `return POResult(**result).model_dump()`.",
+    "`non_retryable=True` in PO gates vs `non_retryable=False` in `_require` — Missing `audit_verdict` or `human_approved` raises a non-retryable error (permanent workflow failure); all other fail-closed gates are retryable. Intentional or not, document the distinction or align to `non_retryable=False`."
+  ],
+  "reviewDoc": "c:\\Users\\HP\\SynthetIQ\\.agents\\tasks\\phase2-feat003a-review.md"
+}

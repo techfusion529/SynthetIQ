@@ -26,6 +26,105 @@ router = APIRouter(prefix="/runs", tags=["Workflow Runs"])
 logger = logging.getLogger(__name__)
 
 
+async def _run_preflight_checks(tenant_ctx, org_id: str) -> dict:
+    """Run all preflight checks and return {ready, checks}."""
+    from sqlalchemy import text, select
+    from sqlalchemy.exc import OperationalError
+    from synthetiq_shared.database import get_db_session
+
+    checks = []
+
+    # 1. active_regulatory_pack
+    try:
+        async with get_db_session() as session:
+            result = await session.execute(
+                text("SELECT 1 FROM regulatory_packs WHERE status = 'active' LIMIT 1")
+            )
+            found = result.fetchone() is not None
+        checks.append({"name": "active_regulatory_pack", "ok": found,
+                       "message": "Active regulatory pack found." if found else "No active regulatory pack."})
+    except OperationalError:
+        checks.append({"name": "active_regulatory_pack", "ok": False,
+                       "message": "regulatory_packs table not yet migrated."})
+    except Exception as exc:
+        checks.append({"name": "active_regulatory_pack", "ok": False, "message": str(exc)})
+
+    # 2. data_source_configured
+    try:
+        from synthetiq_shared.models import DataSource
+        async with get_db_session() as session:
+            result = await session.execute(
+                select(DataSource).where(DataSource.org_id == org_id).limit(1)
+            )
+            found = result.scalar_one_or_none() is not None
+        checks.append({"name": "data_source_configured", "ok": found,
+                       "message": "Data source configured." if found else "No data source configured for this org."})
+    except Exception as exc:
+        checks.append({"name": "data_source_configured", "ok": False, "message": str(exc)})
+
+    # 3. column_mapping_valid
+    try:
+        from synthetiq_shared.models import DataSource
+        async with get_db_session() as session:
+            result = await session.execute(
+                select(DataSource).where(
+                    DataSource.org_id == org_id,
+                    DataSource.mapping.isnot(None)
+                ).limit(1)
+            )
+            found = result.scalar_one_or_none() is not None
+        checks.append({"name": "column_mapping_valid", "ok": found,
+                       "message": "Column mapping present." if found else "No column mapping configured."})
+    except Exception as exc:
+        checks.append({"name": "column_mapping_valid", "ok": False, "message": str(exc)})
+
+    # 4. plant_calibration
+    try:
+        async with get_db_session() as session:
+            result = await session.execute(
+                text("SELECT 1 FROM plant_calibrations WHERE org_id = :oid LIMIT 1"),
+                {"oid": org_id}
+            )
+            found = result.fetchone() is not None
+        checks.append({"name": "plant_calibration", "ok": found,
+                       "message": "Plant calibration found." if found else "No plant calibration for this org."})
+    except OperationalError:
+        checks.append({"name": "plant_calibration", "ok": False,
+                       "message": "plant_calibrations table not yet migrated."})
+    except Exception as exc:
+        checks.append({"name": "plant_calibration", "ok": False, "message": str(exc)})
+
+    # 5. obligation_ledger
+    try:
+        async with get_db_session() as session:
+            result = await session.execute(
+                text("SELECT 1 FROM obligation_ledger WHERE org_id = :oid LIMIT 1"),
+                {"oid": org_id}
+            )
+            found = result.fetchone() is not None
+        checks.append({"name": "obligation_ledger", "ok": found,
+                       "message": "Obligation ledger entry found." if found else "No obligation ledger entry for this org."})
+    except OperationalError:
+        checks.append({"name": "obligation_ledger", "ok": False,
+                       "message": "obligation_ledger table not yet migrated."})
+    except Exception as exc:
+        checks.append({"name": "obligation_ledger", "ok": False, "message": str(exc)})
+
+    ready = all(c["ok"] for c in checks)
+    return {"ready": ready, "checks": checks}
+
+
+@router.get("/preflight")
+async def get_preflight(
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("workflows:read")),
+) -> dict[str, Any]:
+    """Check preconditions before starting a run."""
+    org_id = tenant_ctx.org_id or user.get("org_id", "")
+    return await _run_preflight_checks(tenant_ctx, org_id)
+
+
 @router.post("", status_code=202)
 async def create_run(
     payload: dict[str, Any],
@@ -34,6 +133,14 @@ async def create_run(
     _: Any = Depends(require_permission("workflows:execute")),
 ) -> dict[str, Any]:
     """Create a WorkflowRun record, start MasterEPRComplianceWorkflow via Temporal, return 202."""
+    org_id_check = tenant_ctx.org_id or user.get("org_id", "")
+    preflight = await _run_preflight_checks(tenant_ctx, org_id_check)
+    if not preflight["ready"]:
+        raise HTTPException(
+            status_code=422,
+            detail={"detail": "Preflight checks failed", "checks": preflight["checks"]},
+        )
+
     # Build run_id and merge org_id
     run_id = f"RUN-{uuid.uuid4().hex[:12].upper()}"
     org_id = tenant_ctx.org_id or user.get("org_id", "")

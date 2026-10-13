@@ -143,12 +143,23 @@ async def initialize_services() -> None:
 
 
 async def _start_health_server(port: int = 9090):
-    """Run a lightweight HTTP health check responder on port 9090."""
+    """Run a lightweight HTTP health check and Prometheus metrics responder on port 9090."""
     async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         try:
-            await reader.read(1024)
-            resp = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nOK"
-            writer.write(resp)
+            req = await reader.read(1024)
+            req_str = req.decode("utf-8", errors="ignore")
+            if "GET /metrics" in req_str:
+                from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+                metrics_data = generate_latest()
+                hdr = (
+                    f"HTTP/1.1 200 OK\r\n"
+                    f"Content-Type: {CONTENT_TYPE_LATEST}\r\n"
+                    f"Content-Length: {len(metrics_data)}\r\n\r\n"
+                ).encode("utf-8")
+                writer.write(hdr + metrics_data)
+            else:
+                resp = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nOK"
+                writer.write(resp)
             await writer.drain()
         except Exception:
             pass
@@ -160,7 +171,7 @@ async def _start_health_server(port: int = 9090):
                 pass
 
     server = await asyncio.start_server(_handle_client, "0.0.0.0", port)
-    logger.info(f" -  Health check server listening on port {port}")
+    logger.info(f" -  Health check & metrics server listening on port {port}")
     return server
 
 

@@ -25,6 +25,11 @@ WORKFLOW_EXECUTION_COUNTER = Counter(
     ["workflow_name", "status"],
 )
 
+WORKFLOW_ACTIVE_GAUGE = Gauge(
+    "synthetiq_workflow_active_total",
+    "Current active compliance workflows",
+)
+
 WORKFLOW_DURATION_SECONDS = Histogram(
     "synthetiq_workflow_duration_seconds",
     "Workflow execution time in seconds",
@@ -36,6 +41,48 @@ AUDIT_VERDICTS_COUNTER = Counter(
     "synthetiq_audit_verdicts_total",
     "Total fraud audit verdicts rendered",
     ["verdict", "plastic_category"],
+)
+
+SCADA_VERDICTS_COUNTER = Counter(
+    "synthetiq_scada_verdicts_total",
+    "Total SCADA audit verdicts rendered",
+    ["result"],
+)
+
+TONNAGE_PROCESSED_COUNTER = Counter(
+    "synthetiq_tonnage_processed_total",
+    "Total tonnage processed for EPR credits",
+)
+
+COMPANY_COMPLIANCE_GAUGE = Gauge(
+    "synthetiq_company_compliance_pct",
+    "Compliance percentage by company",
+    ["company_id"],
+)
+
+AUCTION_PRICE_GAUGE = Gauge(
+    "synthetiq_auction_price_per_ton",
+    "Current clearing auction price per ton",
+)
+
+AUCTION_CORRIDOR_MIN_GAUGE = Gauge(
+    "synthetiq_auction_corridor_min",
+    "Statutory auction price corridor min (30%)",
+)
+
+AUCTION_CORRIDOR_MAX_GAUGE = Gauge(
+    "synthetiq_auction_corridor_max",
+    "Statutory auction price corridor max (100%)",
+)
+
+ESCROW_RELEASED_COUNTER = Counter(
+    "synthetiq_escrow_released_total",
+    "Total escrow funds released (80%)",
+)
+
+ESCROW_HELD_COUNTER = Counter(
+    "synthetiq_escrow_held_total",
+    "Total escrow funds held in retention (20%)",
 )
 
 ESCROW_AMOUNT_INR_TOTAL = Counter(
@@ -53,6 +100,60 @@ PLASTIC_TONS_VERIFIED = Counter(
 ACTIVE_AUCTIONS_GAUGE = Gauge(
     "synthetiq_active_auctions",
     "Current active continuous double auctions",
+)
+
+SCADA_TORQUE_GAUGE = Gauge(
+    "synthetiq_scada_torque_nm",
+    "Real-time VFD shaft torque in Nm",
+    ["plant_id"],
+)
+
+SCADA_POWER_FACTOR_GAUGE = Gauge(
+    "synthetiq_scada_power_factor",
+    "Real-time extruder motor power factor",
+    ["plant_id"],
+)
+
+SCADA_ENERGY_EXPECTED_GAUGE = Gauge(
+    "synthetiq_scada_energy_expected_kwh",
+    "Thermodynamic theoretical expected energy (kWh)",
+)
+
+SCADA_ENERGY_METERED_GAUGE = Gauge(
+    "synthetiq_scada_energy_metered_kwh",
+    "Metered electrical energy (kWh)",
+)
+
+JEV_LATENCY_HISTOGRAM = Histogram(
+    "synthetiq_jev_evaluation_duration_seconds",
+    "Jev reflex physics evaluation latency in seconds",
+    buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+
+MCP_PII_REDACTIONS_COUNTER = Counter(
+    "synthetiq_mcp_pii_redactions_total",
+    "Total PII entities scrubbed by Gemma 2B",
+)
+
+MCP_TOOL_DURATION_HISTOGRAM = Histogram(
+    "synthetiq_mcp_tool_duration_seconds",
+    "MCP Tool execution duration in seconds",
+    ["tool"],
+)
+
+SCADA_STREAM_THROUGHPUT_GAUGE = Gauge(
+    "synthetiq_scada_stream_throughput_readings_per_sec",
+    "SCADA simulator telemetry streaming throughput",
+)
+
+SAGA_COMPENSATION_COUNTER = Counter(
+    "synthetiq_saga_compensation_total",
+    "Total saga compensation events executed",
+)
+
+SAGA_COMPENSATION_FAILED_COUNTER = Counter(
+    "synthetiq_saga_compensation_failed_total",
+    "Total saga compensation events that failed",
 )
 
 

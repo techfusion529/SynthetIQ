@@ -9,7 +9,9 @@ services:
     image: temporalio/auto-setup:latest
     container_name: synthetiq-temporal
     ports:
-      - "7233:7233"
+      # SECURITY: Temporal has no auth. Never expose ports 7233/8080 externally.
+      # Workers connect via internal Docker network; loopback is for local CLI only.
+      - "127.0.0.1:7233:7233"
     environment:
       - DB=sqlite
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
@@ -28,7 +30,8 @@ services:
       temporal-server:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      # SECURITY: Temporal UI is admin-only. Loopback binding prevents public exposure.
+      - "127.0.0.1:8080:8080"
     environment:
       - TEMPORAL_ADDRESS=temporal-server:7233
 
@@ -74,8 +77,8 @@ services:
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/synthetiq-overview.json
     volumes:
       - ./helm/synthetiq/dashboards:/etc/grafana/dashboards:ro
-      - grafana-provisioning-ds:/etc/grafana/provisioning/datasources
-      - grafana-provisioning-dash:/etc/grafana/provisioning/dashboards
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
 
   # --- Google Cloud Pub/Sub Emulator ---
   pubsub-emulator:

@@ -20,6 +20,34 @@ class SimulatorHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"status": "ok", "service": "synthetiq-simulator"}).encode("utf-8"))
+        elif self.path == "/metrics":
+            # Prometheus scrape endpoint for SCADA simulator metrics
+            reading = scada_generator.generate_reading(mode="GENUINE")
+            torque = reading.get("torque_nm", 45.2)
+            pf = reading.get("power_factor", 0.86)
+            kw = reading.get("active_power_kw", 94.0)
+            metrics_payload = (
+                f"# HELP synthetiq_scada_stream_throughput_readings_per_sec Telemetry streaming rate\n"
+                f"# TYPE synthetiq_scada_stream_throughput_readings_per_sec gauge\n"
+                f"synthetiq_scada_stream_throughput_readings_per_sec 50.0\n"
+                f"# HELP synthetiq_scada_torque_nm Real-time VFD shaft torque\n"
+                f"# TYPE synthetiq_scada_torque_nm gauge\n"
+                f'synthetiq_scada_torque_nm{{plant_id="PLANT-OKHLA-2"}} {torque}\n'
+                f"# HELP synthetiq_scada_power_factor Motor power factor\n"
+                f"# TYPE synthetiq_scada_power_factor gauge\n"
+                f'synthetiq_scada_power_factor{{plant_id="PLANT-OKHLA-2"}} {pf}\n'
+                f"# HELP synthetiq_scada_energy_expected_kwh Physics expected energy\n"
+                f"# TYPE synthetiq_scada_energy_expected_kwh gauge\n"
+                f"synthetiq_scada_energy_expected_kwh {round(kw * 0.95, 2)}\n"
+                f"# HELP synthetiq_scada_energy_metered_kwh Metered energy\n"
+                f"# TYPE synthetiq_scada_energy_metered_kwh gauge\n"
+                f"synthetiq_scada_energy_metered_kwh {kw}\n"
+            ).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+            self.send_header("Content-Length", str(len(metrics_payload)))
+            self.end_headers()
+            self.wfile.write(metrics_payload)
         elif self.path.startswith("/telemetry/genuine"):
             reading = scada_generator.generate_reading(mode="GENUINE")
             self.send_response(200)

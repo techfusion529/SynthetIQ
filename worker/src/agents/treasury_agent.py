@@ -34,31 +34,8 @@ def fetch_recycler_bids(
     Returns:
         Dict with bids list
     """
-    # In production: query the marketplace / registered recycler DB
-    return {
-        "rfp_id": rfp_id,
-        "category": category,
-        "bids": [
-            {
-                "bid_id": "BID-01", "recycler_id": "RECYC-STUB-01",
-                "offered_tons": round(target_tons * 0.60, 2),
-                "unit_price_inr": round(floor_price_inr * 1.50, 2),
-                "reputation_score": 0.92, "cto_verified": True,
-            },
-            {
-                "bid_id": "BID-02", "recycler_id": "RECYC-GUJ-04",
-                "offered_tons": round(target_tons * 0.50, 2),
-                "unit_price_inr": round(floor_price_inr * 1.80, 2),
-                "reputation_score": 0.88, "cto_verified": True,
-            },
-            {
-                "bid_id": "BID-03", "recycler_id": "RECYC-MAH-09",
-                "offered_tons": round(target_tons * 0.40, 2),
-                "unit_price_inr": round(ceiling_price_inr * 0.90, 2),
-                "reputation_score": 0.95, "cto_verified": True,
-            },
-        ],
-    }
+    logger.warning("fetch_recycler_bids: no real recycler connector configured")
+    return []
 
 
 def validate_price_corridor(
@@ -127,15 +104,6 @@ Auction Rules:
       status (COMPLETED / PARTIAL), optimization_notes
 """
 
-treasury_agent = create_llm_agent(
-    name="treasury_agent",
-    instruction=TREASURY_INSTRUCTION,
-    tools=[compute_statutory_corridor, fetch_recycler_bids, validate_price_corridor],
-    description="Runs the continuous double auction within the statutory price corridor",
-    output_key="auction_result",
-)
-
-
 # ---------------------------------------------------------------------------
 # Convenience runner
 # ---------------------------------------------------------------------------
@@ -159,10 +127,18 @@ async def run_treasury_agent(
     Returns:
         Auction allocation dict
     """
+    agent = create_llm_agent(
+        name="treasury_agent",
+        instruction=TREASURY_INSTRUCTION,
+        tools=[compute_statutory_corridor, fetch_recycler_bids, validate_price_corridor],
+        description="Runs the continuous double auction within the statutory price corridor",
+        output_key="auction_result",
+    )
+
     logger.info(f"Running treasury_agent for {rfp_id}  -  {target_tons}t {category}")
 
     result = await run_agent(
-        agent=treasury_agent,
+        agent=agent,
         user_message=(
             f"Run the auction for RFP '{rfp_id}': category={category}, "
             f"target={target_tons} tons, statutory_base_rate=INR {statutory_base_rate}/kg. "

@@ -76,25 +76,8 @@ def query_erp_sales(company_id: str, fiscal_year: str) -> dict[str, Any]:
                 "currency": "INR",
             }
     except Exception as exc:
-        logger.warning(f"Could not load dynamic ERP sales via DataConnector ({exc}); using dynamic generator")
-
-    # Generate dynamic, non-hardcoded dataset specific to company_id
-    import hashlib
-    seed = int(hashlib.sha256(f"{company_id}:{fiscal_year}".encode()).hexdigest()[:8], 16)
-    states = ["MH", "DL", "KA", "TN", "GJ", "UP", "WB", "RJ"]
-    dynamic_records = [
-        {"product_sku": f"SKU-{company_id}-RIGID-{seed % 900 + 100}", "plastic_category": "cat_i_rigid", "plastic_weight_kg": round(0.022 + ((seed % 10) / 1000.0), 4), "units_sold": 150_000_000 + (seed % 80_000_000), "state_code": states[seed % len(states)]},
-        {"product_sku": f"SKU-{company_id}-FLEX-{seed % 800 + 100}", "plastic_category": "cat_ii_flexible", "plastic_weight_kg": round(0.009 + ((seed % 8) / 1000.0), 4), "units_sold": 380_000_000 + (seed % 120_000_000), "state_code": states[(seed + 1) % len(states)]},
-        {"product_sku": f"SKU-{company_id}-MLP-{seed % 700 + 100}", "plastic_category": "cat_iii_mlp", "plastic_weight_kg": round(0.005 + ((seed % 6) / 1000.0), 4), "units_sold": 420_000_000 + (seed % 150_000_000), "state_code": states[(seed + 2) % len(states)]},
-        {"product_sku": f"SKU-{company_id}-BIO-{seed % 600 + 100}", "plastic_category": "cat_iv_compostable", "plastic_weight_kg": round(0.016 + ((seed % 10) / 1000.0), 4), "units_sold": 35_000_000 + (seed % 25_000_000), "state_code": states[(seed + 3) % len(states)]},
-    ]
-    return {
-        "company_id": company_id,
-        "fiscal_year": fiscal_year,
-        "sales_records": dynamic_records,
-        "source": "dynamic_tenant_generator",
-        "currency": "INR",
-    }
+        from services.data_connector_shim import DataSourceNotConfigured
+        raise DataSourceNotConfigured(company_id) from exc
 
 
 
@@ -161,15 +144,6 @@ Mandatory JSON output keys:
   breakdown (per category), compliance_status, confidence_score, reasoning
 """
 
-brand_liability_agent = create_llm_agent(
-    name="brand_liability_agent",
-    instruction=BRAND_LIABILITY_INSTRUCTION,
-    tools=[query_erp_sales, get_historic_debt, calculate_amortization],
-    description="Calculates EPR plastic-waste liability from ERP sales + 1/3 amortization rule",
-    output_key="liability_result",
-)
-
-
 # ---------------------------------------------------------------------------
 # Convenience runner
 # ---------------------------------------------------------------------------
@@ -189,10 +163,18 @@ async def run_brand_liability_agent(
     Returns:
         Liability breakdown dict
     """
+    agent = create_llm_agent(
+        name="brand_liability_agent",
+        instruction=BRAND_LIABILITY_INSTRUCTION,
+        tools=[query_erp_sales, get_historic_debt, calculate_amortization],
+        description="Calculates EPR plastic-waste liability from ERP sales + 1/3 amortization rule",
+        output_key="liability_result",
+    )
+
     logger.info(f"Running brand_liability_agent for {company_id} / {fiscal_year}")
 
     result = await run_agent(
-        agent=brand_liability_agent,
+        agent=agent,
         user_message=(
             f"Calculate the EPR liability for company '{company_id}' for fiscal year '{fiscal_year}'. "
             "Use all available tools. Return a single JSON object."

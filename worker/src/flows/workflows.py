@@ -195,6 +195,8 @@ class QuadCoreAuditWorkflow:
             audit.get("requires_hitl", False)
             or audit.get("is_spoofed", False)
             or (self.delta_mass > 0.02)
+            or eway.get("status") == "UNVERIFIED"
+            or eway.get("requires_hitl", False)
         )
         self.requires_hitl = needs_hitl
 
@@ -419,6 +421,7 @@ class MasterEPRComplianceWorkflow:
             retry_policy=_RETRY,
             start_to_close_timeout=_TIMEOUT,
         )
+        eway_requires_hitl = eway.get("status") == "UNVERIFIED" or eway.get("requires_hitl", False)
 
         #  -  -  -  -  Stage 3b: SCADA Audit (Auditor Agent  - ' Nimble / Jev)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
         if not run_config.calibrations:
@@ -455,6 +458,7 @@ class MasterEPRComplianceWorkflow:
             or not audit.get("physical_melt_verified", True)
             or self.delta_mass > 0.02
             or audit.get("requires_hitl", False)
+            or eway_requires_hitl
         )
 
         if is_fraudulent:

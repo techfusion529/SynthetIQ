@@ -1,4 +1,4 @@
-*"""Logistics Agent  -  ADK LlmAgent that verifies material origin via E-Way bills and QR codes."""
+"""Logistics Agent  -  ADK LlmAgent that verifies material origin via E-Way bills and QR codes."""
 
 from __future__ import annotations
 
@@ -23,27 +23,13 @@ def verify_eway_bill(eway_bill_number: str) -> dict[str, Any]:
         eway_bill_number: E-Way bill number (format: EWB-YYYY-NNNNN)
 
     Returns:
-        Verification result dict
+        UNVERIFIED stub result — live GST E-Way Bill API not yet connected.
     """
-    # In production: calls the official GST E-Way Bill API
     return {
         "eway_bill_number": eway_bill_number,
-        "status": "VERIFIED",
-        "origin_gstin": "27AAACH1234F1Z5",
-        "destination_gstin": "07BBBCH5678G2Z4",
-        "origin_state": "Maharashtra",
-        "destination_state": "Delhi",
-        "material_description": "Plastic Waste (Category I Rigid)",
-        "gross_weight_kg": 252_450,
-        "tare_weight_kg": 1_200,
-        "net_weight_kg": 251_250,
-        "vehicle_number": "MH-04-AB-1234",
-        "generated_at": "2026-09-28T06:00:00Z",
-        "validity_date": "2026-10-05",
-        "origin_verified": True,
-        "destination_verified": True,
-        "tare_weight_match": True,
-        "fraud_risk": "LOW",
+        "status": "UNVERIFIED",
+        "message": "Live GST E-Way Bill API not connected. Manual verification required.",
+        "verified": False,
     }
 
 
@@ -185,7 +171,16 @@ async def run_logistics_agent(
             text = text.split("```json")[1].split("```")[0]
         elif "```" in text:
             text = text.split("```")[1].split("```")[0]
-        return json.loads(text.strip())
+        parsed = json.loads(text.strip())
     except (json.JSONDecodeError, IndexError):
         logger.warning("Could not parse JSON from logistics agent; returning raw")
         return {"raw_response": result.get("response", ""), "tool_calls": result.get("tool_calls", [])}
+
+    # If the eway bill came back UNVERIFIED, force MANUAL_REVIEW and flag HITL
+    if parsed.get("verdict") == "APPROVE" and not parsed.get("verified", True):
+        parsed["verdict"] = "MANUAL_REVIEW"
+        parsed["requires_hitl"] = True
+    if parsed.get("status") == "UNVERIFIED":
+        parsed["requires_hitl"] = True
+
+    return parsed

@@ -279,6 +279,8 @@ class AuctionRecord(Base):
     statutory_rate_per_kg: Mapped[float] = mapped_column(Float, default=12.0)
     floor_price_inr: Mapped[float] = mapped_column(Float, default=3.6)
     ceiling_price_inr: Mapped[float] = mapped_column(Float, default=12.0)
+    corridor_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    corridor_max: Mapped[float | None] = mapped_column(Float, nullable=True)
     clearing_price_inr: Mapped[float] = mapped_column(Float, default=0.0)
     total_cleared_tons: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE")
@@ -298,6 +300,7 @@ class AuctionRecord(Base):
             "category": self.category, "target_tons": self.target_tons,
             "statutory_rate_per_kg": self.statutory_rate_per_kg,
             "floor_price_inr": self.floor_price_inr, "ceiling_price_inr": self.ceiling_price_inr,
+            "corridor_min": self.corridor_min, "corridor_max": self.corridor_max,
             "clearing_price_inr": self.clearing_price_inr, "total_cleared_tons": self.total_cleared_tons,
             "status": self.status, "company_id": self.company_id,
             "winning_recyclers": self.winning_recyclers or [],

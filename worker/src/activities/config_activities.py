@@ -57,16 +57,24 @@ async def fetch_run_config_activity(org_id: str, regulatory_pack_version: str) -
     today = date.today()
 
     async with get_db_session() as session:
-        # 1. Regulatory pack
-        pack_res = await session.execute(
-            select(RegulatoryPack)
-            .where(RegulatoryPack.version == regulatory_pack_version)
-            .where(RegulatoryPack.status == RegulatoryPackStatus.active.value)
-        )
+        # 1. Regulatory pack — "default" resolves to latest active pack
+        if regulatory_pack_version == "default" or not regulatory_pack_version:
+            pack_res = await session.execute(
+                select(RegulatoryPack)
+                .where(RegulatoryPack.status == RegulatoryPackStatus.active.value)
+                .order_by(RegulatoryPack.approved_at.desc())
+                .limit(1)
+            )
+        else:
+            pack_res = await session.execute(
+                select(RegulatoryPack)
+                .where(RegulatoryPack.version == regulatory_pack_version)
+                .where(RegulatoryPack.status == RegulatoryPackStatus.active.value)
+            )
         pack = pack_res.scalar_one_or_none()
         if not pack:
             raise ApplicationError(
-                f"No active regulatory pack with version {regulatory_pack_version!r}",
+                f"No active regulatory pack found (version={regulatory_pack_version!r})",
                 non_retryable=False,
             )
         pack_payload = RegulatoryPackPayload(**pack.payload)
@@ -144,3 +152,45 @@ async def fetch_run_config_activity(org_id: str, regulatory_pack_version: str) -
         f"calibrations={len(calibrations)}, obligations={len(obligations)}"
     )
     return run_config.model_dump()
+
+
+@activity.defn
+async def update_workflow_run_activity(
+    run_id: str,
+    status: str,
+    result: dict | None = None,
+    hitl_required: bool = False,
+    error_message: str | None = None,
+) -> None:
+    """Write back WorkflowRun status, result, and hitl_required to the DB."""
+    from datetime import datetime, timezone
+    from sqlalchemy import select as _sa_select
+    from synthetiq_shared.database import get_db_session
+    from synthetiq_shared.models import WorkflowRun
+
+    try:
+        async with get_db_session() as session:
+            row = (await session.execute(
+                _sa_select(WorkflowRun).where(WorkflowRun.run_id == run_id)
+            )).scalar_one_or_none()
+            if row:
+                row.status = status
+                row.hitl_required = hitl_required
+                if result is not None:
+                    row.result = result
+                if error_message is not None:
+                    row.error_message = error_message
+                if status in (
+                    "SUCCESS_FULLY_COMPLIANT", "COMPLETED",
+                    "HALTED_DUE_TO_FRAUD", "FAILED", "CANCELLED",
+                ):
+                    now = datetime.now(timezone.utc)
+                    row.completed_at = now
+                    if row.started_at:
+                        row.duration_seconds = (now - row.started_at).total_seconds()
+                await session.commit()
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            f"update_workflow_run_activity failed for run_id={run_id}: {exc}"
+        )

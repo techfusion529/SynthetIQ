@@ -160,6 +160,11 @@ class DataSource(Base):
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # RUN-01: ingestion mapping and secret reference
+    mapping: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    secret_ref: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -378,6 +383,8 @@ class AuditRecord(Base):
     audit_hash: Mapped[str] = mapped_column(String(256), default="")
     physics: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     triggered_by: Mapped[str] = mapped_column(String(64), default="")
+    # RUN-01: ingestion run linkage
+    ingestion_run_id: Mapped[Optional[str]] = mapped_column(String(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     def to_dict(self) -> dict:
@@ -393,6 +400,7 @@ class AuditRecord(Base):
             "rejection_reasons": self.rejection_reasons or [],
             "audit_hash": self.audit_hash, "physics": self.physics,
             "triggered_by": self.triggered_by,
+            "ingestion_run_id": self.ingestion_run_id,
             "timestamp": self.created_at.timestamp() if self.created_at else 0,
         }
 

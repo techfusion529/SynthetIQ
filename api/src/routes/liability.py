@@ -2,10 +2,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 import uuid
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from src.middleware.auth import CurrentUser
 from src.middleware.rbac import require_permission
 from src.services.temporal_service import temporal_service
+from src.utils.tenant import TenantCtx, get_tenant_ctx
 
 router = APIRouter(prefix="/liability", tags=["Workflow 1 - Liability"])
 logger = logging.getLogger(__name__)
@@ -13,9 +14,12 @@ logger = logging.getLogger(__name__)
 @router.post("/calculate")
 async def trigger_liability_calculation(
     payload: dict[str, Any], user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
     _: Any = Depends(require_permission("workflows:execute")),
 ) -> dict[str, Any]:
-    company_id = payload.get("company_id", "COMP-IN-001")
+    company_id = payload.get("company_id") or tenant_ctx.org_id
+    if not company_id:
+        raise HTTPException(status_code=400, detail="company_id required")
     fiscal_year = payload.get("fiscal_year", "")
     workflow_id = f"wf1-liability-{company_id}-{uuid.uuid4().hex[:8]}"
     res = await temporal_service.start_workflow(

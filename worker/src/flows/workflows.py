@@ -29,7 +29,7 @@ with workflow.unsafe.imports_passed_through():
         parse_regulatory_rules_activity,
         verify_eway_bill_activity,
     )
-    from activities.config_activities import fetch_run_config_activity
+    from activities.config_activities import fetch_run_config_activity, update_workflow_run_activity
     from synthetiq_shared.models import RunInput
 
 # Shared retry policy applied to every activity execution
@@ -387,215 +387,318 @@ class MasterEPRComplianceWorkflow:
         recycler_id = run_input.recycler_id
         plant_id = run_input.plant_id
         eway_bill_ref = run_input.eway_bill_ref
+        run_id = run_input.run_id
 
-        # ---- Stage 0: Fetch run config (regulatory pack + org policy + calibrations) ----
-        self.stage_reached = 0
-        self.current_status = "STAGE_0_FETCHING_RUN_CONFIG"
-        run_config_dict = await workflow.execute_activity(
-            fetch_run_config_activity,
-            args=[run_input.org_id, run_input.regulatory_pack_version],
-            retry_policy=_RETRY,
-            start_to_close_timeout=_TIMEOUT,
-        )
-        from synthetiq_shared.models.dynamic_config import RunConfig as _RunConfig
-        run_config = _RunConfig(**run_config_dict)
+        # Initialise stage result holders so they're always defined for final_result
+        liability: dict[str, Any] = {}
+        rules: dict[str, Any] = {}
+        auction: dict[str, Any] = {}
+        eway: dict[str, Any] = {}
+        audit: dict[str, Any] = {}
+        po: dict[str, Any] = {}
+        form1: dict[str, Any] = {}
+        pdf_res: dict[str, Any] = {}
+        _failed_stage: str | None = None
 
-        # Derive fiscal_year from input or from Temporal clock + pack config
-        if run_input.fiscal_year:
-            fiscal_year = run_input.fiscal_year
-        else:
-            from datetime import date as _date
-            today = workflow.now().date()  # deterministic Temporal clock
-            fy_start_month = run_config.pack.fiscal_year_start_month
-            if today.month >= fy_start_month:
-                fiscal_year = f"FY{today.year}-{str(today.year + 1)[2:]}"
-            else:
-                fiscal_year = f"FY{today.year - 1}-{str(today.year)[2:]}"
+        try:
+            # ---- Stage 0: Fetch run config (regulatory pack + org policy + calibrations) ----
+            self.stage_reached = 0
+            self.current_status = "STAGE_0_FETCHING_RUN_CONFIG"
+            run_config_dict = await workflow.execute_activity(
+                fetch_run_config_activity,
+                args=[run_input.org_id, run_input.regulatory_pack_version],
+                retry_policy=_RETRY,
+                start_to_close_timeout=_TIMEOUT,
+            )
+            from synthetiq_shared.models.dynamic_config import RunConfig as _RunConfig
+            run_config = _RunConfig(**run_config_dict)
 
-        #  -  -  -  -  Stage 1: Liability (Brand Liability Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
-        self.stage_reached = 1
-        self.current_status = "STAGE_1_LIABILITY_ASSESSMENT"
-        liability = await workflow.execute_activity(
-            calculate_brand_liability_activity,
-            args=[company_id, fiscal_year],
-            retry_policy=_RETRY,
-            start_to_close_timeout=_TIMEOUT,
-        )
-
-        #  -  -  -  -  Stage 2a: Regulatory rules (Regulatory Watchdog Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
-        self.stage_reached = 2
-        self.current_status = "STAGE_2_REGULATORY_PARSING"
-        rules = await workflow.execute_activity(
-            parse_regulatory_rules_activity,
-            args=["CPCB Plastic Waste Management Amendment Rules 2026"],
-            retry_policy=_RETRY,
-            start_to_close_timeout=_TIMEOUT,
-        )
-
-        #  -  -  -  -  Stage 2b: Auction (Treasury Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
-        auction = await workflow.execute_activity(
-            execute_double_auction_activity,
-            args=[f"RFP-{company_id}", category, volume_tons, run_config.pack.base_rate_inr_per_kg],
-            retry_policy=_RETRY,
-            start_to_close_timeout=_TIMEOUT,
-        )
-
-        #  -  -  -  -  Stage 3a: Logistics (Logistics Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
-        self.stage_reached = 3
-        self.current_status = "STAGE_3_LOGISTICS_AND_TELEMETRY"
-        eway = await workflow.execute_activity(
-            verify_eway_bill_activity,
-            args=[eway_bill_ref or "EWB-UNKNOWN"],
-            retry_policy=_RETRY,
-            start_to_close_timeout=_TIMEOUT,
-        )
-        eway_requires_hitl = eway.get("status") == "UNVERIFIED" or eway.get("requires_hitl", False)
-
-        #  -  -  -  -  Stage 3b: SCADA Audit (Auditor Agent  - ' Nimble / Jev)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
-        if not run_config.calibrations:
-            raise ApplicationError(
-                "FAIL_CLOSED: no calibrations found",
-                non_retryable=True,
+            # Mark run as RUNNING in DB after config is confirmed available
+            await workflow.execute_activity(
+                update_workflow_run_activity,
+                args=[run_id, "RUNNING", {}, False, None],
+                retry_policy=_RETRY,
+                start_to_close_timeout=_TIMEOUT,
             )
 
-        torque = 1.8 if simulate_spoof else 46.5
-        pf     = 0.994 if simulate_spoof else 0.842
-        kw     = 82.0 if simulate_spoof else 94.0
-        melt   = 0.0 if simulate_spoof else 250.0
+            # Derive fiscal_year from input or from Temporal clock + pack config
+            if run_input.fiscal_year:
+                fiscal_year = run_input.fiscal_year
+            else:
+                from datetime import date as _date
+                today = workflow.now().date()  # deterministic Temporal clock
+                fy_start_month = run_config.pack.fiscal_year_start_month
+                if today.month >= fy_start_month:
+                    fiscal_year = f"FY{today.year}-{str(today.year + 1)[2:]}"
+                else:
+                    fiscal_year = f"FY{today.year - 1}-{str(today.year)[2:]}"
 
-        audit = await workflow.execute_activity(
-            audit_scada_telemetry_activity,
-            args=[
-                recycler_id, plant_id, volume_tons,
-                torque, pf, kw, 50.0, melt, category,
-                run_input.org_id,
-                run_config.pack.delta_threshold_default,
-                run_config.calibrations[0].sec_baseline_kwh_per_ton,
-                run_config.calibrations[0].sec_variance,
-            ],
-            retry_policy=_RETRY,
-            start_to_close_timeout=_TIMEOUT,
-        )
+            #  -  -  -  -  Stage 1: Liability (Brand Liability Agent)  -  -  -  -
+            self.stage_reached = 1
+            self.current_status = "STAGE_1_LIABILITY_ASSESSMENT"
+            liability = await workflow.execute_activity(
+                calculate_brand_liability_activity,
+                args=[company_id, fiscal_year],
+                retry_policy=_RETRY,
+                start_to_close_timeout=_TIMEOUT,
+            )
 
-        self.delta_mass = float(audit.get("delta_mass", 0.0))
-        self.fraud_risk_score = float(audit.get("fraud_risk_score", 0.0))
+            # RUN-05 Break A: use net_liability_tons from Stage 1 as auction target
+            auction_target_tons = float(liability.get("net_liability_tons") or volume_tons)
 
-        # Check if fraud gate or Delta_mass statutory threshold triggers HITL
-        is_fraudulent = (
-            audit.get("is_spoofed", False)
-            or not audit.get("physical_melt_verified", True)
-            or self.delta_mass > 0.02
-            or audit.get("requires_hitl", False)
-            or eway_requires_hitl
-        )
+            #  -  -  -  -  Stage 2a: Regulatory rules (Regulatory Watchdog Agent)  -  -  -  -
+            self.stage_reached = 2
+            self.current_status = "STAGE_2_REGULATORY_PARSING"
+            rules = await workflow.execute_activity(
+                parse_regulatory_rules_activity,
+                args=["CPCB Plastic Waste Management Amendment Rules 2026"],
+                retry_policy=_RETRY,
+                start_to_close_timeout=_TIMEOUT,
+            )
 
-        if is_fraudulent:
-            self.requires_hitl = True
-            self.current_status = "PENDING_HITL_REVIEW"
+            #  -  -  -  -  Stage 2b: Auction (Treasury Agent)  -  -  -  -
+            auction = await workflow.execute_activity(
+                execute_double_auction_activity,
+                args=[f"RFP-{company_id}", category, auction_target_tons, run_config.pack.base_rate_inr_per_kg],
+                retry_policy=_RETRY,
+                start_to_close_timeout=_TIMEOUT,
+            )
 
-            #  -  -  -  -  Priority 1: Block until Human Compliance Auditor Signal  -  -  -  - 
-            try:
-                await workflow.wait_condition(
-                    lambda: self._approval_received,
-                    timeout=timedelta(hours=72),
-                )
-            except asyncio.TimeoutError:
+            # RUN-05 Break B: use auction winner as recycler for downstream stages
+            effective_recycler_id = auction.get("winner_org_id") or recycler_id
+            clearing_price = float(auction.get("clearing_price") or 0.0)
+            if not clearing_price:
+                raise ApplicationError("FAIL_CLOSED: clearing_price missing from auction result", non_retryable=True)
+
+            #  -  -  -  -  Stage 3a: Logistics (Logistics Agent)  -  -  -  -
+            self.stage_reached = 3
+            self.current_status = "STAGE_3_LOGISTICS_AND_TELEMETRY"
+            eway = await workflow.execute_activity(
+                verify_eway_bill_activity,
+                args=[eway_bill_ref or "EWB-UNKNOWN"],
+                retry_policy=_RETRY,
+                start_to_close_timeout=_TIMEOUT,
+            )
+            eway_requires_hitl = eway.get("status") == "UNVERIFIED" or eway.get("requires_hitl", False)
+
+            #  -  -  -  -  Stage 3b: SCADA Audit (Auditor Agent - Nimble / Jev)  -  -  -  -
+            if not run_config.calibrations:
                 raise ApplicationError(
-                    "HITL_TIMEOUT: No human approval received within 72 hours.",
+                    "FAIL_CLOSED: no calibrations found",
                     non_retryable=True,
                 )
 
-            if not self.auditor_approved:
-                self.current_status = "HALTED_DUE_TO_AUDITOR_CONFIRMED_FRAUD"
-                return {
-                    "status": "HALTED_DUE_TO_FRAUD",
-                    "message": "Human Compliance Auditor confirmed fraud exception; pipeline halted.",
-                    "company_id": company_id, "category": category,
-                    "stage_reached": 3,
-                    "liability": liability, "rules": rules,
-                    "auction": auction, "audit": audit, "eway": eway,
-                    "hitl_resolution": {
-                        "approved": False,
-                        "notes": self.auditor_notes,
-                        "auditor_id": self.auditor_id,
-                        "reason_code": self.auditor_reason_code,
-                    },
-                }
+            torque = 1.8 if simulate_spoof else 46.5
+            pf     = 0.994 if simulate_spoof else 0.842
+            kw     = 82.0 if simulate_spoof else 94.0
+            melt   = 0.0 if simulate_spoof else 250.0
 
-            # If auditor approved override, adjust volume and continue
-            self.current_status = "RESUMED_AFTER_HITL_APPROVAL"
-            volume_tons = (
-                self.override_tons
-                if (self.override_tons is not None and self.override_tons > 0)
-                else volume_tons
+            audit = await workflow.execute_activity(
+                audit_scada_telemetry_activity,
+                args=[
+                    effective_recycler_id, plant_id, volume_tons,
+                    torque, pf, kw, 50.0, melt, category,
+                    run_input.org_id,
+                    run_config.pack.delta_threshold_default,
+                    run_config.calibrations[0].sec_baseline_kwh_per_ton,
+                    run_config.calibrations[0].sec_variance,
+                ],
+                retry_policy=_RETRY,
+                start_to_close_timeout=_TIMEOUT,
             )
-            audit["physical_melt_verified"] = True
-            audit["verified_physical_melt_tons"] = volume_tons
-            audit["auditor_override_notes"] = self.auditor_notes
 
-        #  -  -  -  -  Stage 4: Escrow PO (ERP Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
-        self.stage_reached = 4
-        self.current_status = "STAGE_4_ESCROW_SETTLEMENT"
-        clearing_price = auction.get("clearing_price", 7.8)
-        _audit_verdict: str = audit.get("audit_verdict", "APPROVED")
-        _human_approved: bool = bool(self.auditor_approved) if self.auditor_approved is not None else True
-        po = await workflow.execute_activity(
-            create_escrow_split_po_activity,
-            args=[
-                company_id, recycler_id, audit["audit_id"], volume_tons, clearing_price,
-                run_input.org_id, _audit_verdict, _human_approved,
-                run_config.pack.escrow_split_primary,
-                run_config.pack.escrow_split_holdback,
-            ],
-            retry_policy=_RETRY,
-            start_to_close_timeout=_TIMEOUT,
-        )
+            self.delta_mass = float(audit.get("delta_mass", 0.0))
+            self.fraud_risk_score = float(audit.get("fraud_risk_score", 0.0))
 
-        #  -  -  -  -  Stage 5: Form-1 (Legal Agent)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
-        self.stage_reached = 5
-        self.current_status = "STAGE_5_STATUTORY_FORM1_DISPATCH"
-        cf = run_config.pack.conversion_factors.get(category, 1.0)
-        form1 = await workflow.execute_activity(
-            generate_and_dispatch_form1_activity,
-            args=[po["po_number"], audit["audit_id"], volume_tons, cf, run_input.org_id],
-            retry_policy=_RETRY,
-            start_to_close_timeout=_TIMEOUT,
-        )
+            # Check if fraud gate or Delta_mass statutory threshold triggers HITL
+            is_fraudulent = (
+                audit.get("is_spoofed", False)
+                or not audit.get("physical_melt_verified", True)
+                or self.delta_mass > 0.02
+                or audit.get("requires_hitl", False)
+                or eway_requires_hitl
+            )
 
-        #  -  -  -  -  Stage 6: Priority 3 PDF Generation  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
-        self.stage_reached = 6
-        self.current_status = "STAGE_6_PDF_VAULT_GENERATION"
-        pdf_res = await workflow.execute_activity(
-            generate_audit_report_pdf_activity,
-            args=[{
-                "audit_id": audit["audit_id"],
-                "company_id": company_id,
-                "recycler_id": recycler_id,
-                "plant_id": plant_id,
-                "plastic_category": category,
-                "reported_volume_tons": volume_tons,
-                "verified_physical_melt_tons": volume_tons,
-                "delta_mass": self.delta_mass,
-                "theoretical_volume_tons": audit.get("theoretical_volume_tons", volume_tons),
-                "sec_kwh_per_kg": audit.get("sec_kwh_per_kg", 0.45),
-                "energy_total_kwh": audit.get("energy_total_kwh", 112000.0),
-                "audit_hash": audit.get("cryptographic_hash", ""),
-                "po_number": po["po_number"],
-                "unit_price_inr": clearing_price,
-                "audit_verdict": "APPROVED",
-                "workflow_run_id": workflow.info().workflow_id,
-            }],
-            retry_policy=_RETRY,
-            start_to_close_timeout=_TIMEOUT,
-        )
+            if is_fraudulent:
+                self.requires_hitl = True
+                self.current_status = "PENDING_HITL_REVIEW"
 
-        self.current_status = "COMPLETED"
-        return {
-            "status": "SUCCESS_FULLY_COMPLIANT",
-            "message": "Master EPR Multi-Agent Saga completed  -  Form-1 accepted by CPCB and PDF vaulted.",
-            "company_id": company_id, "category": category, "volume_tons": volume_tons,
-            "liability": liability, "rules": rules, "auction": auction,
-            "eway": eway, "audit": audit,
-            "purchase_order": po, "statutory_form1": form1,
-            "audit_report_pdf": pdf_res,
-        }
+                # Write HITL pause to DB
+                await workflow.execute_activity(
+                    update_workflow_run_activity,
+                    args=[run_id, "PENDING_HITL_REVIEW", {
+                        "stage_reached": 3,
+                        "liability": liability,
+                        "auction": auction,
+                        "audit": audit,
+                        "eway": eway,
+                    }, True, None],
+                    retry_policy=_RETRY,
+                    start_to_close_timeout=_TIMEOUT,
+                )
+
+                #  -  -  -  -  Priority 1: Block until Human Compliance Auditor Signal  -  -  -  -
+                try:
+                    await workflow.wait_condition(
+                        lambda: self._approval_received,
+                        timeout=timedelta(hours=72),
+                    )
+                except asyncio.TimeoutError:
+                    raise ApplicationError(
+                        "HITL_TIMEOUT: No human approval received within 72 hours.",
+                        non_retryable=True,
+                    )
+
+                if not self.auditor_approved:
+                    self.current_status = "HALTED_DUE_TO_AUDITOR_CONFIRMED_FRAUD"
+                    halt_result = {
+                        "status": "FAILED",
+                        "halt_reason": "HALTED_DUE_TO_FRAUD",
+                        "message": "Human Compliance Auditor confirmed fraud exception; pipeline halted.",
+                        "company_id": company_id, "category": category,
+                        "stage_reached": 3,
+                        "liability": liability, "rules": rules,
+                        "auction": auction, "audit": audit, "eway": eway,
+                        "hitl_resolution": {
+                            "approved": False,
+                            "notes": self.auditor_notes,
+                            "auditor_id": self.auditor_id,
+                            "reason_code": self.auditor_reason_code,
+                        },
+                    }
+                    await workflow.execute_activity(
+                        update_workflow_run_activity,
+                        args=[run_id, "FAILED", halt_result, False, "Auditor confirmed fraud; pipeline halted."],
+                        retry_policy=_RETRY,
+                        start_to_close_timeout=_TIMEOUT,
+                    )
+                    return halt_result
+
+                # If auditor approved override, adjust volume and continue
+                self.current_status = "RESUMED_AFTER_HITL_APPROVAL"
+                volume_tons = (
+                    self.override_tons
+                    if (self.override_tons is not None and self.override_tons > 0)
+                    else volume_tons
+                )
+                audit["physical_melt_verified"] = True
+                audit["verified_physical_melt_tons"] = volume_tons
+                audit["auditor_override_notes"] = self.auditor_notes
+
+            # RUN-05 Break C: use audit verdict from Stage 3, no hardcoded "APPROVED"
+            _audit_verdict: str = audit.get("verdict") or audit.get("audit_verdict", "")
+            if not _audit_verdict:
+                raise ApplicationError("FAIL_CLOSED: audit verdict missing", non_retryable=True)
+            _human_approved: bool = bool(self.auditor_approved) if self.auditor_approved is not None else True
+
+            #  -  -  -  -  Stage 4: Escrow PO (ERP Agent)  -  -  -  -
+            self.stage_reached = 4
+            self.current_status = "STAGE_4_ESCROW_SETTLEMENT"
+            po = await workflow.execute_activity(
+                create_escrow_split_po_activity,
+                args=[
+                    company_id, effective_recycler_id, audit["audit_id"], volume_tons, clearing_price,
+                    run_input.org_id, _audit_verdict, _human_approved,
+                    run_config.pack.escrow_split_primary,
+                    run_config.pack.escrow_split_holdback,
+                ],
+                retry_policy=_RETRY,
+                start_to_close_timeout=_TIMEOUT,
+            )
+
+            #  -  -  -  -  Stage 5: Form-1 (Legal Agent)  -  -  -  -
+            self.stage_reached = 5
+            self.current_status = "STAGE_5_STATUTORY_FORM1_DISPATCH"
+            cf = run_config.pack.conversion_factors.get(category, 1.0)
+            form1 = await workflow.execute_activity(
+                generate_and_dispatch_form1_activity,
+                args=[po["po_number"], audit["audit_id"], volume_tons, cf, run_input.org_id],
+                retry_policy=_RETRY,
+                start_to_close_timeout=_TIMEOUT,
+            )
+
+            #  -  -  -  -  Stage 6: Priority 3 PDF Generation  -  -  -  -
+            self.stage_reached = 6
+            self.current_status = "STAGE_6_PDF_VAULT_GENERATION"
+            pdf_res = await workflow.execute_activity(
+                generate_audit_report_pdf_activity,
+                args=[{
+                    "audit_id": audit.get("audit_id"),
+                    "company_id": company_id,
+                    "recycler_id": effective_recycler_id,
+                    "plant_id": plant_id,
+                    "plastic_category": category,
+                    "reported_volume_tons": volume_tons,
+                    "verified_physical_melt_tons": volume_tons,
+                    "delta_mass": self.delta_mass,
+                    "theoretical_volume_tons": audit.get("theoretical_volume_tons", volume_tons),
+                    "sec_kwh_per_kg": audit.get("sec_kwh_per_kg", 0.45),
+                    "energy_total_kwh": audit.get("energy_total_kwh", 112000.0),
+                    "audit_hash": audit.get("cryptographic_hash", ""),
+                    "po_number": po.get("po_number"),
+                    "unit_price_inr": clearing_price,
+                    "audit_verdict": _audit_verdict,
+                    "workflow_run_id": workflow.info().workflow_id,
+                }],
+                retry_policy=_RETRY,
+                start_to_close_timeout=_TIMEOUT,
+            )
+
+            # RUN-08: structured final result from actual stage outputs
+            _final_status = "SUCCESS_FULLY_COMPLIANT"
+            if not audit.get("physical_melt_verified"):
+                _final_status = "FAILED"
+                _failed_stage = "audit"
+
+            final_result: dict[str, Any] = {
+                "status": _final_status,
+                "verdict": audit.get("verdict"),
+                "form1_id": form1.get("form1_id"),
+                "clearing_price": auction.get("clearing_price"),
+                "net_liability_tons": liability.get("net_liability_tons"),
+                "audit_id": audit.get("audit_id"),
+                "po_id": po.get("po_id"),
+                "message": "Master EPR Multi-Agent Saga completed.",
+                "company_id": company_id, "category": category, "volume_tons": volume_tons,
+                "liability": liability, "rules": rules, "auction": auction,
+                "eway": eway, "audit": audit,
+                "purchase_order": po, "statutory_form1": form1,
+                "audit_report_pdf": pdf_res,
+            }
+            if _failed_stage:
+                final_result["failed_stage"] = _failed_stage
+
+            self.current_status = "COMPLETED"
+
+            # Write final status back to DB (RUN-04)
+            await workflow.execute_activity(
+                update_workflow_run_activity,
+                args=[run_id, _final_status, final_result, False, None],
+                retry_policy=_RETRY,
+                start_to_close_timeout=_TIMEOUT,
+            )
+
+            return final_result
+
+        except ApplicationError:
+            raise  # re-raise; Temporal will retry or fail based on non_retryable flag
+        except Exception as exc:
+            _error_msg = str(exc)
+            _failed_stage = _failed_stage or f"stage_{self.stage_reached}"
+            fail_result: dict[str, Any] = {
+                "status": "FAILED",
+                "failed_stage": _failed_stage,
+                "error": _error_msg,
+                "stage_reached": self.stage_reached,
+                "company_id": company_id, "category": category,
+            }
+            try:
+                await workflow.execute_activity(
+                    update_workflow_run_activity,
+                    args=[run_id, "FAILED", fail_result, False, _error_msg],
+                    retry_policy=_RETRY,
+                    start_to_close_timeout=_TIMEOUT,
+                )
+            except Exception:
+                pass  # best-effort DB write; don't mask the original error
+            raise

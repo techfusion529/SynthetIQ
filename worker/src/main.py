@@ -22,7 +22,7 @@ from flows.workflows import (
     UpstreamLiabilityWorkflow,
 )
 from activities import agent_activities
-from activities.config_activities import fetch_run_config_activity
+from activities.config_activities import fetch_run_config_activity, update_workflow_run_activity
 from services.jev_auditor import initialize_jev_auditor
 from services.nimble_service import initialize_nimble_service
 from services.privacy_service import initialize_privacy_service
@@ -200,6 +200,7 @@ async def main() -> None:
         agent_activities.generate_and_dispatch_form1_activity,
         agent_activities.generate_audit_report_pdf_activity,
         fetch_run_config_activity,
+        update_workflow_run_activity,
     ]
 
     # Start worker

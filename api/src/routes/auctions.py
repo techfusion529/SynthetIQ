@@ -62,9 +62,26 @@ async def broadcast_rfp(
     tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
     _: Any = Depends(require_permission("workflows:execute")),
 ) -> dict[str, Any]:
-    company_id = payload.get("company_id", "COMP-IN-001")
+    company_id = payload.get("company_id") or tenant_ctx.org_id
+    if not company_id:
+        raise HTTPException(status_code=400, detail="company_id required")
     category = payload.get("category", "cat_i_rigid")
-    target_tons = float(payload.get("target_tons", 1000.0))
+
+    statutory_rate = payload.get("statutory_rate_per_kg")
+    floor_price = payload.get("floor_price_inr")
+    ceiling_price = payload.get("ceiling_price_inr")
+    target_tons = payload.get("target_tons")
+    if any(v is None for v in [statutory_rate, floor_price, ceiling_price, target_tons]):
+        raise HTTPException(
+            status_code=422,
+            detail="statutory_rate_per_kg, floor_price_inr, ceiling_price_inr, and target_tons are required",
+        )
+
+    statutory_rate = float(statutory_rate)
+    floor_price = float(floor_price)
+    ceiling_price = float(ceiling_price)
+    target_tons = float(target_tons)
+
     auction_id = f"AUC-{uuid.uuid4().hex[:8].upper()}"
     workflow_id = f"wf2-auction-{uuid.uuid4().hex[:8]}"
     try:
@@ -75,9 +92,9 @@ async def broadcast_rfp(
                 auction_id=auction_id,
                 category=category,
                 target_tons=target_tons,
-                statutory_rate_per_kg=12.0,
-                floor_price_inr=3.6,
-                ceiling_price_inr=12.0,
+                statutory_rate_per_kg=statutory_rate,
+                floor_price_inr=floor_price,
+                ceiling_price_inr=ceiling_price,
                 status="ACTIVE",
                 company_id=company_id,
                 winning_recyclers=[],

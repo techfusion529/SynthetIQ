@@ -12,9 +12,10 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from src.middleware.auth import CurrentUser
 from src.middleware.rbac import require_permission
@@ -23,6 +24,11 @@ from src.utils.tenant import TenantCtx, get_tenant_ctx
 from synthetiq_shared.models import RunInput, WorkflowRun
 
 router = APIRouter(prefix="/runs", tags=["Workflow Runs"])
+
+
+class CreateRunRequest(BaseModel):
+    type: str = "master_e2e_compliance"
+    params: dict = {}
 logger = logging.getLogger(__name__)
 
 
@@ -127,7 +133,7 @@ async def get_preflight(
 
 @router.post("", status_code=202)
 async def create_run(
-    payload: dict[str, Any],
+    body: CreateRunRequest,
     user: CurrentUser,
     tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
     _: Any = Depends(require_permission("workflows:execute")),
@@ -141,24 +147,25 @@ async def create_run(
             detail={"detail": "Preflight checks failed", "checks": preflight["checks"]},
         )
 
-    # Build run_id and merge org_id
+    # Build run_id and merge org_id — always from tenant context, never from body
     run_id = f"RUN-{uuid.uuid4().hex[:12].upper()}"
     org_id = tenant_ctx.org_id or user.get("org_id", "")
 
+    params = body.params
     run_input = RunInput(
         org_id=org_id,
         run_id=run_id,
-        company_id=payload.get("company_id", org_id),
-        fiscal_year=payload.get("fiscal_year", ""),
-        category=payload.get("category", ""),
-        volume_tons=float(payload.get("volume_tons", 0.0)),
-        recycler_id=payload.get("recycler_id", ""),
-        plant_id=payload.get("plant_id", ""),
-        eway_bill_ref=payload.get("eway_bill_ref", ""),
-        regulatory_pack_version=payload.get("regulatory_pack_version", "default"),
-        simulate_spoof=bool(payload.get("simulate_spoof", False)),
-        schedule_id=payload.get("schedule_id"),
-        params=payload.get("params", {}),
+        company_id=params.get("company_id", org_id),
+        fiscal_year=params.get("fiscal_year", ""),
+        category=params.get("category", ""),
+        volume_tons=float(params.get("volume_tons", 0.0)),
+        recycler_id=params.get("recycler_id", ""),
+        plant_id=params.get("plant_id", ""),
+        eway_bill_ref=params.get("eway_bill_ref", ""),
+        regulatory_pack_version=params.get("regulatory_pack_version", "default"),
+        simulate_spoof=bool(params.get("simulate_spoof", False)),
+        schedule_id=params.get("schedule_id"),
+        params=params,
     )
 
     workflow_type = "master_e2e_compliance"
@@ -239,6 +246,7 @@ async def list_runs(
     _: Any = Depends(require_permission("workflows:read")),
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
+    hitl_required: Optional[bool] = Query(None),
 ) -> list[dict[str, Any]]:
     """Paginated list of WorkflowRun records filtered by tenant org_id."""
     try:
@@ -248,6 +256,8 @@ async def list_runs(
             query = select(WorkflowRun).order_by(WorkflowRun.started_at.desc())
             if not tenant_ctx.is_platform_admin and tenant_ctx.org_id:
                 query = query.where(WorkflowRun.org_id == tenant_ctx.org_id)
+            if hitl_required is not None:
+                query = query.where(WorkflowRun.hitl_required == hitl_required)
             query = query.limit(limit).offset(offset)
             rows = (await session.execute(query)).scalars().all()
             return [
@@ -302,6 +312,7 @@ async def get_run(
         "org_id": row.org_id,
         "status": row.status,
         "hitl_required": row.hitl_required,
+        "result": row.result,
         "input_params": row.input_params,
         "triggered_by": row.triggered_by,
         "started_at": row.started_at.isoformat() if row.started_at else None,

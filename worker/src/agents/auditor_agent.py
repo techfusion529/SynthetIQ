@@ -12,6 +12,7 @@ import logging
 from typing import Any
 
 from .base_adk import create_llm_agent, run_agent
+from .privacy import scrub
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +140,7 @@ async def run_auditor_agent(
     category: str = "cat_i_rigid",
     threshold: float = 2.0,
     session_id: str | None = None,
+    org_id: str = "",
 ) -> dict[str, Any]:
     """Run the Auditor Agent for a recycling plant.
 
@@ -171,12 +173,13 @@ async def run_auditor_agent(
         f"torque={torque_nm}Nm, pf={power_factor}, kw={active_power_kw}, category={category}"
     )
 
-    prompt = (
+    prompt = scrub(
         f"Audit recycler '{recycler_id}', plant '{plant_id}', "
         f"reported volume: {reported_volume_tons} tons, category: '{category}'. "
         f"Telemetry: torque={torque_nm} Nm, power_factor={power_factor}, active_power={active_power_kw} kW, "
         f"vfd_frequency={vfd_frequency_hz} Hz, melt_rate={melt_rate_kg_h} kg/h. "
-        "Evaluate the SCADA electrical signature and thermodynamic Delta_mass equation, and return a single JSON object."
+        "Evaluate the SCADA electrical signature and thermodynamic Delta_mass equation, and return a single JSON object.",
+        org_id,
     )
 
     result = await run_agent(

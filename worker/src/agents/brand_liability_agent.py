@@ -7,6 +7,7 @@ import logging
 from typing import Any
 
 from .base_adk import create_llm_agent, run_agent
+from .privacy import scrub
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,7 @@ async def run_brand_liability_agent(
     company_id: str,
     fiscal_year: str,
     session_id: str | None = None,
+    org_id: str = "",
 ) -> dict[str, Any]:
     """Run the Brand Liability Agent and return the liability breakdown.
 
@@ -173,12 +175,14 @@ async def run_brand_liability_agent(
 
     logger.info(f"Running brand_liability_agent for {company_id} / {fiscal_year}")
 
+    user_message = scrub(
+        f"Calculate the EPR liability for company '{company_id}' for fiscal year '{fiscal_year}'. "
+        "Use all available tools. Return a single JSON object.",
+        org_id,
+    )
     result = await run_agent(
         agent=agent,
-        user_message=(
-            f"Calculate the EPR liability for company '{company_id}' for fiscal year '{fiscal_year}'. "
-            "Use all available tools. Return a single JSON object."
-        ),
+        user_message=user_message,
         session_id=session_id,
         user_id=company_id,
     )

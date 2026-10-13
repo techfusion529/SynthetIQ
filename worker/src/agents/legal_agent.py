@@ -9,6 +9,7 @@ import hashlib
 from typing import Any
 
 from .base_adk import create_llm_agent, run_agent
+from .privacy import scrub
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,7 @@ async def run_legal_agent(
     recycling_method: str = "mechanical",
     organization_gstin: str = "27AAACH1234F1Z5",
     session_id: str | None = None,
+    org_id: str = "",
 ) -> dict[str, Any]:
     """Run the Legal Agent to dispatch Form-1.
 
@@ -162,14 +164,16 @@ async def run_legal_agent(
     form_id = f"FORM1-{uuid.uuid4().hex[:8].upper()}"
     logger.info(f"Running legal_agent  -  form_id={form_id}, PO={po_number}")
 
+    user_message = scrub(
+        f"Generate and dispatch Form-1 for PO '{po_number}' (audit: {audit_id}). "
+        f"Physical melt: {physical_melt_tons} tons, category: {category}, "
+        f"method: {recycling_method}, GSTIN: {organization_gstin}, form_id: {form_id}. "
+        "Return a single JSON object.",
+        org_id,
+    )
     result = await run_agent(
         agent=agent,
-        user_message=(
-            f"Generate and dispatch Form-1 for PO '{po_number}' (audit: {audit_id}). "
-            f"Physical melt: {physical_melt_tons} tons, category: {category}, "
-            f"method: {recycling_method}, GSTIN: {organization_gstin}, form_id: {form_id}. "
-            "Return a single JSON object."
-        ),
+        user_message=user_message,
         session_id=session_id,
         user_id="system",
     )

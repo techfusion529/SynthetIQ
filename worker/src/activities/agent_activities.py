@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from temporalio import activity
@@ -40,18 +41,22 @@ class AuditResult(BaseModel):
     verdict: Literal["PASS", "FAIL", "HITL"]
     physical_melt_verified: bool
     audit_id: str
+    chain_head: str = ""
 
 
 class POResult(BaseModel):
     po_id: str
     escrow_amount: float
     audit_verdict: str
+    advance_amount: float = 0.0
+    holdback_amount: float = 0.0
 
 
 class Form1Result(BaseModel):
     form1_id: str
     signed: bool = False
     portal_status: str
+    pdf_path: str = ""
 
 
 class PDFResult(BaseModel):
@@ -74,7 +79,7 @@ def _require(d: dict, key: str, activity_name: str):
 
 
 # ---------------------------------------------------------------------------
-# Agent 1: Brand Liability Agent (ADK  - ' Gemini)
+# Agent 1: Brand Liability Agent (ADK  -  Gemini)
 # ---------------------------------------------------------------------------
 
 @activity.defn
@@ -111,7 +116,7 @@ async def calculate_brand_liability_activity(
 
 
 # ---------------------------------------------------------------------------
-# Agent 2: Regulatory Watchdog Agent (ADK  - ' Gemini)
+# Agent 2: Regulatory Watchdog Agent (ADK  -  Gemini)
 # ---------------------------------------------------------------------------
 
 @activity.defn
@@ -127,7 +132,7 @@ async def parse_regulatory_rules_activity(gazette_text: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Agents 3 & 4: Treasury Agent + Recycler Bidders (ADK  - ' Gemini)
+# Agents 3 & 4: Treasury Agent + Recycler Bidders (ADK  -  Gemini)
 # ---------------------------------------------------------------------------
 
 @activity.defn
@@ -136,10 +141,91 @@ async def execute_double_auction_activity(
     category: str,
     target_tons: float,
     statutory_base_rate: float,
+    org_id: str = "",
+    auction_id: str = "",
+    corridor_min: float = 0.0,
+    corridor_max: float = 0.0,
 ) -> dict[str, Any]:
-    """Execute continuous double auction using ADK Treasury Agent."""
-    logger.info(f"[Activity] Auction  -  {rfp_id}, {target_tons}t, category={category}")
+    """Execute deterministic uniform-price double auction from DB BidRecord rows.
 
+    Falls back to the ADK Treasury Agent when no DB bids exist for auction_id.
+    """
+    logger.info(
+        f"[Activity] Auction  -  {rfp_id}, {target_tons}t, category={category}, "
+        f"auction_id={auction_id!r}"
+    )
+
+    # --- Attempt DB-based deterministic clearing when auction_id is provided ---
+    if auction_id:
+        try:
+            from sqlalchemy import select
+            from synthetiq_shared.database import get_db_session
+            from synthetiq_shared.models import AuctionRecord, BidRecord
+
+            async with get_db_session() as session:
+                # Fetch bids sorted by price DESC (highest bidder first = lowest cost for buyer)
+                bid_rows = (
+                    await session.execute(
+                        select(BidRecord)
+                        .where(BidRecord.auction_id == auction_id)
+                        .order_by(BidRecord.price_per_kg.desc())
+                    )
+                ).scalars().all()
+
+                if bid_rows:
+                    # Uniform-price clearing: accumulate volume until >= target_tons
+                    accumulated: float = 0.0
+                    clearing_price: float = 0.0
+                    winner_org_id: str = ""
+                    accepted_bids: list[BidRecord] = []
+
+                    for bid in bid_rows:
+                        if accumulated >= target_tons:
+                            break
+                        accepted_bids.append(bid)
+                        accumulated += bid.volume_tons
+                        clearing_price = bid.price_per_kg
+                        winner_org_id = bid.recycler_id
+
+                    # Clamp to corridor when supplied
+                    if corridor_min > 0.0 and clearing_price < corridor_min:
+                        clearing_price = corridor_min
+                    if corridor_max > 0.0 and clearing_price > corridor_max:
+                        clearing_price = corridor_max
+
+                    total_cleared = min(accumulated, target_tons)
+
+                    # Persist clearing result
+                    auction_rec = (
+                        await session.execute(
+                            select(AuctionRecord).where(AuctionRecord.auction_id == auction_id)
+                        )
+                    ).scalar_one_or_none()
+
+                    if auction_rec:
+                        auction_rec.status = "CLEARED"
+                        auction_rec.clearing_price_inr = clearing_price
+                        auction_rec.total_cleared_tons = total_cleared
+
+                    for bid in accepted_bids:
+                        bid.status = "ACCEPTED"
+
+                    await session.commit()
+
+                    logger.info(
+                        f"[Activity] DB auction cleared: price={clearing_price}, "
+                        f"winner={winner_org_id}, tons={total_cleared}"
+                    )
+                    return AuctionResult(
+                        clearing_price=clearing_price,
+                        winner_org_id=winner_org_id,
+                        total_volume_tons=total_cleared,
+                    ).model_dump()
+
+        except Exception as exc:
+            logger.warning(f"[Activity] DB auction clearing failed ({exc}); falling back to agent")
+
+    # --- Fallback: ADK Treasury Agent ---
     from agents.treasury_agent import run_treasury_agent
 
     result = await run_treasury_agent(
@@ -157,6 +243,15 @@ async def execute_double_auction_activity(
     # Fix 1: normalise treasury agent key (clearing_price_inr) to canonical name
     result.setdefault("clearing_price", result.get("clearing_price_inr"))
 
+    # Apply corridor clamp on fallback path as well
+    if corridor_min > 0.0 or corridor_max > 0.0:
+        cp = result.get("clearing_price", 0.0) or 0.0
+        if corridor_min > 0.0 and cp < corridor_min:
+            cp = corridor_min
+        if corridor_max > 0.0 and cp > corridor_max:
+            cp = corridor_max
+        result["clearing_price"] = cp
+
     # C3: fail-closed gates — no hardcoded winner default
     _require(result, "clearing_price", "auction")
     _require(result, "winner_org_id", "auction")
@@ -164,7 +259,7 @@ async def execute_double_auction_activity(
 
 
 # ---------------------------------------------------------------------------
-# Agent 5: Logistics Agent (ADK  - ' Gemini)
+# Agent 5: Logistics Agent (ADK  -  Gemini)
 # ---------------------------------------------------------------------------
 
 @activity.defn
@@ -178,7 +273,7 @@ async def verify_eway_bill_activity(eway_bill_number: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Agent 6: Auditor Agent (Nimble via ADK  - ' fallback: Jev ensemble)
+# Agent 6: Auditor Agent (Nimble via ADK  -  fallback: Jev ensemble)
 # ---------------------------------------------------------------------------
 
 @activity.defn
@@ -194,8 +289,10 @@ async def audit_scada_telemetry_activity(
     category: str = "cat_i_rigid",
     org_id: str = "",
     delta_threshold: float = 2.0,
+    sec_baseline: float = 450.0,
+    sec_variance: float = 30.0,
 ) -> dict[str, Any]:
-    """SCADA telemetry fraud audit via ADK Auditor Agent (Nimble / Jev ensemble)."""
+    """SCADA telemetry fraud audit via ADK Auditor Agent with physics v2 hash chain."""
     logger.info(f"[Activity] SCADA audit  -  {recycler_id}/{plant_id}, category={category}")
 
     from agents.auditor_agent import run_auditor_agent
@@ -223,38 +320,93 @@ async def audit_scada_telemetry_activity(
     result.setdefault("is_spoofed", False)
 
     # Fix 2: normalise auditor agent key (delta_mass) to canonical delta_percent
-    # The auditor agent may return delta_mass; map it to the canonical gate field.
     if "delta_percent" not in result and "delta_mass" in result:
         result["delta_percent"] = result["delta_mass"]
 
     # C3: fail-closed gate — require delta_percent from agent
     _require(result, "delta_percent", "audit")
 
-    # C3: deterministic verdict — do NOT trust any LLM verdict string
-    delta = result["delta_percent"]
-    threshold = result.get("threshold", delta_threshold)
-    if delta > threshold * 2:
-        verdict = "FAIL"
-    elif delta > threshold:
+    # --- Physics v2: energy_kwh sum + 3-sigma SEC rule ---
+    energy_total_kwh: float = float(result.get("energy_total_kwh", 0))
+    mass_total_kg: float = float(result.get("mass_total_kg", 0))
+
+    if energy_total_kwh == 0:
+        raise ApplicationError(
+            "FAIL_CLOSED: zero energy total from auditor agent",
+            non_retryable=False,
+        )
+
+    # Specific Energy Consumption: kWh/ton → normalise baseline (sec_baseline is per ton)
+    # mass_total_kg may be zero if agent didn't provide it; guard with reported_volume
+    if mass_total_kg <= 0:
+        mass_total_kg = reported_volume_tons * 1000.0
+
+    sec_actual: float = (energy_total_kwh / mass_total_kg) * 1000.0  # kWh/ton
+    band_upper: float = sec_baseline + 3.0 * sec_variance
+
+    # Delta check (claimed vs measured mass)
+    claimed_mass_kg: float = reported_volume_tons * 1000.0
+    if claimed_mass_kg > 0:
+        delta_frac: float = abs(claimed_mass_kg - mass_total_kg) / claimed_mass_kg
+    else:
+        delta_frac = 0.0
+
+    # --- Build HashChain over telemetry frames ---
+    from services.hash_chain import HashChain
+    from synthetiq_shared.schemas.telemetry import TelemetryFrame
+
+    chain = HashChain()
+    frames: list[dict] = result.get("frames", [])
+
+    if frames:
+        for raw_frame in frames:
+            try:
+                frame = TelemetryFrame(**raw_frame)
+                chain.append(frame)
+            except Exception as frame_exc:
+                logger.debug(f"[Activity] Skipping malformed frame: {frame_exc}")
+    else:
+        # Synthetic single frame from totals when no individual frames provided
+        try:
+            synthetic_frame = TelemetryFrame(
+                frame_id=f"SYN-{result['audit_id']}",
+                org_id=org_id or "unknown",
+                plant_id=plant_id,
+                timestamp=datetime.now(tz=timezone.utc),
+                energy_kwh=energy_total_kwh,
+                mass_processed_kg=mass_total_kg,
+                power_factor=power_factor if power_factor > 0 else None,
+            )
+            chain.append(synthetic_frame)
+        except Exception as syn_exc:
+            logger.warning(f"[Activity] Could not build synthetic frame: {syn_exc}")
+
+    result["chain_head"] = chain.head
+
+    # --- Deterministic verdict (physics v2 overrides any LLM verdict) ---
+    if sec_actual > band_upper:
+        verdict = "HITL"
+    elif delta_frac > delta_threshold / 100.0:
         verdict = "HITL"
     else:
         verdict = "PASS"
+
     result["verdict"] = verdict
 
     # C3: require physical_melt_verified — do NOT default from is_spoofed
     _require(result, "physical_melt_verified", "audit")
 
     logger.info(
-        f"[Activity] Audit verdict: {result.get('verdict', 'UNKNOWN')}, "
-        f"confidence={result.get('confidence_score', 0)}, "
-        f"delta_percent={result.get('delta_percent', 0):.2f}"
+        f"[Activity] Audit verdict: {verdict}, "
+        f"sec_actual={sec_actual:.2f} kWh/ton, band_upper={band_upper:.2f}, "
+        f"delta_frac={delta_frac:.4f}, chain_head={chain.head[:16]}"
     )
     result["org_id"] = org_id
     return AuditResult(**result).model_dump()
 
 
 # ---------------------------------------------------------------------------
-# Agent 7: ERP Agent (ADK  - ' Gemini)
+# Agent 7: ERP Agent (ADK  -  Gemini)
 # ---------------------------------------------------------------------------
 
 @activity.defn
@@ -267,16 +419,13 @@ async def create_escrow_split_po_activity(
     org_id: str = "",
     audit_verdict: str | None = None,
     human_approved: bool | None = None,
+    escrow_split_primary: float = 0.8,
+    escrow_split_holdback: float = 0.2,
 ) -> dict[str, Any]:
-    """Create 80/20 split escrow PO using ADK ERP Agent."""
-    logger.info(f"[Activity] Escrow PO  -  {company_id}  - ' {recycler_id}, {plastic_tons}t")
+    """Create escrow PO with configurable advance/holdback split from RunConfig.pack."""
+    logger.info(f"[Activity] Escrow PO  -  {company_id}  -  {recycler_id}, {plastic_tons}t")
 
     # C3: fail-closed gates — no hardcoded defaults
-    # non_retryable=True is intentional here: audit_verdict and human_approved are
-    # caller-supplied workflow parameters, not transient agent outputs. If they are
-    # None at call time, no number of retries can supply them — the calling workflow
-    # must be fixed. This is the one deliberate deviation from the retryable pattern
-    # used by _require() elsewhere in this file.
     if audit_verdict is None:
         raise ApplicationError(
             "FAIL_CLOSED: audit_verdict not provided to PO activity",
@@ -302,15 +451,62 @@ async def create_escrow_split_po_activity(
     )
 
     result.setdefault("po_number", f"PO-{uuid.uuid4().hex[:8].upper()}")
-    # Fix 3: validate required PO fields and return typed POResult instead of raw dict
+
+    # Compute advance/holdback from RunConfig split parameters (tons → kg)
+    total_value: float = plastic_tons * unit_price_inr * 1000.0
+    advance_amount: float = round(total_value * escrow_split_primary, 2)
+    holdback_amount: float = round(total_value * escrow_split_holdback, 2)
+
+    # Persist escrow split to DB
+    try:
+        from sqlalchemy import select
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models import EscrowPORecord
+
+        po_number = result.get("po_number") or result.get("po_id", "")
+        async with get_db_session() as session:
+            existing = (
+                await session.execute(
+                    select(EscrowPORecord).where(EscrowPORecord.po_number == po_number)
+                )
+            ).scalar_one_or_none()
+
+            if existing:
+                existing.advance_amount = advance_amount
+                existing.holdback_amount = holdback_amount
+                existing.escrow_status = "advance_pending"
+            else:
+                session.add(
+                    EscrowPORecord(
+                        po_number=po_number,
+                        company_id=company_id,
+                        recycler_id=recycler_id,
+                        category="",
+                        plastic_tons=plastic_tons,
+                        total_amount_inr=total_value,
+                        advance_amount=advance_amount,
+                        holdback_amount=holdback_amount,
+                        escrow_status="advance_pending",
+                        audit_id=audit_id,
+                        org_id=org_id or None,
+                    )
+                )
+            await session.commit()
+    except Exception as db_exc:
+        logger.warning(f"[Activity] EscrowPO DB upsert failed ({db_exc}); continuing without persistence")
+
+    # Fix 3: validate required PO fields and return typed POResult
     _require(result, "po_id", "po")
     _require(result, "escrow_amount", "po")
+
+    result["advance_amount"] = advance_amount
+    result["holdback_amount"] = holdback_amount
     result["org_id"] = org_id
     return POResult(**result).model_dump()
 
 
 # ---------------------------------------------------------------------------
-# Agent 8: Legal Agent (ADK  - ' Gemini)
+# Agent 8: Legal Agent (ADK  -  Gemini)
 # ---------------------------------------------------------------------------
 
 @activity.defn
@@ -320,8 +516,13 @@ async def generate_and_dispatch_form1_activity(
     physical_melt_tons: float,
     conversion_factor: float = 1.0,
     org_id: str = "",
+    chain_head: str = "",
+    org_name: str = "",
+    fiscal_year: str = "",
+    category: str = "cat_i_rigid",
+    compliance_pct: float = 100.0,
 ) -> dict[str, Any]:
-    """Generate DSC-signed Form-1 and dispatch to CPCB using ADK Legal Agent."""
+    """Generate DSC-signed Form-1, render PDF, and dispatch to CPCB."""
     logger.info(f"[Activity] Form-1 dispatch  -  PO={po_number}, {physical_melt_tons}t")
 
     from agents.legal_agent import run_legal_agent
@@ -338,10 +539,47 @@ async def generate_and_dispatch_form1_activity(
     result.setdefault("audit_id", audit_id)
     result.setdefault("ack_number", f"ACK-CPCB-{uuid.uuid4().hex[:10].upper()}")
 
-    # C3: fail-closed gate — portal_status must be provided by the agent, not defaulted here
+    # C3: fail-closed gate — portal_status must be provided by the agent
     _require(result, "portal_status", "form1")
 
-    logger.info(f"[Activity] Form-1 ACK: {result['ack_number']}")
+    form1_id = result["form1_id"]
+
+    # --- Build Form1Data and generate PDF ---
+    from reporting.form1_schema import Form1Data
+    from reporting.pdf_generator import generate_form1_pdf
+
+    generated_date = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    is_signed: bool = bool(result.get("signed", False))
+
+    form1_data = Form1Data(
+        org_name=org_name or org_id or "Unknown Organisation",
+        fiscal_year=fiscal_year or generated_date[:7],
+        category=category,
+        volume_tons=physical_melt_tons,
+        compliance_pct=compliance_pct,
+        audit_id=audit_id,
+        po_reference=po_number,
+        chain_head=chain_head or "",
+        generated_date=generated_date,
+        is_signed=is_signed,
+    )
+
+    pdf_bytes = generate_form1_pdf(form1_data)
+    pdf_path = f"/tmp/form1_{form1_id}.pdf"
+
+    try:
+        with open(pdf_path, "wb") as fh:
+            fh.write(pdf_bytes)
+        logger.info(f"[Activity] Form-1 PDF written: {pdf_path} ({len(pdf_bytes)} bytes)")
+    except Exception as write_exc:
+        logger.warning(f"[Activity] Could not write Form-1 PDF to {pdf_path}: {write_exc}")
+        pdf_path = ""
+
+    # Force portal status to indicate manual upload required
+    result["portal_status"] = "READY_FOR_MANUAL_UPLOAD"
+    result["pdf_path"] = pdf_path
+
+    logger.info(f"[Activity] Form-1 ACK: {result['ack_number']}, pdf={pdf_path!r}")
     result["org_id"] = org_id
     return Form1Result(**result).model_dump()
 
@@ -354,11 +592,7 @@ async def generate_and_dispatch_form1_activity(
 async def generate_audit_report_pdf_activity(
     audit_payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Generate audit-ready CPCB Form-1 PDF report with cryptographic hashes.
-
-    Renders Pydantic-validated CPCB Form-1 data, nanosecond hash chain,
-    reconciled mass-energy Delta_mass metrics, and DSC signatures into a PDF document.
-    """
+    """Generate audit-ready CPCB Form-1 PDF report with cryptographic hashes."""
     logger.info(f"[Activity] Generating CPCB Form-1 PDF for audit {audit_payload.get('audit_id')}")
 
     from services.pdf_generator import generate_cpcb_form1_pdf

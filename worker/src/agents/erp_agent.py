@@ -8,6 +8,7 @@ import uuid
 from typing import Any
 
 from .base_adk import create_llm_agent, run_agent
+from .privacy import scrub
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,7 @@ async def run_erp_agent(
     logistics_verdict: str = "APPROVE",
     human_approved: bool = True,
     session_id: str | None = None,
+    org_id: str = "",
 ) -> dict[str, Any]:
     """Run the ERP Agent to create an escrow PO.
 
@@ -150,16 +152,18 @@ async def run_erp_agent(
         output_key="po_result",
     )
 
-    logger.info(f"Running erp_agent for {company_id}  - ' {recycler_id}, {plastic_tons}t")
+    logger.info(f"Running erp_agent for {company_id}  -  {recycler_id}, {plastic_tons}t")
 
+    user_message = scrub(
+        f"Create escrow PO: company={company_id}, recycler={recycler_id}, "
+        f"audit_id={audit_id}, {plastic_tons} tons at INR {unit_price_inr}/kg. "
+        f"Audit verdict: {audit_verdict}, logistics: {logistics_verdict}, human_approved: {human_approved}. "
+        "Return a single JSON object.",
+        org_id,
+    )
     result = await run_agent(
         agent=agent,
-        user_message=(
-            f"Create escrow PO: company={company_id}, recycler={recycler_id}, "
-            f"audit_id={audit_id}, {plastic_tons} tons at INR {unit_price_inr}/kg. "
-            f"Audit verdict: {audit_verdict}, logistics: {logistics_verdict}, human_approved: {human_approved}. "
-            "Return a single JSON object."
-        ),
+        user_message=user_message,
         session_id=session_id,
         user_id=company_id,
     )

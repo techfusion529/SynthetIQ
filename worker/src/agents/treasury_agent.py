@@ -7,6 +7,7 @@ import logging
 from typing import Any
 
 from .base_adk import create_llm_agent, run_agent
+from .privacy import scrub
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +115,7 @@ async def run_treasury_agent(
     target_tons: float,
     statutory_base_rate: float = 12.0,
     session_id: str | None = None,
+    org_id: str = "",
 ) -> dict[str, Any]:
     """Run the Treasury Agent and return the auction result.
 
@@ -137,13 +139,15 @@ async def run_treasury_agent(
 
     logger.info(f"Running treasury_agent for {rfp_id}  -  {target_tons}t {category}")
 
+    user_message = scrub(
+        f"Run the auction for RFP '{rfp_id}': category={category}, "
+        f"target={target_tons} tons, statutory_base_rate=INR {statutory_base_rate}/kg. "
+        "Use all tools. Return a single JSON object.",
+        org_id,
+    )
     result = await run_agent(
         agent=agent,
-        user_message=(
-            f"Run the auction for RFP '{rfp_id}': category={category}, "
-            f"target={target_tons} tons, statutory_base_rate=INR {statutory_base_rate}/kg. "
-            "Use all tools. Return a single JSON object."
-        ),
+        user_message=user_message,
         session_id=session_id,
         user_id="system",
     )

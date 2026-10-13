@@ -8,6 +8,7 @@ import os
 from typing import Any
 
 from .base_adk import create_llm_agent, run_agent
+from .privacy import scrub
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,7 @@ Always output a single JSON object with keys:
 async def run_regulatory_agent(
     gazette_reference: str = "PWM 2026",
     session_id: str | None = None,
+    org_id: str = "",
 ) -> dict[str, Any]:
     """Run the Regulatory Watchdog Agent and return structured rules.
 
@@ -123,13 +125,15 @@ async def run_regulatory_agent(
 
     logger.info(f"Running regulatory_watchdog_agent for: {gazette_reference}")
 
+    user_message = scrub(
+        f"Fetch and parse the CPCB gazette '{gazette_reference}'. "
+        "Extract all conversion factors, amortization rules, base rate, and deadline. "
+        "Return a single JSON object.",
+        org_id,
+    )
     result = await run_agent(
         agent=agent,
-        user_message=(
-            f"Fetch and parse the CPCB gazette '{gazette_reference}'. "
-            "Extract all conversion factors, amortization rules, base rate, and deadline. "
-            "Return a single JSON object."
-        ),
+        user_message=user_message,
         session_id=session_id,
         user_id="system",
     )

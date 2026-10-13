@@ -15,9 +15,10 @@ from typing import Any
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
+from temporalio.exceptions import ApplicationError
 
 with workflow.unsafe.imports_passed_through():
-    from src.activities.agent_activities import (
+    from activities.agent_activities import (
         audit_scada_telemetry_activity,
         calculate_brand_liability_activity,
         create_escrow_split_po_activity,
@@ -27,7 +28,7 @@ with workflow.unsafe.imports_passed_through():
         parse_regulatory_rules_activity,
         verify_eway_bill_activity,
     )
-    from src.activities.config_activities import fetch_run_config_activity
+    from activities.config_activities import fetch_run_config_activity
     from synthetiq_shared.models import RunInput
 
 # Shared retry policy applied to every activity execution
@@ -419,7 +420,13 @@ class MasterEPRComplianceWorkflow:
             start_to_close_timeout=_TIMEOUT,
         )
 
-        #  -  -  -  -  Stage 3b: SCADA Audit (Auditor Agent  - ' Nimble / Jev)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
+        #  -  -  -  -  Stage 3b: SCADA Audit (Auditor Agent  - ' Nimble / Jev)  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
+        if not run_config.calibrations:
+            raise ApplicationError(
+                "FAIL_CLOSED: no calibrations found",
+                non_retryable=True,
+            )
+
         torque = 1.8 if simulate_spoof else 46.5
         pf     = 0.994 if simulate_spoof else 0.842
         kw     = 82.0 if simulate_spoof else 94.0
@@ -432,6 +439,8 @@ class MasterEPRComplianceWorkflow:
                 torque, pf, kw, 50.0, melt, category,
                 run_input.org_id,
                 run_config.pack.delta_threshold_default,
+                run_config.calibrations[0].sec_baseline_kwh_per_ton,
+                run_config.calibrations[0].sec_variance,
             ],
             retry_policy=_RETRY,
             start_to_close_timeout=_TIMEOUT,
@@ -489,7 +498,12 @@ class MasterEPRComplianceWorkflow:
         clearing_price = auction.get("clearing_price_inr", 7.8)
         po = await workflow.execute_activity(
             create_escrow_split_po_activity,
-            args=[company_id, recycler_id, audit["audit_id"], volume_tons, clearing_price, run_input.org_id],
+            args=[
+                company_id, recycler_id, audit["audit_id"], volume_tons, clearing_price,
+                run_input.org_id, None, None,
+                run_config.pack.escrow_split_primary,
+                run_config.pack.escrow_split_holdback,
+            ],
             retry_policy=_RETRY,
             start_to_close_timeout=_TIMEOUT,
         )

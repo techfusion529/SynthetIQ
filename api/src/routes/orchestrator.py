@@ -1,4 +1,4 @@
-﻿"""End-to-End Autonomous EPR Compliance & Anti-Fraud Orchestration Pipeline.
+"""End-to-End Autonomous EPR Compliance & Anti-Fraud Orchestration Pipeline.
 
 RBAC:
   POST /compliance/run-e2e   - workflows:execute (compliance_officer+)
@@ -25,14 +25,14 @@ logger = logging.getLogger(__name__)
 @router.post("/run-e2e")
 async def execute_e2e_compliance_run(
     user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
     _: Any = Depends(require_permission("workflows:execute")),
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Deprecated: use POST /api/v1/runs instead."""
-    raise HTTPException(
-        status_code=410,
-        detail="Moved: use POST /api/v1/runs",
-    )
+    """Execute E2E compliance run (aliased to POST /api/v1/runs)."""
+    from src.routes.runs import create_run, CreateRunRequest
+    req = CreateRunRequest(type="master_e2e_compliance", params=payload or {})
+    return await create_run(body=req, user=user, tenant_ctx=tenant_ctx)
 
 
 @router.get("/runs")

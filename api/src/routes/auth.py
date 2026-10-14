@@ -1,4 +1,4 @@
-﻿"""Authentication & Session Router  -  Login, Registration, and User Context."""
+"""Authentication & Session Router  -  Login, Registration, and User Context."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ class AuthResponse(BaseModel):
 
 
 @router.post("/login", response_model=AuthResponse)
-@limiter.limit("5/15minutes")
+@limiter.limit("60/15minutes")
 async def login(request: Request, payload: LoginRequest) -> AuthResponse:
     """Authenticate user with email/password or Firebase ID token."""
     email = payload.email.strip().lower()

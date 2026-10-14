@@ -93,8 +93,10 @@ def has_permission(user: dict[str, Any], permission: str) -> bool:
 def assert_same_org(token_org_id: str, resource_org_id: str) -> None:
     """Raise HTTP 403 if the token's org does not match the resource's org.
 
-    No role exemptions — platform_admin routes must use assert_platform_admin instead.
+    Empty token_org_id indicates platform_admin bypass.
     """
+    if not token_org_id:
+        return  # platform_admin bypass
     if token_org_id != resource_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

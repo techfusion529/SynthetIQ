@@ -10,6 +10,8 @@ RUN uv pip install --system /tmp/synthetiq-shared/ && rm -rf /tmp/synthetiq-shar
 
 COPY api/pyproject.toml ./pyproject.toml
 COPY api/src/ ./src/
+COPY alembic.ini ./alembic.ini
+COPY packages/synthetiq-shared/alembic ./packages/synthetiq-shared/alembic
 RUN uv pip install --system .
 
 EXPOSE 8000

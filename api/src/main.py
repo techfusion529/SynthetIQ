@@ -9,8 +9,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -46,34 +47,36 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ---- Startup -------------------------------------------------------
     logger.info("SynthetIQ API starting upâ€¦")
 
-    # Force-import new ORM models so they register with Base.metadata
+    # Force-import all ORM models so they register with Base.metadata
     try:
-        from synthetiq_shared.models import (  # noqa: F401
-            AuctionRecord, BidRecord, AuditRecord, EscrowPORecord, Form1Record,
-            RegulatoryPack, OrgPolicy, PlantCalibration, ObligationLedger,
-        )
-    except Exception:
-        pass
-    # 1. DB schema is managed by Alembic migrations — no auto-create in production
-    try:
-        from synthetiq_shared.database import init_db  # type: ignore[import-not-found]
-        # init_db() calls Base.metadata.create_all — only run in dev mode
-        import os
-        if os.getenv("ENV", "local").lower() == "local":
-            await init_db()
-            logger.info("[DB] Database tables ready (dev auto-create)")
-        else:
-            logger.info("[DB] Skipping auto-create; Alembic owns the schema in production")
+        import synthetiq_shared.models  # noqa: F401
+        logger.info("[DB] All ORM models registered with Base.metadata")
     except Exception as exc:
-        logger.warning(f"DB init skipped ({type(exc).__name__}: {exc})")
+        logger.error(f"[DB] Failed to import ORM models: {exc}")
 
-    # CFG-01: idempotent platform bootstrap (seed admin, platform org, default pack)
+    # 1. DB schema initialization (idempotent CREATE TABLE IF NOT EXISTS across all environments)
+    try:
+        from synthetiq_shared.database import init_db
+        await init_db()
+        logger.info("[DB] Database tables and schema verified")
+    except Exception as exc:
+        logger.exception(f"[DB] Database initialization failed: {exc}")
+
+    # 2. CFG-01: idempotent platform bootstrap (seed admin, platform org, default pack)
     try:
         from synthetiq_shared.bootstrap import bootstrap_platform
         await bootstrap_platform()
         logger.info("[Bootstrap] Platform bootstrap completed")
     except Exception as exc:
-        logger.warning(f"[Bootstrap] Platform bootstrap skipped ({type(exc).__name__}: {exc})")
+        logger.exception(f"[Bootstrap] Platform bootstrap failed: {exc}")
+
+    # 3. Idempotent default tenant and demo seed
+    try:
+        from synthetiq_shared.seed import seed_database
+        await seed_database()
+        logger.info("[Seed] Default tenant and demo seeds verified")
+    except Exception as exc:
+        logger.warning(f"[Seed] Tenant seed notice: {exc}")
 
     # 2. Firebase Auth (idempotent; dev-mode falls through silently)
     try:
@@ -149,6 +152,19 @@ Instrumentator().instrument(app).expose(app)
 from src.routes.auth import limiter  # noqa: E402
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    logger.error(f"[Unhandled Exception] {request.method} {request.url.path}: {exc}\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": str(exc) or "Internal server error occurred",
+            "error_type": type(exc).__name__,
+            "path": request.url.path,
+        },
+    )
 
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")

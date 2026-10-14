@@ -95,10 +95,32 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Create all tables (development only  -  use Alembic for production)."""
+    """Create all tables and ensure essential columns exist."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created successfully")
+        # Self-healing column sync for PostgreSQL and SQLite
+        for col_stmt in [
+            "ALTER TABLE organizations ADD COLUMN status VARCHAR(32) DEFAULT 'active'",
+            "ALTER TABLE organizations ADD COLUMN org_type VARCHAR(64) DEFAULT 'brand_owner'",
+            "ALTER TABLE users ADD COLUMN platform_admin BOOLEAN DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP",
+            "ALTER TABLE data_sources ADD COLUMN mapping JSON",
+            "ALTER TABLE data_sources ADD COLUMN secret_ref VARCHAR(256)",
+            "ALTER TABLE audit_records ADD COLUMN org_id VARCHAR(64)",
+            "ALTER TABLE audit_records ADD COLUMN ingestion_run_id VARCHAR(64)",
+            "ALTER TABLE auctions ADD COLUMN org_id VARCHAR(64)",
+            "ALTER TABLE bids ADD COLUMN org_id VARCHAR(64)",
+            "ALTER TABLE escrow_pos ADD COLUMN org_id VARCHAR(64)",
+            "ALTER TABLE form1_records ADD COLUMN org_id VARCHAR(64)",
+            "ALTER TABLE escrow_pos ADD COLUMN advance_amount FLOAT",
+            "ALTER TABLE escrow_pos ADD COLUMN holdback_amount FLOAT",
+            "ALTER TABLE escrow_pos ADD COLUMN escrow_status VARCHAR(32) DEFAULT 'held'",
+        ]:
+            try:
+                await conn.execute(text(col_stmt))
+            except Exception:
+                pass  # column already exists or table not created yet
+    logger.info("Database tables and columns created successfully")
 
 
 async def close_db() -> None:

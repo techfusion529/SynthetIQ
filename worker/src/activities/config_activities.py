@@ -151,7 +151,7 @@ async def fetch_run_config_activity(org_id: str, regulatory_pack_version: str) -
         f"[config_activity] RunConfig assembled: pack={pack.version!r}, "
         f"calibrations={len(calibrations)}, obligations={len(obligations)}"
     )
-    return run_config.model_dump()
+    return run_config.model_dump(mode="json")
 
 
 @activity.defn

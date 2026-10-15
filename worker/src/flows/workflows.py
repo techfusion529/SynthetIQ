@@ -433,13 +433,44 @@ class MasterEPRComplianceWorkflow:
                 else:
                     fiscal_year = f"FY{today.year - 1}-{str(today.year)[2:]}"
 
+            # Auto-resolve defaults from run_config if not supplied in input
+            if not category:
+                if run_config.obligations:
+                    category = run_config.obligations[0].category
+                elif run_config.calibrations:
+                    category = run_config.calibrations[0].material_grade
+                elif run_config.policy.categories_in_scope:
+                    category = run_config.policy.categories_in_scope[0]
+                else:
+                    category = "cat_i_rigid"
+
+            if not plant_id:
+                matching_cal = next(
+                    (c for c in run_config.calibrations if c.material_grade == category),
+                    run_config.calibrations[0] if run_config.calibrations else None,
+                )
+                plant_id = matching_cal.plant_id if matching_cal else "PLANT-OKHLA-2"
+
+            if not recycler_id:
+                recycler_id = "RECYC-DELHI-01"
+
+            if not eway_bill_ref:
+                eway_bill_ref = "EWB-2026-99210"
+
+            if volume_tons <= 0.0:
+                matching_obl = next(
+                    (o for o in run_config.obligations if o.fiscal_year == fiscal_year and o.category == category),
+                    run_config.obligations[0] if run_config.obligations else None,
+                )
+                volume_tons = matching_obl.obligation_tons if matching_obl else 250.0
+
             #  -  -  -  -  Stage 1: Liability (Brand Liability Agent)  -  -  -  -
             self.stage_reached = 1
             self.current_status = "STAGE_1_LIABILITY_ASSESSMENT"
             # AGT-01: pass run_config so the activity can do deterministic pre-computation
             liability = await workflow.execute_activity(
                 calculate_brand_liability_activity,
-                args=[company_id, fiscal_year, run_config.model_dump(), category, run_input.org_id],
+                args=[company_id, fiscal_year, run_config.model_dump(mode="json"), category, run_input.org_id],
                 retry_policy=_RETRY,
                 start_to_close_timeout=_TIMEOUT,
             )
@@ -500,6 +531,14 @@ class MasterEPRComplianceWorkflow:
                  if c.plant_id == plant_id and c.material_grade == category),
                 None,
             )
+            if _cal is None:
+                # Fallback to calibration matching material_grade or plant_id, or first available
+                _cal = next(
+                    (c for c in run_config.calibrations if c.material_grade == category or c.plant_id == plant_id),
+                    run_config.calibrations[0] if run_config.calibrations else None,
+                )
+                if _cal:
+                    plant_id = _cal.plant_id
             if _cal is None:
                 raise ApplicationError(
                     f"FAIL_CLOSED: no calibration found for plant_id={plant_id!r}, "

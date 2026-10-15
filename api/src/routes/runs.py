@@ -381,3 +381,61 @@ async def cancel_run(
         "cancelled_by": user.get("email", ""),
         "temporal_cancel": cancel_result,
     }
+
+
+# ---------------------------------------------------------------------------
+# Direct /compliance endpoints
+# ---------------------------------------------------------------------------
+
+compliance_router = APIRouter(prefix="/compliance", tags=["Compliance Workflows"])
+
+
+@compliance_router.post("/run-e2e", status_code=202)
+async def compliance_run_e2e(
+    body: CreateRunRequest,
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("workflows:execute")),
+) -> dict[str, Any]:
+    return await create_run(body=body, user=user, tenant_ctx=tenant_ctx, _=_)
+
+
+@compliance_router.get("/runs")
+async def compliance_list_runs(
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    limit: int = Query(50, le=200),
+    offset: int = Query(0, ge=0),
+    status: Optional[str] = Query(None),
+    hitl_required: Optional[bool] = Query(None),
+    _: Any = Depends(require_permission("workflows:read")),
+) -> list[dict[str, Any]]:
+    return await list_runs(
+        user=user,
+        tenant_ctx=tenant_ctx,
+        limit=limit,
+        offset=offset,
+        status=status,
+        hitl_required=hitl_required,
+        _=_,
+    )
+
+
+@compliance_router.get("/runs/{run_id}")
+async def compliance_get_run(
+    run_id: str,
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("workflows:read")),
+) -> dict[str, Any]:
+    return await get_run(run_id=run_id, user=user, tenant_ctx=tenant_ctx, _=_)
+
+
+@compliance_router.get("/preflight")
+async def compliance_preflight(
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("workflows:read")),
+) -> dict[str, Any]:
+    return await get_preflight(user=user, tenant_ctx=tenant_ctx, _=_)
+

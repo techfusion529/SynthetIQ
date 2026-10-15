@@ -61,6 +61,22 @@ class MappingBody(BaseModel):
     mapping: list[MappingEntry]
 
 
+class CreateDataSourceBody(BaseModel):
+    name: str
+    source_type: str = "bigquery"
+    purpose: str = "erp_sales"
+    description: str = ""
+    connection_config: dict[str, Any] = {}
+
+
+def _mask_secrets(config: dict[str, Any]) -> dict[str, Any]:
+    masked_keys = {"password", "token", "api_key", "secret", "key", "credentials_path", "service_account_json"}
+    return {
+        k: "***" if k.lower() in masked_keys else v
+        for k, v in config.items()
+    }
+
+
 # ---------------------------------------------------------------------------
 # Helper: load DataSource with same-org guard
 # ---------------------------------------------------------------------------
@@ -85,6 +101,232 @@ async def _get_datasource_for_org(source_id: str, org_id: str):
     if ds.org_id != org_id:
         raise HTTPException(status_code=403, detail="Access denied: datasource belongs to a different org.")
     return ds
+
+
+# ---------------------------------------------------------------------------
+# GET /datasources (tenant-scoped)
+# ---------------------------------------------------------------------------
+
+@router.get("")
+@router.get("/")
+async def list_datasources(
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("datasources:read")),
+) -> list[dict[str, Any]]:
+    """List all registered data sources for caller's organization."""
+    import uuid
+    from sqlalchemy import select
+    from synthetiq_shared.database import get_db_session
+    from synthetiq_shared.models import DataSource
+
+    org_id = tenant_ctx.org_id or user.get("org_id", "")
+    async with get_db_session() as session:
+        res = await session.execute(
+            select(DataSource)
+            .where(DataSource.org_id == org_id)
+            .where(DataSource.is_active.is_(True))
+            .order_by(DataSource.created_at.desc())
+        )
+        sources = res.scalars().all()
+        return [
+            {
+                "source_id": s.source_id,
+                "name": s.name,
+                "source_type": s.source_type,
+                "purpose": s.purpose,
+                "description": s.description,
+                "connection_config": _mask_secrets(s.connection_config or {}),
+                "is_active": s.is_active,
+                "last_sync_at": s.last_sync_at.isoformat() if s.last_sync_at else None,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            }
+            for s in sources
+        ]
+
+
+# ---------------------------------------------------------------------------
+# POST /datasources (tenant-scoped)
+# ---------------------------------------------------------------------------
+
+@router.post("", status_code=201)
+@router.post("/", status_code=201)
+async def create_datasource(
+    body: CreateDataSourceBody,
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("datasources:write")),
+) -> dict[str, Any]:
+    """Register a new data source for caller's organization."""
+    import uuid
+    from sqlalchemy import select
+    from synthetiq_shared.database import get_db_session
+    from synthetiq_shared.models import DataSource
+
+    org_id = tenant_ctx.org_id or user.get("org_id", "")
+    source_type = body.source_type.lower()
+    valid_types = {"bigquery", "postgresql", "postgres", "rest_api", "rest", "csv", "file", "pubsub"}
+    if source_type not in valid_types:
+        raise HTTPException(
+            status_code=422,
+            detail=f"source_type must be one of {sorted(valid_types)}",
+        )
+
+    source_id = f"DS-{uuid.uuid4().hex[:8].upper()}"
+    async with get_db_session() as session:
+        ds = DataSource(
+            source_id=source_id,
+            org_id=org_id,
+            name=body.name,
+            source_type=source_type,
+            purpose=body.purpose,
+            description=body.description,
+            connection_config=body.connection_config,
+            is_active=True,
+        )
+        session.add(ds)
+        return {
+            "source_id": ds.source_id,
+            "org_id": ds.org_id,
+            "name": ds.name,
+            "source_type": ds.source_type,
+            "purpose": ds.purpose,
+            "description": ds.description,
+            "connection_config": _mask_secrets(ds.connection_config),
+            "is_active": ds.is_active,
+            "created_by": user.get("email", ""),
+        }
+
+
+# ---------------------------------------------------------------------------
+# GET /datasources/{id}
+# ---------------------------------------------------------------------------
+
+@router.get("/{source_id}")
+async def get_datasource_detail(
+    source_id: str,
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("datasources:read")),
+) -> dict[str, Any]:
+    """Fetch details of a single data source."""
+    org_id = tenant_ctx.org_id or user.get("org_id", "")
+    ds = await _get_datasource_for_org(source_id, org_id)
+    return {
+        "source_id": ds.source_id,
+        "org_id": ds.org_id,
+        "name": ds.name,
+        "source_type": ds.source_type,
+        "purpose": ds.purpose,
+        "description": ds.description,
+        "connection_config": _mask_secrets(ds.connection_config or {}),
+        "mapping": ds.mapping,
+        "is_active": ds.is_active,
+        "last_sync_at": ds.last_sync_at.isoformat() if ds.last_sync_at else None,
+        "created_at": ds.created_at.isoformat() if ds.created_at else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# DELETE /datasources/{id}
+# ---------------------------------------------------------------------------
+
+@router.delete("/{source_id}")
+async def delete_datasource(
+    source_id: str,
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("datasources:delete")),
+) -> dict[str, Any]:
+    """Deactivate a data source."""
+    org_id = tenant_ctx.org_id or user.get("org_id", "")
+    ds = await _get_datasource_for_org(source_id, org_id)
+    try:
+        from synthetiq_shared.database import get_db_session
+        async with get_db_session() as session:
+            session.add(ds)
+            ds.is_active = False
+    except Exception as exc:
+        logger.warning("Could not deactivate datasource: %s", exc)
+    return {"source_id": source_id, "status": "deleted"}
+
+
+# ---------------------------------------------------------------------------
+# POST /datasources/{id}/test
+# ---------------------------------------------------------------------------
+
+@router.post("/{source_id}/test")
+async def test_datasource_conn(
+    source_id: str,
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("datasources:read")),
+) -> dict[str, Any]:
+    """Test connection health for a data source."""
+    org_id = tenant_ctx.org_id or user.get("org_id", "")
+    ds = await _get_datasource_for_org(source_id, org_id)
+
+    try:
+        from src.services.data_connector_shim import create_connector
+        conn = create_connector(ds.source_type, org_id, ds.connection_config or {})
+        is_healthy = await conn.health_check()
+        message = "Connection successful and responsive" if is_healthy else "Health check probe failed"
+    except Exception as exc:
+        logger.warning("Connection test failed for %s: %s", source_id, exc)
+        is_healthy = False
+        message = str(exc)
+
+    return {
+        "source_id": source_id,
+        "source_type": ds.source_type,
+        "purpose": ds.purpose,
+        "healthy": is_healthy,
+        "status_message": message,
+    }
+
+
+# ---------------------------------------------------------------------------
+# POST /datasources/{id}/preview
+# ---------------------------------------------------------------------------
+
+@router.post("/{source_id}/preview")
+async def preview_datasource_rows(
+    source_id: str,
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("datasources:read")),
+) -> dict[str, Any]:
+    """Preview sample records from a data source."""
+    org_id = tenant_ctx.org_id or user.get("org_id", "")
+    ds = await _get_datasource_for_org(source_id, org_id)
+
+    records: list[dict] = []
+    try:
+        from src.services.data_connector_shim import create_connector
+        conn = create_connector(ds.source_type, org_id, ds.connection_config or {})
+        if ds.purpose == "scada_telemetry" and hasattr(conn, "query_telemetry"):
+            records = await conn.query_telemetry(plant_id="PLANT-OKHLA-2", time_range_hours=1)
+        elif hasattr(conn, "query_sales_data"):
+            records = await conn.query_sales_data(company_id=org_id, fiscal_year="")
+    except Exception as exc:
+        logger.warning("Preview fetch failed for %s: %s", source_id, exc)
+        return {
+            "source_id": source_id,
+            "status": "error",
+            "message": f"Could not read sample records: {exc}",
+            "sample_rows": [],
+            "columns": [],
+        }
+
+    return {
+        "source_id": source_id,
+        "source_type": ds.source_type,
+        "purpose": ds.purpose,
+        "total_sample_records": len(records),
+        "sample_rows": records[:5],
+        "columns": list(records[0].keys()) if records else [],
+        "status": "success",
+    }
 
 
 # ---------------------------------------------------------------------------

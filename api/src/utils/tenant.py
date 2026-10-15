@@ -102,5 +102,7 @@ async def get_tenant_ctx(
 
 
 async def set_rls_context(session: AsyncSession, org_id: str) -> None:
-    """SET LOCAL app.org_id for row-level security within the current transaction."""
-    await session.execute(text("SET LOCAL app.org_id = :oid"), {"oid": org_id})
+    """SET app.org_id for row-level security within the current transaction."""
+    await session.execute(
+        text("SELECT set_config('app.org_id', :oid, true)"), {"oid": org_id or ""}
+    )

@@ -31,10 +31,13 @@ from src.routes import (
     organizations_router,
     regulatory_router,
     runs_router,
+    compliance_router,
     schedules_router,
     settlement_router,
     stream_router,
     users_router,
+    users_me_router,
+    hitl_router,
 )
 
 logger = logging.getLogger(__name__)
@@ -194,9 +197,11 @@ app.include_router(stream_router,         prefix=API_V1_STR)
 app.include_router(schedules_router,      prefix=API_V1_STR)
 app.include_router(organizations_router,  prefix=API_V1_STR)
 app.include_router(users_router,          prefix=API_V1_STR)
+app.include_router(users_me_router,       prefix=API_V1_STR)
+app.include_router(hitl_router,           prefix=API_V1_STR)
 app.include_router(agent_config_router,   prefix=API_V1_STR)
 app.include_router(runs_router,           prefix=API_V1_STR)
-app.include_router(runs_router,           prefix=f"{API_V1_STR}/compliance")
+app.include_router(compliance_router,     prefix=API_V1_STR)
 app.include_router(regulatory_router,     prefix=API_V1_STR)
 app.include_router(org_config_router,     prefix=API_V1_STR)
 app.include_router(datasources_router,    prefix=API_V1_STR)

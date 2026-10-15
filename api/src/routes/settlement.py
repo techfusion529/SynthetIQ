@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 import logging
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -112,6 +112,7 @@ async def approve_audit_and_settle(
     }
 
 @router.get("/pos")
+@router.get("/escrow")
 async def list_escrow_pos(
     user: CurrentUser,
     tenant_ctx: TenantCtx = Depends(get_tenant_ctx),

@@ -25,6 +25,14 @@ from synthetiq_shared.models import Organization, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/organizations/{org_id}/users", tags=["User Management"])
+users_me_router = APIRouter(prefix="/users", tags=["User Profile"])
+
+
+@users_me_router.get("/me")
+async def get_current_user_me(user: CurrentUser) -> dict[str, Any]:
+    """Get profile of current authenticated user."""
+    from src.routes.auth import get_me
+    return await get_me(user)
 
 VALID_ROLES = {"admin", "compliance_officer", "auditor", "viewer"}
 

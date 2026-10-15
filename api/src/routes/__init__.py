@@ -12,11 +12,12 @@ from .orchestrator import router as orchestrator_router
 from .org_config import router as org_config_router
 from .organizations import router as organizations_router
 from .regulatory import router as regulatory_router
-from .runs import router as runs_router
+from .runs import router as runs_router, compliance_router
 from .schedules import router as schedules_router
 from .settlement import router as settlement_router
 from .stream import router as stream_router
-from .users import router as users_router
+from .users import router as users_router, users_me_router
+from .hitl import router as hitl_router
 
 __all__ = [
     "health_router",
@@ -28,12 +29,15 @@ __all__ = [
     "config_router",
     "orchestrator_router",
     "runs_router",
+    "compliance_router",
     "schedules_router",
     "organizations_router",
     "users_router",
+    "users_me_router",
     "agent_config_router",
     "stream_router",
     "regulatory_router",
     "org_config_router",
     "datasources_router",
+    "hitl_router",
 ]

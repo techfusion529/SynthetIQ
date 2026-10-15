@@ -83,7 +83,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             if org_id is not None and "postgresql" in DATABASE_URL:
                 # Empty string = platform_admin bypass; RLS policy should allow all rows.
                 await session.execute(
-                    text("SET LOCAL app.org_id = :oid"), {"oid": org_id}
+                    text("SELECT set_config('app.org_id', :oid, true)"), {"oid": org_id or ""}
                 )
             yield session
             await session.commit()

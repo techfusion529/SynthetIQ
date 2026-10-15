@@ -235,12 +235,85 @@ async def register(payload: RegisterRequest) -> AuthResponse:
             role="admin",
             org_id=org_id,
         )
+        # Seed default DataSource for new organization
+        ds_id = f"DS-{uuid.uuid4().hex[:8].upper()}"
+        from synthetiq_shared.models import DataSource
+        session.add(
+            DataSource(
+                source_id=ds_id,
+                org_id=org_id,
+                name=f"{payload.organization_name} ERP Sales Connection",
+                source_type="bigquery",
+                purpose="erp_sales",
+                description=f"Primary ERP sales data connection for {payload.organization_name}",
+                connection_config={
+                    "project_id": "synthetiq-dev",
+                    "dataset_id": "epr_compliance",
+                    "sales_table": "sales_data",
+                },
+                mapping={
+                    "sku": "sku",
+                    "category": "category",
+                    "volume_tons": "volume_tons",
+                    "fiscal_year": "fiscal_year",
+                },
+                is_active=True,
+            )
+        )
+
+        # Seed PlantCalibration for newly onboarded org
+        from datetime import date
+        from synthetiq_shared.models.dynamic_config import PlantCalibration, ObligationLedger, OrgPolicy
+        session.add(
+            PlantCalibration(
+                org_id=org_id,
+                plant_id="PLANT-OKHLA-2",
+                material_grade="cat_i_rigid",
+                sec_baseline_kwh_per_ton=380.0,
+                sec_variance=25.0,
+                valid_from=date(2025, 4, 1),
+            )
+        )
+
+        # Seed initial ObligationLedger for current & next fiscal year
+        footprint = float(payload.annual_plastic_footprint_tons or 500.0)
+        session.add(
+            ObligationLedger(
+                org_id=org_id,
+                fiscal_year="FY2025-26",
+                category="cat_i_rigid",
+                obligation_tons=footprint,
+                source="onboarding",
+            )
+        )
+        session.add(
+            ObligationLedger(
+                org_id=org_id,
+                fiscal_year="FY2026-27",
+                category="cat_i_rigid",
+                obligation_tons=round(footprint * 1.1, 2),
+                source="onboarding",
+            )
+        )
+
+        # Seed OrgPolicy
+        session.add(
+            OrgPolicy(
+                org_id=org_id,
+                categories_in_scope=["cat_i_rigid", "cat_ii_flexible"],
+                signatory_name=payload.display_name,
+                signatory_designation="Head of Compliance",
+                timezone="Asia/Kolkata",
+            )
+        )
+
         from synthetiq_shared.seed import DEFAULT_AGENTS_CONFIG
         for agent_def in DEFAULT_AGENTS_CONFIG:
             session.add(
                 AgentConfiguration(
                     org_id=org_id,
                     agent_name=agent_def["agent_name"],
+                    data_source_id=ds_id if agent_def["agent_name"] == "brand_liability" else None,
                     model_name=agent_def["model_name"],
                     temperature=agent_def["temperature"],
                     system_prompt=agent_def["system_prompt"],
@@ -249,7 +322,7 @@ async def register(payload: RegisterRequest) -> AuthResponse:
                 )
             )
 
-        logger.info(f"Registered new organization {org_id} with admin user {email}")
+        logger.info(f"Registered new organization {org_id} with full default stack and admin user {email}")
 
     token = create_access_token({
         "uid": user_id,

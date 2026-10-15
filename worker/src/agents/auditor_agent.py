@@ -182,15 +182,15 @@ async def run_auditor_agent(
         org_id,
     )
 
-    result = await run_agent(
-        agent=agent,
-        user_message=prompt,
-        session_id=session_id,
-        user_id=recycler_id,
-    )
-
-    text = result.get("response", "")
     try:
+        result = await run_agent(
+            agent=agent,
+            user_message=prompt,
+            session_id=session_id,
+            user_id=recycler_id,
+        )
+
+        text = result.get("response", "")
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0]
         elif "```" in text:
@@ -198,8 +198,8 @@ async def run_auditor_agent(
         data = json.loads(text.strip())
         if isinstance(data, dict) and "verdict" in data:
             return data
-    except (json.JSONDecodeError, IndexError):
-        logger.warning("Could not parse JSON from auditor agent; evaluating deterministically")
+    except Exception as exc:
+        logger.warning(f"Auditor agent LLM execution failed ({exc}); evaluating physics deterministically")
 
     # High-reliability fallback: deterministic evaluation
     fallback = evaluate_scada_signature(

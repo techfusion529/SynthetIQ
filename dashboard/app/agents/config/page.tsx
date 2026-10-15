@@ -27,6 +27,7 @@ import StorageIcon from "@mui/icons-material/Storage";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 
 import { useRouter } from "next/navigation";
+import PageHeader from "@/components/ui/PageHeader";
 import { useSession } from "../../lib/contexts/SessionContext";
 
 const API_BASE =
@@ -384,53 +385,35 @@ export default function AgentConfigStudioPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
-      <Breadcrumbs>
-        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>
-          Executive Hub
-        </Link>
-        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/agents")}>
-          Agents
-        </Link>
-        <Typography color="primary.light" fontWeight={600}>
-          Multi-Agent Dynamic Configuration Studio
-        </Typography>
-      </Breadcrumbs>
-
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <SmartToyIcon color="primary" /> Configurable Multi-Agent System Studio
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Bind tenant data sources to specific agents, customize Gemini model prompts, and tune physics & treasury thresholds.
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", gap: 1.5 }}>
-          <Button
-            variant="contained"
-            color="success"
-            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
-            onClick={handleSave}
-            disabled={saving || !currentConfig}
-            sx={{ fontWeight: 600, textTransform: "none" }}
-          >
-            {saving ? "Saving Changes..." : "Save Configuration"}
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={testing ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
-            onClick={handleTestAgent}
-            disabled={testing || !currentConfig}
-            sx={{
-              background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)",
-              fontWeight: 600,
-              textTransform: "none",
-            }}
-          >
-            {testing ? "Executing Test..." : "Test with Dynamic Data"}
-          </Button>
-        </Box>
-      </Box>
+      <PageHeader
+        title="Configurable Multi-Agent System Studio"
+        icon={<SmartToyIcon fontSize="medium" />}
+        description="Bind tenant data sources to specific agents, customize Gemini model prompts, and tune physics & treasury thresholds."
+        actions={
+          <>
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+              onClick={handleSave}
+              disabled={saving || !currentConfig}
+            >
+              {saving ? "Saving Changes..." : "Save Configuration"}
+            </Button>
+            <Button
+              variant="outlined"
+              color="primary"
+              size="small"
+              startIcon={testing ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+              onClick={handleTestAgent}
+              disabled={testing || !currentConfig}
+            >
+              {testing ? "Executing Test..." : "Test with Dynamic Data"}
+            </Button>
+          </>
+        }
+      />
 
       {saveSuccess && (
         <Alert severity="success" icon={<CheckCircleOutlineIcon />}>
@@ -474,7 +457,7 @@ export default function AgentConfigStudioPage() {
                 </Typography>
               </Box>
 
-              <Divider sx={{ borderColor: "rgba(255,255,255,0.06)" }} />
+              <Divider />
 
               {/* Data Source Binding */}
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
@@ -598,16 +581,27 @@ export default function AgentConfigStudioPage() {
 
               {testResult && !testing && (
                 <Paper
+                  variant="outlined"
                   sx={{
                     p: 2,
-                    bgcolor: "rgba(0,0,0,0.3)",
-                    borderRadius: 2,
-                    border: "1px solid rgba(255,255,255,0.06)",
+                    bgcolor: (t) => t.palette.mode === "dark" ? "#0D1117" : "#F8FAFC",
+                    borderRadius: "2px",
+                    borderColor: "divider",
                     maxHeight: 480,
                     overflow: "auto",
                   }}
                 >
-                  <Typography variant="caption" fontFamily="monospace" component="pre" sx={{ m: 0, color: "#86EFAC" }}>
+                  <Typography
+                    variant="caption"
+                    fontFamily='var(--font-plex), "IBM Plex Sans", monospace'
+                    component="pre"
+                    sx={{
+                      m: 0,
+                      color: (t) => t.palette.mode === "dark" ? "#86EFAC" : "#15803d",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-all",
+                    }}
+                  >
                     {JSON.stringify(testResult, null, 2)}
                   </Typography>
                 </Paper>

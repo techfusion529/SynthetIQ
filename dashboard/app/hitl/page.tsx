@@ -18,6 +18,7 @@ import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
 import CircularProgress from "@mui/material/CircularProgress";
 import InfoIcon from "@mui/icons-material/Info";
+import PageHeader from "@/components/ui/PageHeader";
 
 import { useHitlService } from "../lib/hooks/useServices";
 import { useSession } from "../lib/contexts/SessionContext";
@@ -193,33 +194,11 @@ export default function HitlPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
-      <Breadcrumbs>
-        <Link
-          underline="hover"
-          color="text.secondary"
-          sx={{ cursor: "pointer" }}
-          onClick={() => router.push("/")}
-        >
-          Executive Hub
-        </Link>
-        <Typography color="primary.light" fontWeight={600}>
-          HITL Console
-        </Typography>
-      </Breadcrumbs>
-
-      {/* Header */}
-      <Box>
-        <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 0.5 }}>
-          <Typography variant="h5" fontWeight={700}>
-            HITL Console
-          </Typography>
-          <Chip label="Human-in-the-Loop" size="small" color="warning" />
-        </Box>
-        <Typography variant="body2" color="text.secondary">
-          Review and resolve workflow runs that require human approval before
-          processing can continue.
-        </Typography>
-      </Box>
+      <PageHeader
+        title="HITL Console"
+        tags={<Chip label="Human-in-the-Loop" size="small" color="warning" sx={{ borderRadius: "2px", height: 20, fontSize: "0.68rem", fontWeight: 700 }} />}
+        description="Review and resolve workflow runs that require human approval before processing can continue."
+      />
 
       <Grid container spacing={3}>
         {/* Left pane — run list */}
@@ -276,7 +255,7 @@ export default function HitlPage() {
                           selectedRunId === run.run_id
                             ? "rgba(79,70,229,0.08)"
                             : "transparent",
-                        "&:hover": { bgcolor: "rgba(255,255,255,0.04)" },
+                        "&:hover": { bgcolor: (t) => t.palette.mode === "dark" ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)" },
                         transition: "border-color 0.15s, background-color 0.15s",
                       }}
                     >

@@ -52,61 +52,8 @@ import type { SystemConfig } from "./lib/types/config.types";
 import type { Auction } from "./lib/types/auction.types";
 import type { EscrowPO } from "./lib/types/settlement.types";
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, Cell } from "recharts";
-
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-function KpiCard({
-  label,
-  value,
-  unit,
-  icon,
-  color,
-  loading,
-  error,
-  subtitle,
-}: {
-  label: string;
-  value?: string | number | null;
-  unit?: string;
-  icon: React.ReactNode;
-  color: string;
-  loading: boolean;
-  error?: string | null;
-  subtitle?: string;
-}) {
-  return (
-    <Card sx={{ height: "100%", position: "relative", overflow: "hidden" }}>
-      <CardContent sx={{ p: "20px !important" }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <Typography variant="caption" color="text.secondary" textTransform="uppercase" letterSpacing="0.08em" fontWeight={700}>
-            {label}
-          </Typography>
-          <Box sx={{ color, opacity: 0.9 }}>{icon}</Box>
-        </Box>
-        {loading ? (
-          <Skeleton variant="text" width="65%" height={48} sx={{ mt: 1 }} />
-        ) : error ? (
-          <Alert severity="error" sx={{ mt: 1, py: 0.5, fontSize: "0.75rem" }}>{error}</Alert>
-        ) : (
-          <>
-            <Typography variant="h4" fontWeight={700} sx={{ mt: 1.5, color }} fontFamily="monospace">
-              {value ?? "—"}
-              {unit && (
-                <Typography component="span" variant="body2" color="text.secondary" fontFamily="sans-serif" ml={0.75} fontWeight={500}>
-                  {unit}
-                </Typography>
-              )}
-            </Typography>
-            {subtitle && (
-              <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                {subtitle}
-              </Typography>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+import StatCard from "@/components/ui/StatCard";
+import StatusBadge from "@/components/ui/StatusBadge";
 
 // ─── Stage Execution Badge ───────────────────────────────────────────────────
 function StageBadge({ step }: { step: E2EStep }) {
@@ -323,8 +270,8 @@ export default function ExecutiveOverviewPage() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 5 }}>
       {/* ── Top System Engine Status Strip ──────────────────────────────────── */}
-      <Card variant="outlined" sx={{ bgcolor: "rgba(15,23,42,0.6)", backdropFilter: "blur(8px)" }}>
-        <CardContent sx={{ py: "12px !important", px: 2 }}>
+      <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider" }}>
+        <CardContent sx={{ py: "10px !important", px: 2 }}>
           <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
               <Chip
@@ -332,14 +279,14 @@ export default function ExecutiveOverviewPage() {
                 label="Zero-Trust Architecture"
                 size="small"
                 color="primary"
-                sx={{ fontWeight: 700 }}
+                sx={{ fontWeight: 700, borderRadius: "2px", height: 22 }}
               />
               <Typography variant="caption" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                System 2: <strong style={{ color: "#f1f5f9" }}>{config?.gemini?.model ?? "Gemini 3.8 Flash"}</strong>
+                System 2: <Typography component="span" variant="caption" fontWeight={700} color="text.primary">{config?.gemini?.model ?? "Gemini 3.8 Flash"}</Typography>
               </Typography>
               <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
               <Typography variant="caption" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                System 1: <strong style={{ color: "#06b6d4" }}>{config?.jev_mode?.mode ?? "Physics Ensemble"}</strong>
+                System 1: <Typography component="span" variant="caption" fontWeight={700} color="primary.main">{config?.jev_mode?.mode ?? "Physics Ensemble"}</Typography>
               </Typography>
               <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
               <Typography variant="caption" color="text.secondary">
@@ -357,7 +304,7 @@ export default function ExecutiveOverviewPage() {
                   boxShadow: "0 0 6px #10b981",
                 }}
               />
-              <Typography variant="caption" color="success.light" fontWeight={600} fontFamily="monospace">
+              <Typography variant="caption" color="success.main" fontWeight={600} fontFamily="monospace">
                 Temporal: {config?.endpoints?.temporal_host ?? "Connected (temporal-server:7233)"}
               </Typography>
             </Box>
@@ -368,8 +315,9 @@ export default function ExecutiveOverviewPage() {
       {/* ── Enterprise Hero & Autonomous Run Orchestration Cockpit ──────────── */}
       <Card
         sx={{
-          background: "linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(30,27,75,0.4) 100%)",
-          border: "1px solid rgba(99,102,241,0.25)",
+          bgcolor: "background.paper",
+          border: "1px solid",
+          borderColor: "divider",
         }}
       >
         <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
@@ -377,16 +325,16 @@ export default function ExecutiveOverviewPage() {
             {/* Title & Organization Info */}
             <Grid item xs={12} lg={6}>
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
-                <Chip label={company?.name ?? "Enterprise PIBO Portal"} color="primary" size="small" sx={{ fontWeight: 700 }} />
+                <Chip label={company?.name ?? "Enterprise PIBO Portal"} color="primary" size="small" sx={{ fontWeight: 700, borderRadius: "2px" }} />
                 {company?.gstin && (
-                  <Chip label={`GSTIN: ${company.gstin}`} size="small" variant="outlined" sx={{ fontFamily: "monospace" }} />
+                  <Chip label={`GSTIN: ${company.gstin}`} size="small" variant="outlined" sx={{ fontFamily: "monospace", borderRadius: "2px" }} />
                 )}
                 {company?.industry_sector && (
-                  <Chip label={company.industry_sector} size="small" variant="outlined" />
+                  <Chip label={company.industry_sector} size="small" variant="outlined" sx={{ borderRadius: "2px" }} />
                 )}
               </Box>
 
-              <Typography variant="h4" fontWeight={800} letterSpacing="-0.02em">
+              <Typography variant="h4" fontWeight={800} letterSpacing="-0.02em" color="text.primary">
                 Autonomous EPR Compliance & Anti-Fraud Engine
               </Typography>
               <Typography variant="body2" color="text.secondary" mt={1} sx={{ maxWidth: 560, lineHeight: 1.6 }}>
@@ -423,9 +371,9 @@ export default function ExecutiveOverviewPage() {
               <Card
                 variant="outlined"
                 sx={{
-                  bgcolor: "rgba(10,15,30,0.8)",
+                  bgcolor: (t) => t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#F5F7F9",
                   p: 2.5,
-                  borderColor: simulateSpoof ? "rgba(244,63,94,0.4)" : "rgba(79,70,229,0.3)",
+                  borderColor: simulateSpoof ? "rgba(244,63,94,0.4)" : "divider",
                 }}
               >
                 <Typography variant="subtitle2" fontWeight={700} mb={1.5} color="text.primary">
@@ -566,10 +514,10 @@ export default function ExecutiveOverviewPage() {
                 label={latestRun.status}
                 size="small"
                 color={latestRun.status === "HALTED_DUE_TO_FRAUD" ? "error" : "success"}
-                sx={{ fontWeight: 700 }}
+                sx={{ fontWeight: 700, borderRadius: "2px" }}
               />
               <Typography variant="caption" color="text.secondary" sx={{ ml: "auto" }}>
-                Execution Time: {latestRun.duration_seconds}s
+                Execution Time: {latestRun.duration_seconds != null ? `${latestRun.duration_seconds}s` : "—"}
               </Typography>
               {latestRun.portal_ack_number && (
                 <Chip
@@ -577,7 +525,7 @@ export default function ExecutiveOverviewPage() {
                   size="small"
                   color="secondary"
                   variant="outlined"
-                  sx={{ fontFamily: "monospace", fontSize: "0.7rem", fontWeight: 700 }}
+                  sx={{ fontFamily: "monospace", fontSize: "0.7rem", fontWeight: 700, borderRadius: "2px" }}
                 />
               )}
               <Tooltip title="Inspect in Temporal UI">
@@ -606,7 +554,7 @@ export default function ExecutiveOverviewPage() {
       {/* ── KPI Metrics Strip ─────────────────────────────────────────────────── */}
       <Grid container spacing={2}>
         <Grid item xs={12} sm={6} lg={3}>
-          <KpiCard
+          <StatCard
             label="Gross Packaging Ingestion"
             value={grossTons != null ? grossTons.toLocaleString() : null}
             unit="Tons"
@@ -618,7 +566,7 @@ export default function ExecutiveOverviewPage() {
           />
         </Grid>
         <Grid item xs={12} sm={6} lg={3}>
-          <KpiCard
+          <StatCard
             label="Net EPR Digital Deficit"
             value={netDeficit != null ? netDeficit.toLocaleString() : null}
             unit="Tons"
@@ -630,7 +578,7 @@ export default function ExecutiveOverviewPage() {
           />
         </Grid>
         <Grid item xs={12} sm={6} lg={3}>
-          <KpiCard
+          <StatCard
             label="80/20 Escrow Commitments"
             value={totalEscrowInr > 0 ? `₹${(totalEscrowInr / 100000).toFixed(2)}` : "₹0"}
             unit="Lakhs"
@@ -642,7 +590,7 @@ export default function ExecutiveOverviewPage() {
           />
         </Grid>
         <Grid item xs={12} sm={6} lg={3}>
-          <KpiCard
+          <StatCard
             label="SCADA Physics Verification"
             value={auditApprovalPct != null ? `${auditApprovalPct}%` : "—"}
             subtitle={`${approvedAudits} of ${audits.length} Audits Approved`}
@@ -687,10 +635,10 @@ export default function ExecutiveOverviewPage() {
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} />
                       <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} />
                       <RTooltip
-                        contentStyle={{ background: "#0f172a", border: "1px solid rgba(148,163,184,0.12)", borderRadius: 8, fontSize: 12 }}
+                        contentStyle={{ background: "#1C2329", border: "1px solid #2C353D", borderRadius: 2, fontSize: 12, color: "#FFFFFF" }}
                         formatter={(v: any) => [`${Number(v).toLocaleString()} Tons`, "Obligation"]}
                       />
-                      <Bar dataKey="tons" radius={[4, 4, 0, 0]}>
+                      <Bar dataKey="tons" radius={[2, 2, 0, 0]}>
                         {categoryData.map((entry) => (
                           <Cell key={entry.key} fill={entry.color} />
                         ))}
@@ -715,8 +663,9 @@ export default function ExecutiveOverviewPage() {
                             value={pct}
                             sx={{
                               mt: 0.5,
-                              bgcolor: "rgba(255,255,255,0.06)",
-                              "& .MuiLinearProgress-bar": { bgcolor: cat.color },
+                              borderRadius: "2px",
+                              bgcolor: (t) => t.palette.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                              "& .MuiLinearProgress-bar": { bgcolor: cat.color, borderRadius: "2px" },
                             }}
                           />
                         </Box>

@@ -43,6 +43,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import SyncIcon from "@mui/icons-material/Sync";
+import PageHeader from "@/components/ui/PageHeader";
 
 import { useRouter } from "next/navigation";
 import { useSession } from "../lib/contexts/SessionContext";
@@ -406,65 +407,33 @@ export default function DataSourcesPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
-      <Breadcrumbs>
-        <Link
-          underline="hover"
-          color="text.secondary"
-          sx={{ cursor: "pointer" }}
-          onClick={() => router.push("/")}
-        >
-          Executive Hub
-        </Link>
-        <Typography color="primary.light" fontWeight={600}>
-          Dynamic Data Sources & Connectors
-        </Typography>
-      </Breadcrumbs>
-
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          gap: 2,
-        }}
-      >
-        <Box>
-          <Typography
-            variant="h5"
-            fontWeight={700}
-            sx={{ display: "flex", alignItems: "center", gap: 1 }}
-          >
-            <StorageIcon color="primary" /> Dynamic Data Sources Studio
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Connect ERP databases, BigQuery pipelines, and SCADA telemetry feeds. Data feeds
-            directly into the multi-agent system.
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", gap: 1.5 }}>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={fetchSources}
-            disabled={loading}
-          >
-            Refresh
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() => setModalOpen(true)}
-            sx={{
-              fontWeight: 600,
-              textTransform: "none",
-            }}
-          >
-            Add Data Connection
-          </Button>
-        </Box>
-      </Box>
+      <PageHeader
+        title="Dynamic Data Sources Studio"
+        icon={<StorageIcon color="primary" fontSize="medium" />}
+        description="Connect ERP databases, BigQuery pipelines, and SCADA telemetry feeds. Data feeds directly into the multi-agent system."
+        actions={
+          <>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<RefreshIcon />}
+              onClick={fetchSources}
+              disabled={loading}
+            >
+              Refresh
+            </Button>
+            <Button
+              variant="contained"
+              size="small"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={() => setModalOpen(true)}
+            >
+              Add Data Connection
+            </Button>
+          </>
+        }
+      />
 
       {error && <Alert severity="error">{error}</Alert>}
 
@@ -560,8 +529,9 @@ export default function DataSourcesPage() {
                 {src.source_type === "csv" && (
                   <Box
                     sx={{
-                      border: "1px dashed rgba(255,255,255,0.15)",
-                      borderRadius: 1.5,
+                      border: "1px dashed",
+                      borderColor: "divider",
+                      borderRadius: "2px",
                       p: 1.5,
                       display: "flex",
                       flexDirection: "column",
@@ -664,8 +634,9 @@ export default function DataSourcesPage() {
                   elevation={0}
                   sx={{
                     bgcolor: "transparent",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: "8px !important",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: "2px !important",
                     "&:before": { display: "none" },
                   }}
                 >
@@ -821,7 +792,8 @@ export default function DataSourcesPage() {
                     justifyContent: "space-between",
                     alignItems: "center",
                     pt: 1,
-                    borderTop: "1px solid rgba(255,255,255,0.06)",
+                    borderTop: "1px solid",
+                    borderColor: "divider",
                     flexWrap: "wrap",
                     gap: 1,
                   }}

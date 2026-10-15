@@ -29,6 +29,7 @@ import LockIcon from "@mui/icons-material/Lock";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import HowToRegIcon from "@mui/icons-material/HowToReg";
 import ShieldIcon from "@mui/icons-material/Shield";
+import PageHeader from "@/components/ui/PageHeader";
 
 import { useSettlementService } from "../lib/hooks/useServices";
 import { ApiError } from "../lib/services/base.service";
@@ -103,25 +104,22 @@ export default function SettlementPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
-      <Breadcrumbs>
-        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>Executive Hub</Link>
-        <Typography color="success.light" fontWeight={600}>Workflow 4 — Settlement & Escrow</Typography>
-      </Breadcrumbs>
-
-      {/* Header */}
-      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <AccountBalanceWalletIcon color="success" /> Financial Settlement & 80/20 Escrow Gate
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Split-Payment Escrow PO in SAP/Oracle: 80% advance on physical melt proof, 20% retention until CPCB acceptance
-          </Typography>
-        </Box>
-        <Button variant="contained" color="success" endIcon={<ArrowForwardIcon />} onClick={() => router.push("/dispatch")}>
-          View CPCB Form-1 Vault
-        </Button>
-      </Box>
+      <PageHeader
+        title="Financial Settlement & 80/20 Escrow Gate"
+        icon={<AccountBalanceWalletIcon color="success" fontSize="medium" />}
+        description="Split-Payment Escrow PO in SAP/Oracle: 80% advance on physical melt proof, 20% retention until CPCB acceptance"
+        actions={
+          <Button
+            variant="contained"
+            color="success"
+            size="small"
+            endIcon={<ArrowForwardIcon />}
+            onClick={() => router.push("/dispatch")}
+          >
+            View CPCB Form-1 Vault
+          </Button>
+        }
+      />
 
       {error    && <Alert severity="error">{error}</Alert>}
       {approveResult && <Alert severity="success" icon={<CheckCircleIcon />}>{approveResult}</Alert>}
@@ -177,8 +175,8 @@ export default function SettlementPage() {
                 </Box>
 
                 {/* Visual split bar */}
-                <Box sx={{ display: "flex", height: 48, borderRadius: 2, overflow: "hidden", gap: 0.5, p: 0.5, bgcolor: "rgba(255,255,255,0.04)", border: "1px solid", borderColor: "divider" }}>
-                  <Box sx={{ width: `${advancePct ?? 80}%`, bgcolor: "success.dark", borderRadius: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", px: 2 }}>
+                <Box sx={{ display: "flex", height: 48, borderRadius: "2px", overflow: "hidden", gap: 0.5, p: 0.5, bgcolor: (t) => t.palette.mode === "dark" ? "rgba(255,255,255,0.04)" : "#F1F5F9", border: "1px solid", borderColor: "divider" }}>
+                  <Box sx={{ width: `${advancePct ?? 80}%`, bgcolor: "success.dark", borderRadius: "2px", display: "flex", alignItems: "center", justifyContent: "space-between", px: 2 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <CheckCircleIcon fontSize="small" sx={{ color: "success.contrastText" }} />
                       <Typography variant="caption" fontWeight={700} color="success.contrastText">{advancePct ?? 80}% Advance</Typography>

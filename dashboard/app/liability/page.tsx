@@ -17,13 +17,11 @@ import TableRow from "@mui/material/TableRow";
 import TableCell from "@mui/material/TableCell";
 import TableBody from "@mui/material/TableBody";
 import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
-import Breadcrumbs from "@mui/material/Breadcrumbs";
-import Link from "@mui/material/Link";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ScaleIcon from "@mui/icons-material/Scale";
 import CalculateIcon from "@mui/icons-material/Calculate";
-
+import PageHeader from "@/components/ui/PageHeader";
+import StatCard from "@/components/ui/StatCard";
 import { useOrganization as useCompany } from "../lib/contexts/OrganizationContext";
 import { useLiabilityService } from "../lib/hooks/useServices";
 import { ApiError } from "../lib/services/base.service";
@@ -35,20 +33,6 @@ const CATEGORY_META: Record<string, { label: string; color: "primary" | "seconda
   cat_iii_mlp:        { label: "Category III — Multi-Layer (MLP)", color: "success" },
   cat_iv_compostable: { label: "Category IV — Compostable",        color: "warning" },
 };
-
-function StatCard({ label, value, unit, color }: { label: string; value: number | null; unit?: string; color?: string }) {
-  return (
-    <Card sx={{ height: "100%" }}>
-      <CardContent>
-        <Typography variant="caption" textTransform="uppercase" letterSpacing="0.06em" color="text.secondary" fontWeight={600}>{label}</Typography>
-        <Typography variant="h4" fontWeight={700} fontFamily="monospace" sx={{ mt: 1, color: color ?? "text.primary" }}>
-          {value != null ? value.toLocaleString() : "—"}
-          {unit && <Typography component="span" variant="body2" color="text.secondary" ml={0.5}>{unit}</Typography>}
-        </Typography>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function LiabilityPage() {
   const router = useRouter();
@@ -123,26 +107,21 @@ export default function LiabilityPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
-      {/* Breadcrumb */}
-      <Breadcrumbs>
-        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>Executive Hub</Link>
-        <Typography color="primary.light" fontWeight={600}>Workflow 1 — Liability & Sourcing</Typography>
-      </Breadcrumbs>
-
-      {/* Header */}
-      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <ScaleIcon color="primary" /> Plastic Liability & 1/3 Debt Amortization Matrix
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            CPCB EPR Guidelines 2026 — mathematical debt amortization and statutory conversion factors (Cf)
-          </Typography>
-        </Box>
-        <Button variant="contained" endIcon={<ArrowForwardIcon />} onClick={() => router.push("/auction")}>
-          Proceed to Auction Room
-        </Button>
-      </Box>
+      <PageHeader
+        title="Plastic Liability & 1/3 Debt Amortization Matrix"
+        icon={<ScaleIcon fontSize="medium" />}
+        description="CPCB EPR Guidelines 2026 — mathematical debt amortization and statutory conversion factors (Cf)"
+        actions={
+          <Button
+            variant="contained"
+            size="small"
+            endIcon={<ArrowForwardIcon />}
+            onClick={() => router.push("/auction")}
+          >
+            Proceed to Auction Room
+          </Button>
+        }
+      />
 
       {error && <Alert severity={error.includes("No liability") ? "warning" : "error"}>{error}</Alert>}
 

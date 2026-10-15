@@ -23,6 +23,7 @@ import SmartToyIcon from "@mui/icons-material/SmartToy";
 import HubIcon from "@mui/icons-material/Hub";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useRouter } from "next/navigation";
+import PageHeader from "@/components/ui/PageHeader";
 import { useComplianceService, useConfigService, useAuditService } from "../lib/hooks/useServices";
 import { ApiError } from "../lib/services/base.service";
 import type { E2ERunResult, E2EStep } from "../lib/types/compliance.types";
@@ -71,34 +72,22 @@ export default function AgentsPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
-      <Breadcrumbs>
-        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>
-          Executive Hub
-        </Link>
-        <Typography color="primary.light" fontWeight={600}>
-          Agent Orchestration & Temporal Engine
-        </Typography>
-      </Breadcrumbs>
-
-      {/* Header */}
-      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <SmartToyIcon color="primary" /> Multi-Agent Orchestration & Temporal Telemetry
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Zero-trust state machine coordinating System 2 LLM reasoning, TypeSafe Jev physics reflexes, and ERP transactions.
-          </Typography>
-        </Box>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={loadData}
-          disabled={loading}
-        >
-          Refresh State
-        </Button>
-      </Box>
+      <PageHeader
+        title="Multi-Agent Orchestration & Temporal Telemetry"
+        icon={<SmartToyIcon fontSize="medium" />}
+        description="Zero-trust state machine coordinating System 2 LLM reasoning, TypeSafe Jev physics reflexes, and ERP transactions."
+        actions={
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<RefreshIcon />}
+            onClick={loadData}
+            disabled={loading}
+          >
+            Refresh State
+          </Button>
+        }
+      />
 
       {error && <Alert severity="error">{error}</Alert>}
 
@@ -299,7 +288,7 @@ export default function AgentsPage() {
                         variant="outlined"
                         sx={{
                           p: 2,
-                          bgcolor: "rgba(255,255,255,0.02)",
+                          bgcolor: (t) => t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#F8FAFC",
                           borderColor: step.status === "COMPLETED" ? "rgba(16,185,129,0.3)" : "rgba(244,63,94,0.3)",
                         }}
                       >
@@ -315,18 +304,27 @@ export default function AgentsPage() {
                             </Typography>
                           </Box>
                           <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                            <Chip label={step.service} size="small" variant="outlined" sx={{ fontSize: "0.65rem", height: 20 }} />
+                            <Chip label={step.service} size="small" variant="outlined" sx={{ fontSize: "0.65rem", height: 20, borderRadius: "2px" }} />
                             <Chip
                               label={step.status}
                               size="small"
                               color={step.status === "COMPLETED" ? "success" : "error"}
-                              sx={{ fontSize: "0.65rem", height: 20 }}
+                              sx={{ fontSize: "0.65rem", height: 20, borderRadius: "2px" }}
                             />
                           </Box>
                         </Box>
 
                         {/* Live Step Payload Data */}
-                        <Box sx={{ mt: 1, p: 1.5, bgcolor: "rgba(0,0,0,0.3)", borderRadius: 1.5 }}>
+                        <Box
+                          sx={{
+                            mt: 1,
+                            p: 1.5,
+                            bgcolor: (t) => t.palette.mode === "dark" ? "#0D1117" : "#EDF2F7",
+                            border: "1px solid",
+                            borderColor: "divider",
+                            borderRadius: "2px",
+                          }}
+                        >
                           <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" mb={0.5}>
                             Verified Agent Output:
                           </Typography>
@@ -335,8 +333,8 @@ export default function AgentsPage() {
                             sx={{
                               m: 0,
                               fontSize: "0.75rem",
-                              fontFamily: "monospace",
-                              color: "#38bdf8",
+                              fontFamily: 'var(--font-plex), "IBM Plex Sans", monospace',
+                              color: (t) => t.palette.mode === "dark" ? "#38bdf8" : "#0284c7",
                               overflowX: "auto",
                               whiteSpace: "pre-wrap",
                               wordBreak: "break-all",

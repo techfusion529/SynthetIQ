@@ -33,6 +33,7 @@ import Tooltip from "@mui/material/Tooltip";
 import BusinessIcon from "@mui/icons-material/Business";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
+import PageHeader from "@/components/ui/PageHeader";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
@@ -197,48 +198,37 @@ export default function OrganizationsPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
-      <Breadcrumbs>
-        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>
-          Executive Hub
-        </Link>
-        <Typography color="primary.light" fontWeight={600}>
-          Organizations & Team Management
-        </Typography>
-      </Breadcrumbs>
-
-      {/* Header */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <BusinessIcon color="primary" /> Enterprise Multi-Tenancy & Access Control
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage organization profiles, onboard entities, and assign Role-Based Access Control (RBAC) permissions.
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", gap: 1.5 }}>
-          {activeTab === 1 && (
+      <PageHeader
+        title="Enterprise Multi-Tenancy & Access Control"
+        icon={<BusinessIcon color="primary" fontSize="medium" />}
+        description="Manage organization profiles, onboard entities, and assign Role-Based Access Control (RBAC) permissions."
+        actions={
+          <>
+            {activeTab === 1 && (
+              <Button
+                variant="contained"
+                size="small"
+                color="primary"
+                startIcon={<PersonAddIcon />}
+                onClick={() => setInviteModalOpen(true)}
+              >
+                Add Team Member
+              </Button>
+            )}
             <Button
-              variant="contained"
-              startIcon={<PersonAddIcon />}
-              onClick={() => setInviteModalOpen(true)}
-              sx={{ background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)", textTransform: "none" }}
+              variant="outlined"
+              size="small"
+              startIcon={<RefreshIcon />}
+              onClick={() => {
+                fetchOrgs();
+                fetchMembers();
+              }}
             >
-              Add Team Member
+              Refresh
             </Button>
-          )}
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={() => {
-              fetchOrgs();
-              fetchMembers();
-            }}
-          >
-            Refresh
-          </Button>
-        </Box>
-      </Box>
+          </>
+        }
+      />
 
       {feedback && (
         <Alert severity={feedback.type} onClose={() => setFeedback(null)}>

@@ -12,8 +12,8 @@ import Chip from "@mui/material/Chip";
 import Breadcrumbs from "@mui/material/Breadcrumbs";
 import Link from "@mui/material/Link";
 import CircularProgress from "@mui/material/CircularProgress";
-import Divider from "@mui/material/Divider";
 import { useRouter } from "next/navigation";
+import PageHeader from "@/components/ui/PageHeader";
 
 import { useScheduleService } from "../lib/hooks/useServices";
 import { ApiError } from "../lib/services/base.service";
@@ -101,27 +101,22 @@ export default function SchedulesPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
-      <Breadcrumbs>
-        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>Executive Hub</Link>
-        <Typography color="primary.light" fontWeight={600}>Schedules — Temporal Workflow Automation</Typography>
-      </Breadcrumbs>
-
-      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700}>Scheduled Multi‑Agent Workflows</Typography>
-          <Typography variant="body2" color="text.secondary">
-            Temporal‑driven periodic compliance runs (daily, weekly, monthly) with automatic audit and settlement.
-          </Typography>
-        </Box>
-        <Button
-          variant="contained" color="primary"
-          onClick={handleActivate}
-          disabled={activating || schedules.length === 0}
-          startIcon={activating ? <CircularProgress size={14} color="inherit" /> : undefined}
-        >
-          {activating ? "Activating…" : "Activate Next Schedule"}
-        </Button>
-      </Box>
+      <PageHeader
+        title="Scheduled Multi‑Agent Workflows"
+        description="Temporal‑driven periodic compliance runs (daily, weekly, monthly) with automatic audit and settlement."
+        actions={
+          <Button
+            variant="contained"
+            size="small"
+            color="primary"
+            onClick={handleActivate}
+            disabled={activating || schedules.length === 0}
+            startIcon={activating ? <CircularProgress size={14} color="inherit" /> : undefined}
+          >
+            {activating ? "Activating…" : "Activate Next Schedule"}
+          </Button>
+        }
+      />
 
       {error && <Alert severity="error">{error}</Alert>}
       {activateError && <Alert severity="error">{activateError}</Alert>}

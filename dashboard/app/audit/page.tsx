@@ -26,6 +26,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import FlashOnIcon from "@mui/icons-material/FlashOn";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import PageHeader from "@/components/ui/PageHeader";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip as RTooltip,
   ResponsiveContainer, ReferenceLine,
@@ -162,45 +163,29 @@ export default function AuditPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
-      <Breadcrumbs>
-        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>
-          Executive Hub
-        </Link>
-        <Typography color="primary.light" fontWeight={600}>
-          Workflow 3 — Quad-Core Fraud Audit
-        </Typography>
-      </Breadcrumbs>
-
-      {/* Header */}
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "flex-start", justifyContent: "space-between" }}>
-        <Box>
-          <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 0.5 }}>
-            <Typography variant="h5" fontWeight={700}>Quad-Core Fraud Audit & Live SCADA Telemetry</Typography>
-            <Chip label="Workflow 3" size="small" color="primary" />
+      <PageHeader
+        title="Quad-Core Fraud Audit & Live SCADA Telemetry"
+        tags={<Chip label="Workflow 3" size="small" color="primary" sx={{ borderRadius: "2px", height: 20, fontSize: "0.68rem", fontWeight: 700 }} />}
+        description="Continuous real-time VFD telemetry inspection: VFD shaft torque, power factor physics, GST e-Way bills, and TypeSafe Jev reflexes."
+        actions={
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>Telemetry Input Mode:</Typography>
+            <ToggleButtonGroup
+              value={mode}
+              exclusive
+              onChange={(_, val) => val && setMode(val)}
+              size="small"
+            >
+              <ToggleButton value="GENUINE" sx={{ px: 2, fontSize: "0.75rem", fontWeight: 700 }}>
+                Genuine Extrusion
+              </ToggleButton>
+              <ToggleButton value="RESISTIVE_SPOOF" sx={{ px: 2, fontSize: "0.75rem", fontWeight: 700, color: "error.main" }}>
+                Resistive Spoof (Heaters)
+              </ToggleButton>
+            </ToggleButtonGroup>
           </Box>
-          <Typography variant="body2" color="text.secondary">
-            Continuous real-time VFD telemetry inspection: VFD shaft torque, power factor physics, GST e-Way bills, and TypeSafe Jev reflexes.
-          </Typography>
-        </Box>
-
-        {/* Telemetry Stream Mode Switcher */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={600}>Telemetry Input Mode:</Typography>
-          <ToggleButtonGroup
-            value={mode}
-            exclusive
-            onChange={(_, val) => val && setMode(val)}
-            size="small"
-          >
-            <ToggleButton value="GENUINE" sx={{ px: 2, fontSize: "0.75rem", fontWeight: 700 }}>
-              Genuine Extrusion
-            </ToggleButton>
-            <ToggleButton value="RESISTIVE_SPOOF" sx={{ px: 2, fontSize: "0.75rem", fontWeight: 700, color: "error.main" }}>
-              Resistive Spoof (Heaters)
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-      </Box>
+        }
+      />
 
       {streamAlert && <Alert severity="warning">{streamAlert}</Alert>}
 

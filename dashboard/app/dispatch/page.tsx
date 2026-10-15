@@ -33,6 +33,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningIcon from "@mui/icons-material/Warning";
 import DownloadIcon from "@mui/icons-material/Download";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import PageHeader from "@/components/ui/PageHeader";
 import { useRouter } from "next/navigation";
 
 import { useSettlementService, useRunService } from "../lib/hooks/useServices";
@@ -315,29 +316,22 @@ export default function DispatchPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
-      <Breadcrumbs>
-        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>Executive Hub</Link>
-        <Typography color="primary.light" fontWeight={600}>Form‑1 Vault — CPCB Dispatch</Typography>
-      </Breadcrumbs>
-
-      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <DescriptionIcon color="primary" /> CPCB Form-1 Statutory Dispatch Vault
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Zero‑trust cryptographic proofs: DSC X.509 dual-signature, CPCB National Portal submission &amp; 20% final retention release
-          </Typography>
-        </Box>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={loadData}
-          disabled={loading}
-        >
-          Refresh
-        </Button>
-      </Box>
+      <PageHeader
+        title="CPCB Form-1 Statutory Dispatch Vault"
+        icon={<DescriptionIcon color="primary" fontSize="medium" />}
+        description="Zero‑trust cryptographic proofs: DSC X.509 dual-signature, CPCB National Portal submission & 20% final retention release"
+        actions={
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<RefreshIcon />}
+            onClick={loadData}
+            disabled={loading}
+          >
+            Refresh
+          </Button>
+        }
+      />
 
       {/* ── Run Submission & Monitoring Panel ─────────────────────────────── */}
       <Card variant="outlined">
@@ -414,7 +408,7 @@ export default function DispatchPage() {
 
           {/* Run result summary */}
           {runResult && (
-            <Box sx={{ p: 1.5, bgcolor: "rgba(255,255,255,0.03)", borderRadius: 1, mb: 1.5 }}>
+            <Box sx={{ p: 1.5, bgcolor: (t) => t.palette.mode === "dark" ? "rgba(255,255,255,0.03)" : "#F8FAFC", border: "1px solid", borderColor: "divider", borderRadius: "2px", mb: 1.5 }}>
               <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 16px" }}>
                 <Typography variant="caption" color="text.secondary">Run ID:</Typography>
                 <Typography variant="caption" fontFamily="monospace" fontWeight={700}>{runResult.run_id}</Typography>
@@ -601,7 +595,7 @@ export default function DispatchPage() {
                       </Typography>
                     </Box>
                     {selectedForm.scada_vfd_verification && (
-                      <Box sx={{ mt: 1, p: 1, bgcolor: "rgba(255,255,255,0.03)", borderRadius: 1 }}>
+                      <Box sx={{ mt: 1, p: 1, bgcolor: (t) => t.palette.mode === "dark" ? "rgba(255,255,255,0.03)" : "#F1F5F9", border: "1px solid", borderColor: "divider", borderRadius: "2px" }}>
                         <Typography variant="caption" color="secondary.light" fontWeight={700} display="block">SCADA Physics Verified</Typography>
                         <Typography variant="caption" color="text.secondary">
                           Torque: {selectedForm.scada_vfd_verification.viscous_torque_nm} Nm · PF: {selectedForm.scada_vfd_verification.motor_power_factor} · Enthalpy: {selectedForm.scada_vfd_verification.thermodynamic_enthalpy_kwh_kg} kWh/kg

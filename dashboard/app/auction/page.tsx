@@ -27,6 +27,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import GavelIcon from "@mui/icons-material/Gavel";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import AddIcon from "@mui/icons-material/Add";
+import PageHeader from "@/components/ui/PageHeader";
 import SignalCellularAltIcon from "@mui/icons-material/SignalCellularAlt";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 
@@ -200,52 +201,53 @@ export default function AuctionPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
-      <Breadcrumbs>
-        <Link underline="hover" color="text.secondary" sx={{ cursor: "pointer" }} onClick={() => router.push("/")}>Executive Hub</Link>
-        <Typography color="primary.light" fontWeight={600}>Workflow 2 — Double Auction</Typography>
-      </Breadcrumbs>
-
-      {/* Header */}
-      <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <GavelIcon color="primary" /> Continuous Double Auction Room
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Treasury Agent autonomous matching locked within statutory 30%–100% price corridor
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-          <TextField
-            select
-            size="small"
-            label="Category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            sx={{ width: 170 }}
-          >
-            <MenuItem value="cat_i_rigid">Cat I — Rigid</MenuItem>
-            <MenuItem value="cat_ii_flexible">Cat II — Flexible</MenuItem>
-            <MenuItem value="cat_iii_mlp">Cat III — MLP</MenuItem>
-            <MenuItem value="cat_iv_compostable">Cat IV — Compostable</MenuItem>
-          </TextField>
-          <TextField
-            size="small" label="Target Tons" value={targetTons}
-            onChange={(e) => setTargetTons(e.target.value)}
-            sx={{ width: 120 }}
-            type="number"
-          />
-          <Button
-            variant="contained" startIcon={broadcasting ? <CircularProgress size={14} color="inherit" /> : <AddIcon />}
-            onClick={handleBroadcast} disabled={broadcasting || !companyId}
-          >
-            Broadcast RFP
-          </Button>
-          <Button variant="outlined" endIcon={<ArrowForwardIcon />} onClick={() => router.push("/audit")}>
-            Proceed to Audit
-          </Button>
-        </Box>
-      </Box>
+      <PageHeader
+        title="Continuous Double Auction Room"
+        icon={<GavelIcon fontSize="medium" />}
+        description="Treasury Agent autonomous matching locked within statutory 30%–100% price corridor"
+        actions={
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+            <TextField
+              select
+              size="small"
+              label="Category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              sx={{ width: 170 }}
+            >
+              <MenuItem value="cat_i_rigid">Cat I — Rigid</MenuItem>
+              <MenuItem value="cat_ii_flexible">Cat II — Flexible</MenuItem>
+              <MenuItem value="cat_iii_mlp">Cat III — MLP</MenuItem>
+              <MenuItem value="cat_iv_compostable">Cat IV — Compostable</MenuItem>
+            </TextField>
+            <TextField
+              size="small"
+              label="Target Tons"
+              value={targetTons}
+              onChange={(e) => setTargetTons(e.target.value)}
+              sx={{ width: 120 }}
+              type="number"
+            />
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={broadcasting ? <CircularProgress size={14} color="inherit" /> : <AddIcon />}
+              onClick={handleBroadcast}
+              disabled={broadcasting || !companyId}
+            >
+              Broadcast RFP
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              endIcon={<ArrowForwardIcon />}
+              onClick={() => router.push("/audit")}
+            >
+              Proceed to Audit
+            </Button>
+          </Box>
+        }
+      />
 
       {broadcastResult && (
         <Alert severity={broadcastResult.startsWith("Error") ? "error" : "success"}>{broadcastResult}</Alert>

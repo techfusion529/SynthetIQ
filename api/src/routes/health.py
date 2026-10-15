@@ -25,3 +25,21 @@ async def readiness_check() -> dict[str, Any]:
             "firebase": "ready",
         },
     }
+
+
+@router.api_route("/health/init-db", methods=["GET", "POST"])
+async def trigger_init_db() -> dict[str, Any]:
+    """Explicitly trigger idempotent database initialization and platform bootstrap."""
+    try:
+        import synthetiq_shared.models  # noqa: F401
+        from synthetiq_shared.database import init_db
+        from synthetiq_shared.bootstrap import bootstrap_platform
+        from synthetiq_shared.seed import seed_database
+
+        await init_db()
+        await bootstrap_platform()
+        await seed_database()
+        return {"status": "ok", "message": "Database tables and seeds initialized successfully"}
+    except Exception as exc:
+        import traceback
+        return {"status": "error", "error": str(exc), "trace": traceback.format_exc()}

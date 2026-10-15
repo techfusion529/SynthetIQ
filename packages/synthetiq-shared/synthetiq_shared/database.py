@@ -96,31 +96,42 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Create all tables and ensure essential columns exist."""
+    # Step 1: Create all tables in its own clean, committed transaction
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Self-healing column sync for PostgreSQL and SQLite
-        for col_stmt in [
-            "ALTER TABLE organizations ADD COLUMN status VARCHAR(32) DEFAULT 'active'",
-            "ALTER TABLE organizations ADD COLUMN org_type VARCHAR(64) DEFAULT 'brand_owner'",
-            "ALTER TABLE users ADD COLUMN platform_admin BOOLEAN DEFAULT 0",
-            "ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP",
-            "ALTER TABLE data_sources ADD COLUMN mapping JSON",
-            "ALTER TABLE data_sources ADD COLUMN secret_ref VARCHAR(256)",
-            "ALTER TABLE audit_records ADD COLUMN org_id VARCHAR(64)",
-            "ALTER TABLE audit_records ADD COLUMN ingestion_run_id VARCHAR(64)",
-            "ALTER TABLE auctions ADD COLUMN org_id VARCHAR(64)",
-            "ALTER TABLE bids ADD COLUMN org_id VARCHAR(64)",
-            "ALTER TABLE escrow_pos ADD COLUMN org_id VARCHAR(64)",
-            "ALTER TABLE form1_records ADD COLUMN org_id VARCHAR(64)",
-            "ALTER TABLE escrow_pos ADD COLUMN advance_amount FLOAT",
-            "ALTER TABLE escrow_pos ADD COLUMN holdback_amount FLOAT",
-            "ALTER TABLE escrow_pos ADD COLUMN escrow_status VARCHAR(32) DEFAULT 'held'",
-        ]:
-            try:
-                await conn.execute(text(col_stmt))
-            except Exception:
-                pass  # column already exists or table not created yet
-    logger.info("Database tables and columns created successfully")
+    logger.info("[DB] Base tables created and committed successfully")
+
+    # Step 2: Run each self-healing ALTER in an isolated transaction so one cannot abort another
+    is_pg = "postgresql" in DATABASE_URL
+    bool_default = "FALSE" if is_pg else "0"
+    if_not_exists = "IF NOT EXISTS " if is_pg else ""
+
+    alter_stmts = [
+        f"ALTER TABLE organizations ADD COLUMN {if_not_exists}status VARCHAR(32) DEFAULT 'active'",
+        f"ALTER TABLE organizations ADD COLUMN {if_not_exists}org_type VARCHAR(64) DEFAULT 'brand_owner'",
+        f"ALTER TABLE users ADD COLUMN {if_not_exists}platform_admin BOOLEAN DEFAULT {bool_default}",
+        f"ALTER TABLE users ADD COLUMN {if_not_exists}last_login_at TIMESTAMP",
+        f"ALTER TABLE data_sources ADD COLUMN {if_not_exists}mapping JSON",
+        f"ALTER TABLE data_sources ADD COLUMN {if_not_exists}secret_ref VARCHAR(256)",
+        f"ALTER TABLE audit_records ADD COLUMN {if_not_exists}org_id VARCHAR(64)",
+        f"ALTER TABLE audit_records ADD COLUMN {if_not_exists}ingestion_run_id VARCHAR(64)",
+        f"ALTER TABLE auctions ADD COLUMN {if_not_exists}org_id VARCHAR(64)",
+        f"ALTER TABLE bids ADD COLUMN {if_not_exists}org_id VARCHAR(64)",
+        f"ALTER TABLE escrow_pos ADD COLUMN {if_not_exists}org_id VARCHAR(64)",
+        f"ALTER TABLE form1_records ADD COLUMN {if_not_exists}org_id VARCHAR(64)",
+        f"ALTER TABLE escrow_pos ADD COLUMN {if_not_exists}advance_amount FLOAT",
+        f"ALTER TABLE escrow_pos ADD COLUMN {if_not_exists}holdback_amount FLOAT",
+        f"ALTER TABLE escrow_pos ADD COLUMN {if_not_exists}escrow_status VARCHAR(32) DEFAULT 'held'",
+    ]
+
+    for stmt in alter_stmts:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(stmt))
+        except Exception:
+            pass  # column already exists or table not yet migrated
+
+    logger.info("[DB] Database tables and self-healing columns verified successfully")
 
 
 async def close_db() -> None:

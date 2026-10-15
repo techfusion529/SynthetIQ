@@ -59,6 +59,8 @@ AuditDecisionInput = HumanApprovalSignal
 class DotDict(dict):
     """Dot-accessible dictionary for sandbox-safe configuration access without Pydantic."""
     def __getattr__(self, name: str) -> Any:
+        if name in ("model_dump", "dict"):
+            return lambda *args, **kwargs: dict(self)
         val = self.get(name)
         if isinstance(val, dict):
             return DotDict(val)
@@ -503,7 +505,7 @@ class MasterEPRComplianceWorkflow:
             # AGT-01: pass run_config so the activity can do deterministic pre-computation
             liability = await workflow.execute_activity(
                 calculate_brand_liability_activity,
-                args=[company_id, fiscal_year, run_config.model_dump(mode="json"), category, run_input.org_id],
+                args=[company_id, fiscal_year, run_config_dict, category, run_input.org_id],
                 retry_policy=_RETRY,
                 start_to_close_timeout=_TIMEOUT,
             )
@@ -516,7 +518,7 @@ class MasterEPRComplianceWorkflow:
             self.current_status = "STAGE_2_REGULATORY_PARSING"
             rules = await workflow.execute_activity(
                 parse_regulatory_rules_activity,
-                args=[run_config.pack.pack_name or "CPCB Plastic Waste Management Amendment Rules 2026"],
+                args=[run_config.pack.get("pack_name") or "CPCB Plastic Waste Management Amendment Rules 2026"],
                 retry_policy=_RETRY,
                 start_to_close_timeout=_TIMEOUT,
             )

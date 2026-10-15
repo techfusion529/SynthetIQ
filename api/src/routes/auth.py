@@ -223,6 +223,7 @@ async def register(payload: RegisterRequest) -> AuthResponse:
             settings={},
         )
         session.add(new_org)
+        await session.flush()
 
         user_id = f"USR-{uuid.uuid4().hex[:8].upper()}"
         from src.services.auth_service import create_user as _create_user
@@ -235,6 +236,7 @@ async def register(payload: RegisterRequest) -> AuthResponse:
             role="admin",
             org_id=org_id,
         )
+        await session.flush()
         # Seed default DataSource for new organization
         ds_id = f"DS-{uuid.uuid4().hex[:8].upper()}"
         from synthetiq_shared.models import DataSource

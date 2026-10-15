@@ -49,7 +49,7 @@ async def list_hitl_runs(
         query = select(WorkflowRun).where(WorkflowRun.hitl_required.is_(True))
         if not tenant_ctx.is_platform_admin and org_id:
             query = query.where(WorkflowRun.org_id == org_id)
-        query = query.order_by(WorkflowRun.created_at.desc()).limit(limit)
+        query = query.order_by(WorkflowRun.started_at.desc()).limit(limit)
         res = await session.execute(query)
         runs = res.scalars().all()
         return [
@@ -60,7 +60,7 @@ async def list_hitl_runs(
                 "status": r.status,
                 "hitl_required": r.hitl_required,
                 "triggered_by": r.triggered_by,
-                "started_at": r.created_at.isoformat() if r.created_at else None,
+                "started_at": r.started_at.isoformat() if r.started_at else None,
                 "completed_at": r.completed_at.isoformat() if r.completed_at else None,
                 "input_params": r.input_params or {},
             }
@@ -90,7 +90,7 @@ async def get_hitl_run(
             "status": r.status,
             "hitl_required": r.hitl_required,
             "triggered_by": r.triggered_by,
-            "started_at": r.created_at.isoformat() if r.created_at else None,
+            "started_at": r.started_at.isoformat() if r.started_at else None,
             "completed_at": r.completed_at.isoformat() if r.completed_at else None,
             "temporal_workflow_id": r.temporal_workflow_id,
             "input_params": r.input_params or {},

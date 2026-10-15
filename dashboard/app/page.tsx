@@ -437,9 +437,22 @@ export default function ExecutiveOverviewPage() {
                     <TextField
                       select
                       fullWidth
+                      size="small"
                       label="Plastic Category"
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
+                      sx={{
+                        "& .MuiInputLabel-root": { color: "rgba(226, 232, 240, 0.9)", fontWeight: 500 },
+                        "& .MuiOutlinedInput-root": {
+                          color: "#f8fafc",
+                          bgcolor: "rgba(15, 23, 42, 0.7)",
+                          borderRadius: 1.5,
+                          "& fieldset": { borderColor: "rgba(255, 255, 255, 0.2)" },
+                          "&:hover fieldset": { borderColor: "rgba(129, 140, 248, 0.6)" },
+                          "&.Mui-focused fieldset": { borderColor: "#818cf8" },
+                        },
+                        "& .MuiSelect-icon": { color: "#cbd5e1" },
+                      }}
                     >
                       <MenuItem value="cat_i_rigid">Cat I — Rigid Plastic</MenuItem>
                       <MenuItem value="cat_ii_flexible">Cat II — Flexible Plastic</MenuItem>
@@ -451,19 +464,43 @@ export default function ExecutiveOverviewPage() {
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
+                      size="small"
                       label="Target Volume (Tons)"
                       type="number"
                       value={volumeTons}
                       onChange={(e) => setVolumeTons(e.target.value)}
+                      sx={{
+                        "& .MuiInputLabel-root": { color: "rgba(226, 232, 240, 0.9)", fontWeight: 500 },
+                        "& .MuiOutlinedInput-root": {
+                          color: "#f8fafc",
+                          bgcolor: "rgba(15, 23, 42, 0.7)",
+                          borderRadius: 1.5,
+                          "& fieldset": { borderColor: "rgba(255, 255, 255, 0.2)" },
+                          "&:hover fieldset": { borderColor: "rgba(129, 140, 248, 0.6)" },
+                          "&.Mui-focused fieldset": { borderColor: "#818cf8" },
+                        },
+                      }}
                     />
                   </Grid>
 
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
+                      size="small"
                       label="Fiscal Year"
                       value={fiscalYear}
                       onChange={(e) => setFiscalYear(e.target.value)}
+                      sx={{
+                        "& .MuiInputLabel-root": { color: "rgba(226, 232, 240, 0.9)", fontWeight: 500 },
+                        "& .MuiOutlinedInput-root": {
+                          color: "#f8fafc",
+                          bgcolor: "rgba(15, 23, 42, 0.7)",
+                          borderRadius: 1.5,
+                          "& fieldset": { borderColor: "rgba(255, 255, 255, 0.2)" },
+                          "&:hover fieldset": { borderColor: "rgba(129, 140, 248, 0.6)" },
+                          "&.Mui-focused fieldset": { borderColor: "#818cf8" },
+                        },
+                      }}
                     />
                   </Grid>
 

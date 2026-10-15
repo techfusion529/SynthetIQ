@@ -884,10 +884,17 @@ async def generate_and_dispatch_form1_activity(
 
     # Persist Form1Record and EPRCreditCertificate
     try:
+        from sqlalchemy import select as _sa_select
         from synthetiq_shared.database import get_db_session
-        from synthetiq_shared.models import Form1Record
+        from synthetiq_shared.models import Form1Record, Organization
         from synthetiq_shared.models.facilities import EPRCreditCertificate
         async with get_db_session() as session:
+            # Check if RECYC-DELHI-01 exists, else fallback to org_id to satisfy FK constraint
+            rec_row = (await session.execute(
+                _sa_select(Organization.org_id).where(Organization.org_id == "RECYC-DELHI-01").limit(1)
+            )).scalar_one_or_none()
+            effective_recycler_org = rec_row or org_id
+
             session.add(Form1Record(
                 form_id=form1_id,
                 org_id=org_id,
@@ -906,7 +913,7 @@ async def generate_and_dispatch_form1_activity(
             session.add(EPRCreditCertificate(
                 certificate_id=cert_id,
                 brand_org_id=org_id,
-                recycler_org_id="RECYC-DELHI-01",
+                recycler_org_id=effective_recycler_org,
                 facility_id=None,
                 category_code=category,
                 credit_volume_tons=physical_melt_tons,
@@ -920,7 +927,8 @@ async def generate_and_dispatch_form1_activity(
             result["certificate_id"] = cert_id
             logger.info(f"[Activity] Persisted Form1Record {form1_id} and minted EPRCreditCertificate {cert_id}")
     except Exception as db_exc:
-        logger.warning(f"[Activity] DB persistence for Form1Record / EPRCreditCertificate failed ({db_exc}); continuing")
+        logger.warning(f"[Activity] DB persistence for Form1Record / EPRCreditCertificate failed ({db_exc}); continuing", exc_info=True)
+
 
     logger.info(f"[Activity] Form-1 ACK: {result['ack_number']}, pdf={pdf_path!r}")
     result["org_id"] = org_id

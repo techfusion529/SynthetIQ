@@ -138,7 +138,23 @@ async def bootstrap_platform() -> None:
             session.add(dev_org)
             logger.info("[Bootstrap] Created default org: ORG-DEV-001")
 
+        recycler_org = (await session.execute(
+            select(Organization).where(Organization.org_id == "RECYC-DELHI-01").limit(1)
+        )).scalar_one_or_none()
+        if not recycler_org:
+            recycler_org = Organization(
+                org_id="RECYC-DELHI-01",
+                name="Delhi EcoRecycle Facilities Ltd",
+                org_type="recycler",
+                industry_sector="Recycling & Waste Management",
+                country="IN",
+                is_active=True,
+            )
+            session.add(recycler_org)
+            logger.info("[Bootstrap] Created default recycler org: RECYC-DELHI-01")
+
         # 5. Default Plant Calibration for PLANT-OKHLA-2
+
         existing_cal = (await session.execute(
             select(PlantCalibration).where(
                 PlantCalibration.org_id == "ORG-DEV-001",

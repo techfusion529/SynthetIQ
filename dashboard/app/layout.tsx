@@ -4,6 +4,7 @@ import "./globals.css";
 import ThemeRegistry from "./lib/ThemeRegistry";
 import { SessionProvider } from "./lib/contexts/SessionContext";
 import { OrganizationProvider } from "./lib/contexts/OrganizationContext";
+import { NotificationProvider } from "./lib/contexts/NotificationContext";
 import AppShell from "../components/AppShell";
 
 export const metadata: Metadata = {
@@ -26,7 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeRegistry>
           <SessionProvider>
             <OrganizationProvider>
-              <AppShell>{children}</AppShell>
+              <NotificationProvider>
+                <AppShell>{children}</AppShell>
+              </NotificationProvider>
             </OrganizationProvider>
           </SessionProvider>
         </ThemeRegistry>

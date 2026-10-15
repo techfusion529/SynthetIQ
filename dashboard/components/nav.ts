@@ -13,7 +13,7 @@ import BusinessIcon from "@mui/icons-material/BusinessOutlined";
 import ScheduleIcon from "@mui/icons-material/ScheduleOutlined";
 import ApiIcon from "@mui/icons-material/ApiOutlined";
 
-export const HEADER_H = 56;
+export const HEADER_H = 64;
 export const RAIL_W = 248;
 export const RAIL_MINI = 64;
 

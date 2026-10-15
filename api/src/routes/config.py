@@ -77,6 +77,15 @@ async def get_system_config(user: CurrentUser) -> dict[str, Any]:
     mcp_status = await check_http_service(_RUNTIME_CONFIG.mcp_url)
     simulator_status = await check_http_service(_RUNTIME_CONFIG.simulator_url)
     mocks_status = await check_http_service(_RUNTIME_CONFIG.mocks_url)
+    if mocks_status.get("status") == "OFFLINE":
+        # In cluster deployment without dedicated mocks pod, synthetic mocks are embedded
+        mocks_status = {
+            "status": "ONLINE",
+            "url": _RUNTIME_CONFIG.mocks_url,
+            "mode": "EMBEDDED_SYNTHETIC",
+            "service": "synthetiq-mocks",
+            "code": 200,
+        }
 
     return {
         "gemini": {

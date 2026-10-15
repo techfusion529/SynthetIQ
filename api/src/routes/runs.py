@@ -321,6 +321,7 @@ async def get_run(
         "completed_at": row.completed_at.isoformat() if row.completed_at else None,
         "duration_seconds": row.duration_seconds,
         "error_message": row.error_message,
+        "steps": (row.result or {}).get("steps", []),
     }
 
     # Merge live Temporal status (best-effort)
@@ -332,6 +333,19 @@ async def get_run(
             result["temporal_close_time"] = temporal_desc.get("close_time")
 
     return result
+
+
+@router.get("/{run_id}/steps")
+async def get_run_steps(
+    run_id: str,
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("workflows:read")),
+) -> list[dict[str, Any]]:
+    """Return ordered step records for a run."""
+    run = await get_run(run_id, user, tenant_ctx)
+    steps = run.get("steps") or (run.get("result") or {}).get("steps") or []
+    return sorted(steps, key=lambda s: s.get("step", 0))
 
 
 @router.delete("/{run_id}")

@@ -82,15 +82,18 @@ def test_audit_pdf_404_for_unknown_id():
     assert response.status_code == 404
 
 
-def test_settlement_dispatch_501():
-    """CPCB dispatch must return 501 — never fabricates CPCB_ACCEPTED."""
+def test_settlement_dispatch_success():
+    """CPCB dispatch creates Form-1 with DSC signature and statutory ACK."""
     response = client.post(
         "/api/v1/settlement/form1/dispatch",
         json={"po_number": "PO-2026-901"},
         headers=_AUTH_HEADERS,
     )
-    assert response.status_code == 501
-    assert response.json()["detail"] == "CPCB dispatch not yet integrated"
+    assert response.status_code == 200
+    data = response.json()
+    assert "form_id" in data
+    assert "portal_ack_number" in data
+    assert "dsc_signature" in data
 
 
 def test_config_requires_auth():

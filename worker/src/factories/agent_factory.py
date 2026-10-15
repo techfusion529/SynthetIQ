@@ -19,11 +19,12 @@ from utils.metrics import llm_tokens_total
 logger = logging.getLogger(__name__)
 
 ALLOWED_MODEL_IDS = frozenset([
+    "gemini-3.8-flash",
     "gemini-1.5-pro",
     "gemini-1.5-flash",
     "gemini-2.0-flash",
-    "gemini-2.0-flash-exp",       # AGT-12: add experimental flash
-    "gemini-1.5-pro-latest",      # AGT-12: add latest pro alias
+    "gemini-2.0-flash-exp",
+    "gemini-1.5-pro-latest",
 ])
 FORBIDDEN_PROMPT_KEYWORDS = frozenset(["verdict=", "always_pass", "skip_gate"])
 

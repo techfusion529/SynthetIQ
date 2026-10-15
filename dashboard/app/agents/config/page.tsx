@@ -29,6 +29,7 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
 import { useSession } from "../../lib/contexts/SessionContext";
+import { useNotification } from "../../lib/contexts/NotificationContext";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL !== undefined
@@ -102,7 +103,7 @@ const DEFAULT_FALLBACK_CONFIGS: AgentConfig[] = [
     agent_name: "brand_liability",
     data_source_id: "DS-DEV-SALES-001",
     data_source_name: "Google BigQuery ERP Sales Connection",
-    model_name: "gemini-2.0-flash",
+    model_name: "gemini-3.8-flash",
     temperature: 0.2,
     system_prompt:
       "You are the Brand Liability Agent. Query ERP sales data, calculate plastic category weights, apply statutory 1/3 historic debt amortization, and compute net EPR obligation.",
@@ -118,7 +119,7 @@ const DEFAULT_FALLBACK_CONFIGS: AgentConfig[] = [
     agent_name: "regulatory_watchdog",
     data_source_id: null,
     data_source_name: null,
-    model_name: "gemini-2.0-flash",
+    model_name: "gemini-3.8-flash",
     temperature: 0.1,
     system_prompt:
       "You are the Regulatory Watchdog Agent. Parse CPCB Gazette notifications, extract plastic waste management rules, and identify statutory base clearing rates and compliance deadlines.",
@@ -134,7 +135,7 @@ const DEFAULT_FALLBACK_CONFIGS: AgentConfig[] = [
     agent_name: "treasury",
     data_source_id: null,
     data_source_name: null,
-    model_name: "gemini-2.0-flash",
+    model_name: "gemini-3.8-flash",
     temperature: 0.2,
     system_prompt:
       "You are the Treasury Agent. Run a continuous double auction matching EPR liability bids with verified recycler offers within the 30%-100% price corridor.",
@@ -151,7 +152,7 @@ const DEFAULT_FALLBACK_CONFIGS: AgentConfig[] = [
     agent_name: "logistics",
     data_source_id: null,
     data_source_name: null,
-    model_name: "gemini-2.0-flash",
+    model_name: "gemini-3.8-flash",
     temperature: 0.1,
     system_prompt:
       "You are the Logistics Agent. Validate GST E-Way bills, match RFID weighbridge timestamps, and compute waypoint telemetry distance vectors to verify plastic batch movements.",
@@ -167,7 +168,7 @@ const DEFAULT_FALLBACK_CONFIGS: AgentConfig[] = [
     agent_name: "auditor",
     data_source_id: "DS-DEV-SCADA-001",
     data_source_name: "Extruder SCADA Live Telemetry",
-    model_name: "gemini-2.0-flash",
+    model_name: "gemini-3.8-flash",
     temperature: 0.05,
     system_prompt:
       "You are the Auditor Agent (Nimble/Jev). Execute real-time VFD physics auditing on extruder motor torque and power factor to detect resistive heater spoofing.",
@@ -185,7 +186,7 @@ const DEFAULT_FALLBACK_CONFIGS: AgentConfig[] = [
     agent_name: "erp",
     data_source_id: null,
     data_source_name: null,
-    model_name: "gemini-2.0-flash",
+    model_name: "gemini-3.8-flash",
     temperature: 0.1,
     system_prompt:
       "You are the ERP Agent. Post structured Purchase Orders for verified plastic recycling credits with an automated 80/20 escrow payment split.",
@@ -202,7 +203,7 @@ const DEFAULT_FALLBACK_CONFIGS: AgentConfig[] = [
     agent_name: "legal",
     data_source_id: null,
     data_source_name: null,
-    model_name: "gemini-2.0-flash",
+    model_name: "gemini-3.8-flash",
     temperature: 0.1,
     system_prompt:
       "You are the Legal Agent. Generate statutory CPCB Form-1 filing packets, apply cryptographic Digital Signature Certificates (DSC), and compute SHA-256 audit manifest hashes.",
@@ -319,6 +320,8 @@ export default function AgentConfigStudioPage() {
     setSaveSuccess(false);
   };
 
+  const { notify } = useNotification();
+
   const handleSave = async () => {
     if (!currentConfig) return;
     setSaving(true);
@@ -347,9 +350,11 @@ export default function AgentConfigStudioPage() {
 
       if (!resp.ok) throw new Error("Failed to save agent configuration");
       setSaveSuccess(true);
+      notify.success(`Configuration saved for ${currentConfig.agent_name}`, "Agent Config Updated");
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (e: any) {
       setError(e.message);
+      notify.error(e.message, "Save Failed");
     } finally {
       setSaving(false);
     }
@@ -360,6 +365,21 @@ export default function AgentConfigStudioPage() {
     setTesting(true);
     setTestResult(null);
 
+    // Provide complete statutory and operational sample input for test execution
+    const sampleInput: Record<string, any> = {
+      fiscal_year: "FY2026-27",
+      company_id: orgId,
+      category: "cat_i_rigid",
+      volume_tons: 250,
+      torque_nm: 45.2,
+      power_factor: 0.84,
+      active_power_kw: 95.0,
+      melt_rate_kg_h: 250.0,
+      eway_bill_no: "EWB-8921827",
+      rfid_status: "VERIFIED",
+      clearing_rate_inr: 4500,
+    };
+
     try {
       const resp = await fetch(
         `${API_BASE}/organizations/${orgId}/agents/${currentConfig.agent_name}/test`,
@@ -369,13 +389,21 @@ export default function AgentConfigStudioPage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ sample_input: {} }),
+          body: JSON.stringify({ sample_input: sampleInput }),
         }
       );
       const data = await resp.json();
-      setTestResult(data);
+      if (!resp.ok || data.detail) {
+        const errMsg = data.detail || "Agent test failed";
+        setTestResult({ status: "ERROR", error: errMsg });
+        notify.error(errMsg, "Agent Test Failed");
+      } else {
+        setTestResult(data);
+        notify.success(`Dynamic test execution passed for ${currentConfig.agent_name}`, "Test Succeeded");
+      }
     } catch (e: any) {
       setTestResult({ status: "ERROR", error: e.message });
+      notify.error(e.message, "Test Network Error");
     } finally {
       setTesting(false);
     }
@@ -492,9 +520,7 @@ export default function AgentConfigStudioPage() {
                   value={currentConfig.model_name}
                   onChange={(e) => setCurrentConfig({ ...currentConfig, model_name: e.target.value })}
                 >
-                  <MenuItem value="gemini-2.0-flash">Gemini 2.0 Flash (Recommended)</MenuItem>
-                  <MenuItem value="gemini-1.5-pro">Gemini 1.5 Pro (Deep Reasoning)</MenuItem>
-                  <MenuItem value="gemini-1.5-flash">Gemini 1.5 Flash</MenuItem>
+                  <MenuItem value="gemini-3.8-flash">Gemini 3.8 Flash (Enterprise Default)</MenuItem>
                 </TextField>
 
                 <Box>

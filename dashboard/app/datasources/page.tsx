@@ -47,6 +47,7 @@ import PageHeader from "@/components/ui/PageHeader";
 
 import { useRouter } from "next/navigation";
 import { useSession } from "../lib/contexts/SessionContext";
+import { useNotification } from "../lib/contexts/NotificationContext";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL !== undefined
@@ -105,6 +106,7 @@ function maskConfig(config: Record<string, unknown>): Record<string, unknown> {
 export default function DataSourcesPage() {
   const router = useRouter();
   const { user, token } = useSession();
+  const { notify } = useNotification();
   const orgId = user?.org_id || "ORG-DEV-001";
 
   const [sources, setSources] = useState<DataSource[]>([]);
@@ -226,9 +228,15 @@ export default function DataSourcesPage() {
           message: data.status_message || (data.healthy ? "Connected" : "Failed"),
         },
       }));
+      if (data.healthy) {
+        notify.success(data.status_message || "Connection probe responsive", "Data Connector Verified");
+      } else {
+        notify.error(data.status_message || "Connection failed health check probe", "Connection Failed");
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Test failed";
       setTestResults((prev) => ({ ...prev, [sourceId]: { healthy: false, message: msg } }));
+      notify.error(msg, "Connection Error");
     } finally {
       setTestingId(null);
     }

@@ -38,6 +38,7 @@ import { useRouter } from "next/navigation";
 
 import { useSettlementService, useRunService } from "../lib/hooks/useServices";
 import { useSession } from "../lib/contexts/SessionContext";
+import { useNotification } from "../lib/contexts/NotificationContext";
 import { useOrganization } from "../lib/contexts/OrganizationContext";
 import { ApiError } from "../lib/services/base.service";
 import type { Form1Payload, EscrowPO } from "../lib/types/settlement.types";
@@ -142,6 +143,7 @@ export default function DispatchPage() {
   const settlementSvc = useSettlementService();
   const runSvc = useRunService();
   const { user } = useSession();
+  const { notify } = useNotification();
   const { currentOrg } = useOrganization();
 
   // ── Form-1 / PO state ─────────────────────────────────────────────────────
@@ -295,9 +297,12 @@ export default function DispatchPage() {
       setDispatchResult(`Form-1 successfully dispatched! Form ID: ${res.form_id}, Portal ACK: ${res.portal_ack_number || res.cpcb_portal_submission?.portal_acknowledgment_number}`);
       setSelectedForm(res);
       setViewOpen(true);
+      notify.success(`Form-1 successfully signed with DSC and dispatched to CPCB. ACK: ${res.portal_ack_number || res.form_id}`, "CPCB Form-1 Dispatched");
       await loadData();
     } catch (e) {
-      setDispatchError(e instanceof ApiError ? e.message : "Failed to dispatch Form-1 to CPCB portal");
+      const errMsg = e instanceof ApiError ? e.message : "Failed to dispatch Form-1 to CPCB portal";
+      setDispatchError(errMsg);
+      notify.error(errMsg, "CPCB Dispatch Failed");
     } finally {
       setDispatching(false);
     }

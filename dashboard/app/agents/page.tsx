@@ -8,41 +8,49 @@ import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
-import LinearProgress from "@mui/material/LinearProgress";
-import CircularProgress from "@mui/material/CircularProgress";
-import Divider from "@mui/material/Divider";
-import Breadcrumbs from "@mui/material/Breadcrumbs";
-import Link from "@mui/material/Link";
 import Button from "@mui/material/Button";
-import Tooltip from "@mui/material/Tooltip";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import InputAdornment from "@mui/material/InputAdornment";
+import CircularProgress from "@mui/material/CircularProgress";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
-import MemoryIcon from "@mui/icons-material/Memory";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
-import HubIcon from "@mui/icons-material/Hub";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import SearchIcon from "@mui/icons-material/Search";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import TuneIcon from "@mui/icons-material/Tune";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
+import AgentCanvasGraph from "@/components/agents/AgentCanvasGraph";
+import AgentEventTimeline from "@/components/agents/AgentEventTimeline";
 import { useComplianceService, useConfigService, useAuditService } from "../lib/hooks/useServices";
+import { useNotification } from "../lib/contexts/NotificationContext";
 import { ApiError } from "../lib/services/base.service";
-import type { E2ERunResult, E2EStep } from "../lib/types/compliance.types";
+import type { E2ERunResult } from "../lib/types/compliance.types";
 import type { SystemConfig } from "../lib/types/config.types";
 import type { AuditVerdict } from "../lib/types/audit.types";
+
+type DateFilter = "ALL" | "TODAY" | "7D" | "30D";
 
 export default function AgentsPage() {
   const router = useRouter();
   const complianceSvc = useComplianceService();
-  const configSvc     = useConfigService();
-  const auditSvc      = useAuditService();
+  const configSvc = useConfigService();
+  const auditSvc = useAuditService();
+  const { notify } = useNotification();
 
-  const [runs, setRuns]           = useState<E2ERunResult[]>([]);
-  const [config, setConfig]       = useState<SystemConfig | null>(null);
-  const [verdicts, setVerdicts]   = useState<AuditVerdict[]>([]);
+  const [runs, setRuns] = useState<E2ERunResult[]>([]);
+  const [config, setConfig] = useState<SystemConfig | null>(null);
+  const [verdicts, setVerdicts] = useState<AuditVerdict[]>([]);
   const [selectedRun, setSelectedRun] = useState<E2ERunResult | null>(null);
+  const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
 
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
+  // Filters
+  const [dateFilter, setDateFilter] = useState<DateFilter>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -56,19 +64,62 @@ export default function AgentsPage() {
       setRuns(runsList);
       setConfig(cfg);
       setVerdicts(vList);
-      if (runsList.length > 0 && !selectedRun) {
-        setSelectedRun(runsList[0]);
+
+      if (runsList.length > 0) {
+        // Fetch complete details for the first run so steps and events are populated
+        const first = runsList[0];
+        try {
+          const detailed = await complianceSvc.getRun(first.run_id);
+          setSelectedRun(detailed);
+        } catch {
+          setSelectedRun(first);
+        }
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to load orchestrator data");
     } finally {
       setLoading(false);
     }
-  }, [complianceSvc, configSvc, auditSvc, selectedRun]);
+  }, [complianceSvc, configSvc, auditSvc]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const handleSelectRun = async (runId: string) => {
+    const found = runs.find((r) => r.run_id === runId);
+    if (!found) return;
+    setSelectedRun(found);
+    try {
+      const full = await complianceSvc.getRun(runId);
+      setSelectedRun(full);
+    } catch {
+      // Fallback to basic record
+    }
+  };
+
+  // Filtered runs list based on datetime filter and search query
+  const filteredRuns = runs.filter((r) => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchId = r.run_id.toLowerCase().includes(q);
+      const matchCat = (r.category || "").toLowerCase().includes(q);
+      const matchStat = r.status.toLowerCase().includes(q);
+      if (!matchId && !matchCat && !matchStat) return false;
+    }
+
+    if (dateFilter === "ALL") return true;
+
+    const startedRaw = (r as any).started_at;
+    if (!startedRaw) return true;
+    const started = new Date(startedRaw).getTime();
+    const now = Date.now();
+
+    if (dateFilter === "TODAY") return now - started < 86400000;
+    if (dateFilter === "7D") return now - started < 7 * 86400000;
+    if (dateFilter === "30D") return now - started < 30 * 86400000;
+    return true;
+  });
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
@@ -77,36 +128,54 @@ export default function AgentsPage() {
         icon={<SmartToyIcon fontSize="medium" />}
         description="Zero-trust state machine coordinating System 2 LLM reasoning, TypeSafe Jev physics reflexes, and ERP transactions."
         actions={
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<RefreshIcon />}
-            onClick={loadData}
-            disabled={loading}
-          >
-            Refresh State
-          </Button>
+          <Box sx={{ display: "flex", gap: 1.5 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<TuneIcon />}
+              onClick={() => router.push("/agents/config")}
+            >
+              Agent Studio
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<RefreshIcon />}
+              onClick={loadData}
+              disabled={loading}
+            >
+              Refresh
+            </Button>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<PlayArrowIcon />}
+              onClick={() => router.push("/dispatch")}
+            >
+              Launch Run
+            </Button>
+          </Box>
         }
       />
 
       {error && <Alert severity="error">{error}</Alert>}
 
-      {/* Engine Architecture Grid */}
+      {/* Engine Architecture Stat Cards */}
       <Grid container spacing={2}>
         <Grid item xs={12} sm={6} md={3}>
           <Card variant="outlined">
             <CardContent sx={{ p: "16px !important" }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase">
                   System 2 Reasoning
                 </Typography>
                 <Chip label="Vertex AI" size="small" color="primary" sx={{ fontSize: "0.65rem", height: 20 }} />
               </Box>
               <Typography variant="body1" fontWeight={700} fontFamily="monospace">
-                {config?.gemini?.model || "—"}
+                {config?.gemini?.model || "gemini-3.8-flash"}
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                Key: {config?.gemini?.api_key_masked || "Configured via ADC/Env"}
+                Ambient ADC / Workload Identity
               </Typography>
             </CardContent>
           </Card>
@@ -115,7 +184,7 @@ export default function AgentsPage() {
         <Grid item xs={12} sm={6} md={3}>
           <Card variant="outlined">
             <CardContent sx={{ p: "16px !important" }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase">
                   System 1 Reflex
                 </Typography>
@@ -125,7 +194,7 @@ export default function AgentsPage() {
                 {config?.jev_mode?.mode || "NIMBLE_PRIMARY"}
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                Torque ≥ {config?.jev_mode?.torque_threshold_nm ?? 8.0} Nm · PF {config?.jev_mode?.power_factor_range?.join("–") ?? "0.78–0.96"}
+                Torque ≥ {config?.jev_mode?.torque_threshold_nm ?? 8.0} Nm · PF 0.78–0.96
               </Typography>
             </CardContent>
           </Card>
@@ -134,7 +203,7 @@ export default function AgentsPage() {
         <Grid item xs={12} sm={6} md={3}>
           <Card variant="outlined">
             <CardContent sx={{ p: "16px !important" }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase">
                   Temporal Engine
                 </Typography>
@@ -149,7 +218,7 @@ export default function AgentsPage() {
                 {config?.endpoints?.temporal_host || "temporal-server:7233"}
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                Durable Workflow Queue: epr-compliance
+                Task Queue: epr-compliance
               </Typography>
             </CardContent>
           </Card>
@@ -158,7 +227,7 @@ export default function AgentsPage() {
         <Grid item xs={12} sm={6} md={3}>
           <Card variant="outlined">
             <CardContent sx={{ p: "16px !important" }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase">
                   Active Audits & Runs
                 </Typography>
@@ -175,183 +244,115 @@ export default function AgentsPage() {
         </Grid>
       </Grid>
 
-      {/* Main Runs & Steps Section */}
-      <Grid container spacing={3}>
-        {/* Runs List */}
-        <Grid item xs={12} md={4}>
-          <Card variant="outlined" sx={{ height: "100%" }}>
-            <CardContent>
-              <Typography variant="subtitle1" fontWeight={700} mb={1}>
-                Autonomous Compliance Runs
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" mb={2}>
-                Executed multi-agent workflow instances
-              </Typography>
+      {/* Runs Selection Toolbar with Datetime Filter */}
+      <Card variant="outlined" sx={{ p: 2, bgcolor: "background.paper" }}>
+        <Grid container spacing={2} alignItems="center">
+          {/* Datetime Filter Select */}
+          <Grid item xs={12} sm={3} md={2.5}>
+            <TextField
+              select
+              label="Datetime Filter"
+              size="small"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as DateFilter)}
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <FilterListIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            >
+              <MenuItem value="ALL">All Time</MenuItem>
+              <MenuItem value="TODAY">Today (Last 24h)</MenuItem>
+              <MenuItem value="7D">Last 7 Days</MenuItem>
+              <MenuItem value="30D">Last 30 Days</MenuItem>
+            </TextField>
+          </Grid>
 
-              {loading ? (
-                <CircularProgress size={24} />
-              ) : runs.length === 0 ? (
-                <Alert severity="info">No compliance runs executed yet. Launch a run from the Executive Hub.</Alert>
+          {/* Quick Search */}
+          <Grid item xs={12} sm={4} md={3}>
+            <TextField
+              placeholder="Search Run ID, Category..."
+              size="small"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Grid>
+
+          {/* Runs Dropdown Select */}
+          <Grid item xs={12} sm={5} md={6.5}>
+            <TextField
+              select
+              label={`Select Compliance Run (${filteredRuns.length} available)`}
+              size="small"
+              value={selectedRun?.run_id || ""}
+              onChange={(e) => handleSelectRun(e.target.value)}
+              fullWidth
+              disabled={loading || filteredRuns.length === 0}
+            >
+              {filteredRuns.length === 0 ? (
+                <MenuItem value="" disabled>
+                  No runs match the selected filter
+                </MenuItem>
               ) : (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                  {runs.map((r) => {
-                    const isSelected = selectedRun?.run_id === r.run_id;
-                    const isSuccess = r.status === "SUCCESS_FULLY_COMPLIANT";
-                    return (
-                      <Card
-                        key={r.run_id}
-                        variant="outlined"
-                        onClick={() => setSelectedRun(r)}
-                        sx={{
-                          cursor: "pointer",
-                          p: 1.5,
-                          borderColor: isSelected ? "primary.main" : "divider",
-                          bgcolor: isSelected ? "rgba(79,70,229,0.08)" : undefined,
-                          "&:hover": { borderColor: "primary.light" },
-                        }}
-                      >
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                          <Typography variant="body2" fontWeight={700} fontFamily="monospace">
-                            {r.run_id}
+                filteredRuns.map((r) => {
+                  const isSuccess = r.status === "SUCCESS_FULLY_COMPLIANT";
+                  const isHitl = r.hitl_required || r.status.includes("HITL");
+                  return (
+                    <MenuItem key={r.run_id} value={r.run_id}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: 2 }}>
+                        <Typography sx={{ fontFamily: "monospace", fontWeight: 700, fontSize: "0.85rem" }}>
+                          {r.run_id}
+                        </Typography>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {r.category || "cat_i_rigid"} ({r.volume_tons || 250} T)
                           </Typography>
                           <Chip
-                            label={r.status}
                             size="small"
-                            color={isSuccess ? "success" : "error"}
-                            sx={{ height: 18, fontSize: "0.65rem" }}
+                            label={r.status}
+                            color={isSuccess ? "success" : isHitl ? "warning" : "error"}
+                            sx={{ height: 18, fontSize: "0.65rem", fontWeight: 700 }}
                           />
                         </Box>
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          {r.company_id} · {r.category || "cat_i_rigid"} ({r.volume_tons || 250} T)
-                        </Typography>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Duration: {r.duration_seconds}s
-                          </Typography>
-                          <Typography variant="caption" color="primary.light" fontWeight={600}>
-                            {r.steps?.length ?? 0} Steps →
-                          </Typography>
-                        </Box>
-                      </Card>
-                    );
-                  })}
-                </Box>
+                      </Box>
+                    </MenuItem>
+                  );
+                })
               )}
-            </CardContent>
-          </Card>
+            </TextField>
+          </Grid>
+        </Grid>
+      </Card>
+
+      {/* Main Orchestration Workspace: Canvas Graph (Left/Center) + Event Timeline (Right) */}
+      <Grid container spacing={3}>
+        {/* Visual Interactive Agent Graph Canvas */}
+        <Grid item xs={12} lg={7.5}>
+          <AgentCanvasGraph
+            selectedRun={selectedRun}
+            activeNodeId={activeNodeId}
+            onSelectNode={(nodeId) => setActiveNodeId(nodeId)}
+          />
         </Grid>
 
-        {/* Selected Run Details & Stage Execution */}
-        <Grid item xs={12} md={8}>
-          <Card variant="outlined" sx={{ height: "100%" }}>
-            <CardContent>
-              {selectedRun ? (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 1 }}>
-                    <Box>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <Typography variant="h6" fontWeight={700} fontFamily="monospace">
-                          {selectedRun.run_id}
-                        </Typography>
-                        <Chip
-                          label={selectedRun.status}
-                          size="small"
-                          color={selectedRun.status === "SUCCESS_FULLY_COMPLIANT" ? "success" : "error"}
-                        />
-                      </Box>
-                      <Typography variant="body2" color="text.secondary" mt={0.5}>
-                        {selectedRun.message}
-                      </Typography>
-                    </Box>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      endIcon={<OpenInNewIcon fontSize="small" />}
-                      href="/temporal/namespaces/default/workflows"
-                      target="_blank"
-                    >
-                      Temporal UI
-                    </Button>
-                  </Box>
-
-                  <Divider />
-
-                  {/* Stage-by-Stage Agent Execution Pipeline */}
-                  <Typography variant="subtitle2" fontWeight={700}>
-                    Durable Workflow Execution Stages ({selectedRun.steps?.length || 0})
-                  </Typography>
-
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    {selectedRun.steps?.map((step: E2EStep) => (
-                      <Card
-                        key={step.step}
-                        variant="outlined"
-                        sx={{
-                          p: 2,
-                          bgcolor: (t) => t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#F8FAFC",
-                          borderColor: step.status === "COMPLETED" ? "rgba(16,185,129,0.3)" : "rgba(244,63,94,0.3)",
-                        }}
-                      >
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                            {step.status === "COMPLETED" ? (
-                              <CheckCircleIcon color="success" fontSize="small" />
-                            ) : (
-                              <ErrorIcon color="error" fontSize="small" />
-                            )}
-                            <Typography variant="body2" fontWeight={700}>
-                              Stage {step.step}: {step.name}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                            <Chip label={step.service} size="small" variant="outlined" sx={{ fontSize: "0.65rem", height: 20, borderRadius: "2px" }} />
-                            <Chip
-                              label={step.status}
-                              size="small"
-                              color={step.status === "COMPLETED" ? "success" : "error"}
-                              sx={{ fontSize: "0.65rem", height: 20, borderRadius: "2px" }}
-                            />
-                          </Box>
-                        </Box>
-
-                        {/* Live Step Payload Data */}
-                        <Box
-                          sx={{
-                            mt: 1,
-                            p: 1.5,
-                            bgcolor: (t) => t.palette.mode === "dark" ? "#0D1117" : "#EDF2F7",
-                            border: "1px solid",
-                            borderColor: "divider",
-                            borderRadius: "2px",
-                          }}
-                        >
-                          <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" mb={0.5}>
-                            Verified Agent Output:
-                          </Typography>
-                          <Box
-                            component="pre"
-                            sx={{
-                              m: 0,
-                              fontSize: "0.75rem",
-                              fontFamily: 'var(--font-plex), "IBM Plex Sans", monospace',
-                              color: (t) => t.palette.mode === "dark" ? "#38bdf8" : "#0284c7",
-                              overflowX: "auto",
-                              whiteSpace: "pre-wrap",
-                              wordBreak: "break-all",
-                            }}
-                          >
-                            {JSON.stringify(step.data, null, 2)}
-                          </Box>
-                        </Box>
-                      </Card>
-                    ))}
-                  </Box>
-                </Box>
-              ) : (
-                <Alert severity="info">Select a compliance run on the left to inspect its multi-agent telemetry.</Alert>
-              )}
-            </CardContent>
-          </Card>
+        {/* Right-Hand Event Timeline & Payload Inspector */}
+        <Grid item xs={12} lg={4.5}>
+          <AgentEventTimeline
+            selectedRun={selectedRun}
+            activeNodeId={activeNodeId}
+            onSelectNode={(nodeId) => setActiveNodeId(nodeId)}
+          />
         </Grid>
       </Grid>
     </Box>

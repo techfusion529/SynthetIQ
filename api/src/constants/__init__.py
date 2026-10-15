@@ -17,7 +17,7 @@ SIMULATOR_URL: str = os.getenv("SIMULATOR_URL", "http://synthetiq-simulator:9091
 MOCKS_URL: str = os.getenv("MOCKS_URL", "http://synthetiq-mocks:8002")
 
 # AI & Physics Engine Configuration Defaults
-DEFAULT_GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+DEFAULT_GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 DEFAULT_JEV_MODE: str = os.getenv("JEV_MODE", "HYBRID_ENSEMBLE")
 DEFAULT_TORQUE_THRESHOLD_NM: float = float(os.getenv("JEV_TORQUE_THRESHOLD_NM", "8.0"))
 DEFAULT_PF_MIN: float = float(os.getenv("JEV_POWER_FACTOR_MIN", "0.78"))

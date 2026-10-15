@@ -55,7 +55,7 @@ class AgentConfiguration(Base):
     )
 
     # LLM and execution tuning
-    model_name: Mapped[str] = mapped_column(String(64), default="gemini-2.0-flash")
+    model_name: Mapped[str] = mapped_column(String(64), default="gemini-3.8-flash")
     temperature: Mapped[float] = mapped_column(Float, default=0.2)
     system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
 

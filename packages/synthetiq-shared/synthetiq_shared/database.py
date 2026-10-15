@@ -96,6 +96,12 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Create all tables and ensure essential columns exist."""
+    # Step 0: Ensure all ORM models are registered with Base.metadata
+    try:
+        import synthetiq_shared.models  # noqa: F401
+    except Exception as exc:
+        logger.warning(f"[DB] Notice during models pre-import in init_db: {exc}")
+
     # Step 1: Create all tables in its own clean, committed transaction
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

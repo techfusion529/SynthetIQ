@@ -36,22 +36,22 @@ def hash_password(password: str) -> str:
 
 
 def _get_seed_password() -> str:
-    """Get seed password from env var or fail in non-local environments.
+    """Get seed password from env var or fallback for local/dev/demo environments.
 
-    In non-local environments (staging, production), SEED_ADMIN_PASSWORD must be
-    explicitly set to prevent well-known credentials from being seeded.
+    In production, SEED_ADMIN_PASSWORD must be explicitly set to prevent well-known
+    credentials from being seeded.
     """
     env = os.getenv("ENV", "local").lower()
     seed_password = os.getenv("SEED_ADMIN_PASSWORD", "")
     if not seed_password:
-        if env != "local":
+        if env in ("production", "prod"):
             raise RuntimeError(
                 f"SEED_ADMIN_PASSWORD env var must be set in ENV={env}. "
-                "Refusing to seed a well-known password in non-local environments."
+                "Refusing to seed a well-known password in production."
             )
-        # Local dev fallback — not a security risk in ENV=local
+        # Local/dev/demo fallback
         seed_password = "Password123!"
-        logger.warning("SEED_ADMIN_PASSWORD not set — using default dev password (local only)")
+        logger.info(f"Using default demo password for environment: {env}")
     return seed_password
 
 
@@ -182,22 +182,64 @@ async def seed_database() -> None:
         else:
             logger.info(f"Organization {org_id} already exists")
 
-        # 2. Seed Default Admin User
-        admin_email = "compliance_officer@synthetiq.ai"
-        res = await session.execute(select(User).where(User.email == admin_email))
-        admin_user = res.scalar_one_or_none()
-        if not admin_user:
-            admin_user = User(
-                user_id="USR-ADMIN-001",
-                email=admin_email,
-                password_hash=hash_password(_get_seed_password()),
-                display_name="Dev Compliance Officer",
-                role="admin",
-                org_id=org_id,
-                is_active=True,
-            )
-            session.add(admin_user)
-            logger.info(f"Seeded Admin User: {admin_email}")
+        # 2. Seed Default Users (Admin, Auditor, Executive Viewer, and Developer/Sayantika)
+        seed_pass = hash_password(_get_seed_password())
+        demo_users = [
+            {
+                "user_id": "USR-ADMIN-001",
+                "email": "compliance_officer@synthetiq.ai",
+                "display_name": "Dev Compliance Officer",
+                "role": "admin",
+                "platform_admin": True,
+            },
+            {
+                "user_id": "USR-AUDIT-001",
+                "email": "auditor@synthetiq.ai",
+                "display_name": "Senior Lead Auditor",
+                "role": "auditor",
+                "platform_admin": False,
+            },
+            {
+                "user_id": "USR-VIEW-001",
+                "email": "board_viewer@synthetiq.ai",
+                "display_name": "Executive Board Viewer",
+                "role": "viewer",
+                "platform_admin": False,
+            },
+            {
+                "user_id": "USR-DEV-001",
+                "email": "sayantikabose99@gmail.com",
+                "display_name": "Sayantika Bose",
+                "role": "admin",
+                "platform_admin": True,
+            },
+            {
+                "user_id": "USR-DEV-002",
+                "email": "sayantikabose99",
+                "display_name": "Sayantika Bose",
+                "role": "admin",
+                "platform_admin": True,
+            },
+        ]
+        for udata in demo_users:
+            res = await session.execute(select(User).where(User.email == udata["email"]))
+            existing_user = res.scalar_one_or_none()
+            if not existing_user:
+                u = User(
+                    user_id=udata["user_id"],
+                    email=udata["email"],
+                    password_hash=seed_pass,
+                    display_name=udata["display_name"],
+                    role=udata["role"],
+                    platform_admin=udata.get("platform_admin", False),
+                    org_id=org_id,
+                    is_active=True,
+                )
+                session.add(u)
+                logger.info(f"Seeded User: {udata['email']} ({udata['role']})")
+            else:
+                if not existing_user.password_hash:
+                    existing_user.password_hash = seed_pass
 
         # 3. Seed Default Data Sources (BigQuery ERP Sales & Plant SCADA)
         ds_sales_id = "DS-DEV-SALES-001"

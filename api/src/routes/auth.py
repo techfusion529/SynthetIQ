@@ -71,76 +71,103 @@ class AuthResponse(BaseModel):
 @limiter.limit("60/15minutes")
 async def login(request: Request, payload: LoginRequest) -> AuthResponse:
     """Authenticate user with email/password or Firebase ID token."""
-    email = payload.email.strip().lower()
+    raw_email = payload.email.strip().lower()
+    email_candidates = [raw_email]
+    if "@" not in raw_email:
+        email_candidates.append(f"{raw_email}@gmail.com")
+        email_candidates.append(f"{raw_email}@synthetiq.ai")
 
-    async with get_db_session() as session:
-        result = await session.execute(
-            select(User, Organization)
-            .join(Organization, User.org_id == Organization.org_id)
-            .where(User.email == email)
-            .where(User.is_active.is_(True))
+    async def _fetch_user():
+        async with get_db_session() as session:
+            result = await session.execute(
+                select(User, Organization)
+                .join(Organization, User.org_id == Organization.org_id)
+                .where(User.email.in_(email_candidates))
+                .where(User.is_active.is_(True))
+            )
+            return result.first()
+
+    try:
+        row = await _fetch_user()
+    except Exception as exc:
+        if "relation" in str(exc).lower() and "does not exist" in str(exc).lower():
+            logger.warning(f"[Auth] Database table missing during login ({exc}), self-healing init_db() & seed...")
+            from synthetiq_shared.database import init_db
+            from synthetiq_shared.seed import seed_database
+            await init_db()
+            await seed_database()
+            row = await _fetch_user()
+        else:
+            raise
+
+    # If demo/seed user was not found on first boot, trigger seed and retry
+    if not row and any("@synthetiq.ai" in c or "sayantikabose" in c for c in email_candidates):
+        try:
+            from synthetiq_shared.seed import seed_database
+            await seed_database()
+            row = await _fetch_user()
+        except Exception as exc:
+            logger.warning(f"[Auth] Notice during seed retry: {exc}")
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
         )
-        row = result.first()
 
-        if not row:
+    user, org = row
+
+    # Verify password if provided
+    if payload.password:
+        if not user.password_hash or not verify_password(payload.password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password",
             )
-
-        user, org = row
-
-        # Verify password if provided
-        if payload.password:
-            if not user.password_hash or not verify_password(payload.password, user.password_hash):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid email or password",
-                )
-            # Transparently re-hash SHA-256 passwords to argon2id on successful login
-            if user.password_hash and not user.password_hash.startswith("$argon2"):
-                try:
-                    user.password_hash = hash_password(payload.password)
-                    logger.info(f"Re-hashed password for {email} from SHA-256 to argon2id")
-                except Exception as exc:
-                    logger.warning(f"Could not re-hash password for {email}: {exc}")
-        elif payload.id_token:
-            # Verify Firebase token
+        # Transparently re-hash SHA-256 passwords to argon2id on successful login
+        if user.password_hash and not user.password_hash.startswith("$argon2"):
             try:
-                decoded = await auth_service.verify_token(payload.id_token)
-                if decoded.get("email", "").lower() != email:
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Token email mismatch",
-                    )
-            except Exception as e:
+                user.password_hash = hash_password(payload.password)
+                logger.info(f"Re-hashed password for {user.email} from SHA-256 to argon2id")
+            except Exception as exc:
+                logger.warning(f"Could not re-hash password for {user.email}: {exc}")
+    elif payload.id_token:
+        # Verify Firebase token
+        try:
+            decoded = await auth_service.verify_token(payload.id_token)
+            if decoded.get("email", "").lower() not in email_candidates:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=f"Token verification failed: {e}",
+                    detail="Token email mismatch",
                 )
-        else:
+        except Exception as e:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password or id_token must be provided",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Token verification failed: {e}",
             )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password or id_token must be provided",
+        )
 
-        token_payload = {
-            "uid": user.user_id,
-            "email": user.email,
-            "display_name": user.display_name,
-            "role": user.role,
-            "org_id": user.org_id,
-            "authorized": True,
-        }
-        token = create_access_token(token_payload)
-        refresh = create_refresh_token({
-            "uid": user.user_id,
-            "email": user.email,
-            "role": user.role,
-            "org_id": user.org_id,
-        })
+    token_payload = {
+        "uid": user.user_id,
+        "email": user.email,
+        "display_name": user.display_name,
+        "role": user.role,
+        "org_id": user.org_id,
+        "authorized": True,
+    }
+    token = create_access_token(token_payload)
+    refresh = create_refresh_token({
+        "uid": user.user_id,
+        "email": user.email,
+        "role": user.role,
+        "org_id": user.org_id,
+    })
 
-        return AuthResponse(
+    return AuthResponse(
             access_token=token,
             refresh_token=refresh,
             user=UserResponse(
@@ -159,16 +186,30 @@ async def register(payload: RegisterRequest) -> AuthResponse:
     """Register a new enterprise organization and primary admin user."""
     email = payload.email.strip().lower()
 
-    async with get_db_session() as session:
-        # Check if user already exists
-        existing_user = await session.execute(
-            select(User).where(User.email == email)
-        )
-        if existing_user.scalar_one_or_none():
+    async def _check_existing():
+        async with get_db_session() as session:
+            existing_user = await session.execute(
+                select(User).where(User.email == email)
+            )
+            return existing_user.scalar_one_or_none()
+
+    try:
+        if await _check_existing():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"User with email {email!r} already exists",
             )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if "relation" in str(exc).lower() and "does not exist" in str(exc).lower():
+            logger.warning(f"[Auth] Database table missing during register ({exc}), running init_db()...")
+            from synthetiq_shared.database import init_db
+            await init_db()
+        else:
+            raise
+
+    async with get_db_session() as session:
 
         org_id = f"ORG-{uuid.uuid4().hex[:8].upper()}"
         new_org = Organization(

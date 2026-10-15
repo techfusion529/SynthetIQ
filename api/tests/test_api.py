@@ -53,8 +53,8 @@ def test_list_companies_with_auth():
 
 def test_get_liability_report_with_auth():
     response = client.get("/api/v1/liability/report/COMP-IN-001", headers=_AUTH_HEADERS)
-    # May be 200 (with data) or 404 (empty DB) — both are valid post-hardening
-    assert response.status_code in (200, 404)
+    # May be 200 (with data), 403 (tenant isolation), or 404 (empty DB) — all are valid post-hardening
+    assert response.status_code in (200, 403, 404)
 
 
 def test_list_auctions_with_auth():

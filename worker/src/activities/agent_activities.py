@@ -897,17 +897,21 @@ async def generate_and_dispatch_form1_activity(
 
             session.add(Form1Record(
                 form_id=form1_id,
-                org_id=org_id,
+                company_id=org_id,
+                recycler_id=effective_recycler_org,
+                recycler_name="Delhi EcoRecycle Facilities Ltd",
                 po_number=po_number,
                 audit_id=audit_id,
-                filing_year=fiscal_year or "FY2025-26",
-                category=category,
-                volume_tons=physical_melt_tons,
+                plastic_category=category,
+                physical_melt_tons=physical_melt_tons,
+                conversion_factor_cf=conversion_factor,
+                credited_tons=round(physical_melt_tons * conversion_factor, 2),
                 portal_status=result["portal_status"],
-                ack_number=result.get("ack_number"),
-                is_signed=is_signed,
-                pdf_path=pdf_path,
+                portal_ack_number=result.get("ack_number"),
+                org_id=org_id,
+                full_payload=result,
             ))
+
             # Mint statutory EPR Credit Certificate
             cert_id = f"CERT-CPCB-{uuid.uuid4().hex[:8].upper()}"
             session.add(EPRCreditCertificate(

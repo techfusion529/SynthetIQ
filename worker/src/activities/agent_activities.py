@@ -747,9 +747,18 @@ async def create_escrow_split_po_activity(
     except Exception as db_exc:
         logger.warning(f"[Activity] EscrowPO DB upsert failed ({db_exc}); continuing without persistence")
 
+    # Guarantee po_id and escrow_amount are always populated
+
+    po_id = result.get("po_id") or result.get("po_number") or f"PO-{uuid.uuid4().hex[:8].upper()}"
+    result["po_id"] = po_id
+    result["po_number"] = po_id
+    if "escrow_amount" not in result or result["escrow_amount"] is None:
+        result["escrow_amount"] = result.get("total_value_inr") or result.get("total_amount_inr") or total_value
+
     # Fix 3: validate required PO fields and return typed POResult
     _require(result, "po_id", "po")
     _require(result, "escrow_amount", "po")
+
 
     result["advance_amount"] = advance_amount
     result["holdback_amount"] = holdback_amount

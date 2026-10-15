@@ -188,6 +188,7 @@ async def run_erp_agent(
             "plastic_tons": plastic_tons,
             "unit_price_inr": unit_price_inr,
             "total_value_inr": total_val,
+            "escrow_amount": total_val,
             "advance_amount_inr": round(total_val * 0.8, 2),
             "holdback_amount_inr": round(total_val * 0.2, 2),
             "status": "APPROVED",
@@ -195,4 +196,5 @@ async def run_erp_agent(
             "logistics_verdict": logistics_verdict,
             "human_approved": human_approved,
         }
+
 

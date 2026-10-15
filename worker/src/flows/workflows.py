@@ -56,6 +56,17 @@ class HumanApprovalSignal:
 AuditDecisionInput = HumanApprovalSignal
 
 
+class DotDict(dict):
+    """Dot-accessible dictionary for sandbox-safe configuration access without Pydantic."""
+    def __getattr__(self, name: str) -> Any:
+        val = self.get(name)
+        if isinstance(val, dict):
+            return DotDict(val)
+        elif isinstance(val, list):
+            return [DotDict(x) if isinstance(x, dict) else x for x in val]
+        return val
+
+
 # ---------------------------------------------------------------------------
 # Workflow 1: Upstream Liability & Sourcing Planning
 # ---------------------------------------------------------------------------
@@ -279,8 +290,7 @@ class SettlementDispatchWorkflow:
             retry_policy=_RETRY,
             start_to_close_timeout=_TIMEOUT,
         )
-        from synthetiq_shared.models.dynamic_config import RunConfig as _RunConfig
-        run_config = _RunConfig(**run_config_dict)
+        run_config = DotDict(run_config_dict)
 
         po = await workflow.execute_activity(
             create_escrow_split_po_activity,
@@ -410,8 +420,7 @@ class MasterEPRComplianceWorkflow:
                 retry_policy=_RETRY,
                 start_to_close_timeout=_TIMEOUT,
             )
-            from synthetiq_shared.models.dynamic_config import RunConfig as _RunConfig
-            run_config = _RunConfig(**run_config_dict)
+            run_config = DotDict(run_config_dict)
 
             # Mark run as RUNNING in DB after config is confirmed available
             await workflow.execute_activity(

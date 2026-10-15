@@ -214,6 +214,17 @@ async def main() -> None:
         update_workflow_run_activity,
     ]
 
+    # Configure sandbox runner with passthrough modules for pydantic and shared modules
+    from temporalio.worker.workflow_sandbox import SandboxedWorkflowRunner, SandboxRestrictions
+    workflow_runner = SandboxedWorkflowRunner(
+        restrictions=SandboxRestrictions.default.with_passthrough_modules(
+            "platform",
+            "pydantic",
+            "pydantic_core",
+            "synthetiq_shared",
+        )
+    )
+
     # Start worker
     logger.info("Starting Temporal worker...")
     worker = Worker(
@@ -227,6 +238,7 @@ async def main() -> None:
             MasterEPRComplianceWorkflow,
         ],
         activities=activities,
+        workflow_runner=workflow_runner,
     )
 
     logger.info("=" * 60)

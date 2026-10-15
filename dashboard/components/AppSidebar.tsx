@@ -1,196 +1,137 @@
 "use client";
 
 import React from "react";
+import Box from "@mui/material/Box";
+import Divider from "@mui/material/Divider";
 import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
-import Toolbar from "@mui/material/Toolbar";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import Divider from "@mui/material/Divider";
-import Box from "@mui/material/Box";
-import DashboardIcon from "@mui/icons-material/Dashboard";
-import ScaleIcon from "@mui/icons-material/Scale";
-import GavelIcon from "@mui/icons-material/Gavel";
-import RadarIcon from "@mui/icons-material/Radar";
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
-import DescriptionIcon from "@mui/icons-material/Description";
-import BusinessIcon from "@mui/icons-material/Business";
-import ScheduleIcon from "@mui/icons-material/Schedule";
-import MemoryIcon from "@mui/icons-material/Memory";
-import StorageIcon from "@mui/icons-material/Storage";
-import TuneIcon from "@mui/icons-material/Tune";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
-import { usePathname, useRouter } from "next/navigation";
+import NextLink from "next/link";
+import { usePathname } from "next/navigation";
 import { useSession } from "../app/lib/contexts/SessionContext";
+import { HEADER_H, NAV, RAIL_MINI, RAIL_W, findNav } from "./nav";
 
-interface AppSidebarProps {
-  drawerWidth: number;
-  mobileOpen: boolean;
-  onClose: () => void;
-}
+const RAIL_BG = "#1C2329";
+const RAIL_TEXT = "#C9D1D9";
+const RAIL_MUTED = "#8B98A5";
+const RAIL_LINE = "rgba(255,255,255,0.08)";
 
-const NAV_ITEMS = [
-  { label: "Executive Hub",       href: "/",              icon: <DashboardIcon />,             roles: [] },
-  { label: "Agent Orchestration", href: "/agents",        icon: <MemoryIcon />,                roles: [] },
-  { label: "Agent Studio",        href: "/agents/config", icon: <TuneIcon />,                  roles: ["admin", "compliance_officer"] },
-  { label: "Data Sources",        href: "/datasources",   icon: <StorageIcon />,               roles: ["admin", "compliance_officer"] },
-  { label: "Liability & Sourcing", href: "/liability",    icon: <ScaleIcon />,                 roles: [] },
-  { label: "Double Auction",       href: "/auction",      icon: <GavelIcon />,                 roles: [] },
-  { label: "Quad-Core Audit",      href: "/audit",        icon: <RadarIcon />,                 roles: [] },
-  { label: "HITL Console",         href: "/hitl",         icon: <SupervisorAccountIcon />,     roles: ["admin", "platform_admin"] },
-  { label: "Escrow & Approval",    href: "/settlement",   icon: <AccountBalanceWalletIcon />,  roles: [] },
-  { label: "CPCB Form-1 Vault",    href: "/dispatch",     icon: <DescriptionIcon />,           roles: [] },
-  { label: "Organizations & Team", href: "/organizations", icon: <BusinessIcon />,             roles: ["admin", "compliance_officer"] },
-  { label: "Schedules",            href: "/schedules",    icon: <ScheduleIcon />,              roles: ["admin"] },
-];
-
-function SidebarContent({ drawerWidth, onClose }: { drawerWidth: number; onClose: () => void }) {
+function NavList({ mini, onNavigate }: { mini: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const { token, user } = useSession();
-  const role = user?.role || (token ? "admin" : "viewer");
-
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => item.roles.length === 0 || item.roles.includes(role)
-  );
-
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const { user } = useSession();
+  const role = user?.role ?? "viewer"; // fail closed: no role, no privileged links
+  const can = (roles?: string[]) => !roles || roles.includes(role);
+  const active = findNav(pathname || "/")?.item.href;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Toolbar sx={{ px: 2 }}>
-        <Typography
-          variant="caption"
-          sx={{ fontWeight: 700, letterSpacing: "0.12em", color: "text.secondary", textTransform: "uppercase" }}
-        >
-          EPR Platform
-        </Typography>
-      </Toolbar>
-      <Divider />
-      <List sx={{ px: 1, pt: 1, flexGrow: 1 }}>
-        {visibleItems.map((item) => (
-          <ListItem key={item.href} disablePadding sx={{ mb: 0.5 }}>
-            <ListItemButton
-              selected={isActive(item.href)}
-              onClick={() => {
-                router.push(item.href);
-                onClose();
-              }}
-              sx={{
-                borderRadius: 2,
-                "&.Mui-selected": {
-                  bgcolor: "rgba(79,70,229,0.15)",
-                  "& .MuiListItemIcon-root": { color: "primary.light" },
-                  "& .MuiListItemText-primary": { color: "primary.light", fontWeight: 700 },
-                },
-                "&:hover": { bgcolor: "rgba(255,255,255,0.05)" },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 36, color: "text.secondary" }}>
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText
-                primary={item.label}
-                primaryTypographyProps={{ fontSize: "0.85rem", fontWeight: 500 }}
-              />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
-      <Divider />
-      {/* Ingress Web Gateways */}
-      <Box sx={{ px: 2, pt: 1.5, pb: 0.5 }}>
-        <Typography
-          variant="caption"
-          sx={{ fontWeight: 700, letterSpacing: "0.1em", color: "text.secondary", textTransform: "uppercase", fontSize: "0.7rem" }}
-        >
-          Web Ingress Control
-        </Typography>
+      <Box component="nav" aria-label="Primary" sx={{ flexGrow: 1, overflowY: "auto", py: 1 }}>
+        {NAV.filter((g) => can(g.roles)).map((g, gi) => {
+          const items = g.items.filter((i) => can(i.roles));
+          if (!items.length) return null;
+          return (
+            <Box key={g.label} sx={{ mb: 1 }}>
+              {mini ? (
+                gi > 0 && <Divider sx={{ borderColor: RAIL_LINE, mx: 1.5, mb: 1 }} />
+              ) : (
+                <Typography sx={{ px: 2.5, pt: 1.5, pb: 0.5, fontSize: "0.75rem", fontWeight: 600, color: RAIL_MUTED }}>
+                  {g.label}
+                </Typography>
+              )}
+              <List disablePadding>
+                {items.map((i) => {
+                  const Icon = i.icon;
+                  const selected = !i.external && active === i.href;
+                  const linkProps = i.external
+                    ? { component: "a", href: i.href, target: "_blank", rel: "noopener noreferrer" }
+                    : { component: NextLink, href: i.href, onClick: onNavigate };
+                  const btn = (
+                    <ListItemButton
+                      {...(linkProps as object)}
+                      selected={selected}
+                      aria-current={selected ? "page" : undefined}
+                      sx={{
+                        minHeight: 40,
+                        px: mini ? 0 : 2.25,
+                        justifyContent: mini ? "center" : "flex-start",
+                        borderLeft: "3px solid transparent",
+                        color: RAIL_TEXT,
+                        "&:hover": { bgcolor: "rgba(255,255,255,0.08)" },
+                        "&.Mui-selected": { bgcolor: "rgba(255,255,255,0.07)", borderLeftColor: "primary.light", color: "#FFFFFF" },
+                        "&.Mui-selected:hover": { bgcolor: "rgba(255,255,255,0.1)" },
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: mini ? 0 : 36, color: "inherit" }}>
+                        <Icon fontSize="small" />
+                      </ListItemIcon>
+                      {!mini && (
+                        <>
+                          <ListItemText primary={i.label} primaryTypographyProps={{ fontSize: "0.85rem", noWrap: true }} />
+                          {i.external && <OpenInNewIcon sx={{ fontSize: 14, color: RAIL_MUTED }} />}
+                        </>
+                      )}
+                    </ListItemButton>
+                  );
+                  return mini ? (
+                    <Tooltip key={i.href} title={i.label} placement="right">
+                      {btn}
+                    </Tooltip>
+                  ) : (
+                    <React.Fragment key={i.href}>{btn}</React.Fragment>
+                  );
+                })}
+              </List>
+            </Box>
+          );
+        })}
       </Box>
-      <List sx={{ px: 1, pb: 1 }}>
-        <ListItem disablePadding sx={{ mb: 0.5 }}>
-          <ListItemButton
-            component="a"
-            href="/temporal"
-            target="_blank"
-            rel="noopener noreferrer"
-            sx={{ borderRadius: 2, "&:hover": { bgcolor: "rgba(255,255,255,0.05)" } }}
-          >
-            <ListItemIcon sx={{ minWidth: 36, color: "secondary.light" }}>
-              <MemoryIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText
-              primary="Temporal UI"
-              primaryTypographyProps={{ fontSize: "0.82rem", fontWeight: 500 }}
-            />
-            <OpenInNewIcon sx={{ fontSize: "0.9rem", color: "text.secondary" }} />
-          </ListItemButton>
-        </ListItem>
-        <ListItem disablePadding sx={{ mb: 0.5 }}>
-          <ListItemButton
-            component="a"
-            href="/grafana"
-            target="_blank"
-            rel="noopener noreferrer"
-            sx={{ borderRadius: 2, "&:hover": { bgcolor: "rgba(255,255,255,0.05)" } }}
-          >
-            <ListItemIcon sx={{ minWidth: 36, color: "warning.light" }}>
-              <RadarIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText
-              primary="Grafana Metrics"
-              primaryTypographyProps={{ fontSize: "0.82rem", fontWeight: 500 }}
-            />
-            <OpenInNewIcon sx={{ fontSize: "0.9rem", color: "text.secondary" }} />
-          </ListItemButton>
-        </ListItem>
-        <ListItem disablePadding sx={{ mb: 0.5 }}>
-          <ListItemButton
-            component="a"
-            href="/api/docs"
-            target="_blank"
-            rel="noopener noreferrer"
-            sx={{ borderRadius: 2, "&:hover": { bgcolor: "rgba(255,255,255,0.05)" } }}
-          >
-            <ListItemIcon sx={{ minWidth: 36, color: "success.light" }}>
-              <DescriptionIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText
-              primary="FastAPI Docs"
-              primaryTypographyProps={{ fontSize: "0.82rem", fontWeight: 500 }}
-            />
-            <OpenInNewIcon sx={{ fontSize: "0.9rem", color: "text.secondary" }} />
-          </ListItemButton>
-        </ListItem>
-      </List>
-      <Divider />
-      <Box sx={{ p: 2 }}>
-        <Typography variant="caption" color="text.secondary">
-          v0.2.0 · CPCB PWM 2026
+      {!mini && (
+        <Typography sx={{ p: 2, fontSize: "0.75rem", color: RAIL_MUTED, borderTop: `1px solid ${RAIL_LINE}` }}>
+          SynthetIQ v0.2.0
         </Typography>
-      </Box>
+      )}
     </Box>
   );
 }
 
-export default function AppSidebar({ drawerWidth, mobileOpen, onClose }: AppSidebarProps) {
-  const drawerSx = { width: drawerWidth, flexShrink: 0, "& .MuiDrawer-paper": { width: drawerWidth, boxSizing: "border-box" } };
+interface Props {
+  collapsed: boolean;
+  isDesktop: boolean;
+  mobileOpen: boolean;
+  onClose: () => void;
+}
 
+export default function AppSidebar({ collapsed, isDesktop, mobileOpen, onClose }: Props) {
+  const w = isDesktop && collapsed ? RAIL_MINI : RAIL_W;
   return (
-    <>
-      {/* Mobile drawer */}
-      <Drawer variant="temporary" open={mobileOpen} onClose={onClose} ModalProps={{ keepMounted: true }} sx={{ display: { xs: "block", md: "none" }, ...drawerSx }}>
-        <SidebarContent drawerWidth={drawerWidth} onClose={onClose} />
-      </Drawer>
-      {/* Desktop drawer */}
-      <Drawer variant="permanent" sx={{ display: { xs: "none", md: "block" }, ...drawerSx }} open>
-        <SidebarContent drawerWidth={drawerWidth} onClose={() => {}} />
-      </Drawer>
-    </>
+    <Drawer
+      variant={isDesktop ? "permanent" : "temporary"}
+      open={isDesktop || mobileOpen}
+      onClose={onClose}
+      ModalProps={{ keepMounted: true }}
+      sx={{
+        width: isDesktop ? w : 0,
+        flexShrink: 0,
+        transition: "width 0.2s ease",
+        "& .MuiDrawer-paper": {
+          width: w,
+          boxSizing: "border-box",
+          top: isDesktop ? HEADER_H : 0,
+          height: isDesktop ? `calc(100% - ${HEADER_H}px)` : "100%",
+          bgcolor: RAIL_BG,
+          color: RAIL_TEXT,
+          borderRight: 0,
+          overflowX: "hidden",
+          transition: "width 0.2s ease",
+        },
+      }}
+    >
+      <NavList mini={isDesktop && collapsed} onNavigate={isDesktop ? undefined : onClose} />
+    </Drawer>
   );
 }

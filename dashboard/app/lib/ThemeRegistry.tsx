@@ -29,7 +29,7 @@ export function useColorMode() {
 const THEME_STORAGE_KEY = "synthetiq_color_mode";
 
 export default function ThemeRegistry({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<"dark" | "light">("dark");
+  const [mode, setMode] = useState<"dark" | "light">("light");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -37,8 +37,8 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
       const savedMode = localStorage.getItem(THEME_STORAGE_KEY) as "dark" | "light" | null;
       if (savedMode === "light" || savedMode === "dark") {
         setMode(savedMode);
-      } else if (typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: light)").matches) {
-        setMode("light");
+      } else if (typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        setMode("dark");
       }
     } catch {
       // localStorage unavailable or restricted

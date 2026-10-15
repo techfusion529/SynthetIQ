@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #070b16;
-  --foreground: #f1f5f9;
+  --background: #eef1f4;
+  --foreground: #1b232a;
 }
 
 body {
@@ -10,4 +10,16 @@ body {
   color: var(--foreground);
   overflow-x: hidden;
   min-height: 100vh;
+}
+
+:focus-visible {
+  outline: 2px solid #0b63b6;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 import time
@@ -457,7 +457,14 @@ async def hitl_resolve(
         original_tons: float = 0.0
         if run.input_params:
             original_tons = float(run.input_params.get("volume_tons", 0.0))
-        if body.override_tons > original_tons * 1.1:
+        if original_tons <= 0.0 and run.result:
+            original_tons = float(
+                run.result.get("audit", {}).get(
+                    "reported_volume_tons",
+                    run.result.get("liability", {}).get("net_liability_tons", 0.0),
+                )
+            )
+        if original_tons > 0.0 and body.override_tons > original_tons * 1.1:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=(
@@ -465,6 +472,7 @@ async def hitl_resolve(
                     f"original volume ({original_tons})."
                 ),
             )
+
 
     # Send Temporal signal 'human_approval'
     signal_payload = {

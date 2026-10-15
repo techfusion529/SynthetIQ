@@ -433,7 +433,7 @@ class MasterEPRComplianceWorkflow:
                 else:
                     fiscal_year = f"FY{today.year - 1}-{str(today.year)[2:]}"
 
-            # Auto-resolve defaults from run_config if not supplied in input
+            # Auto-resolve defaults dynamically from tenant run_config (fail-closed if missing)
             if not category:
                 if run_config.obligations:
                     category = run_config.obligations[0].category
@@ -441,28 +441,49 @@ class MasterEPRComplianceWorkflow:
                     category = run_config.calibrations[0].material_grade
                 elif run_config.policy.categories_in_scope:
                     category = run_config.policy.categories_in_scope[0]
+                elif run_config.pack.category_targets:
+                    category = next(iter(run_config.pack.category_targets.keys()))
                 else:
-                    category = "cat_i_rigid"
+                    raise ApplicationError(
+                        f"FAIL_CLOSED: No plastic category configured for organization {run_input.org_id}",
+                        non_retryable=True,
+                    )
 
             if not plant_id:
                 matching_cal = next(
                     (c for c in run_config.calibrations if c.material_grade == category),
                     run_config.calibrations[0] if run_config.calibrations else None,
                 )
-                plant_id = matching_cal.plant_id if matching_cal else "PLANT-OKHLA-2"
+                if matching_cal:
+                    plant_id = matching_cal.plant_id
+                elif run_config.facilities:
+                    plant_id = run_config.facilities[0].facility_id
+                else:
+                    raise ApplicationError(
+                        f"FAIL_CLOSED: No plant facility or calibration configured for organization {run_input.org_id}",
+                        non_retryable=True,
+                    )
 
             if not recycler_id:
-                recycler_id = "RECYC-DELHI-01"
+                recycler_id = f"RECYC-{run_input.org_id[:8]}"
 
             if not eway_bill_ref:
-                eway_bill_ref = "EWB-2026-99210"
+                eway_bill_ref = f"EWB-{run_input.org_id[:8]}-{run_id[:8]}"
 
             if volume_tons <= 0.0:
                 matching_obl = next(
                     (o for o in run_config.obligations if o.fiscal_year == fiscal_year and o.category == category),
-                    run_config.obligations[0] if run_config.obligations else None,
+                    next((o for o in run_config.obligations if o.fiscal_year == fiscal_year), None),
                 )
-                volume_tons = matching_obl.obligation_tons if matching_obl else 250.0
+                if matching_obl:
+                    volume_tons = matching_obl.obligation_tons
+                elif run_config.obligations:
+                    volume_tons = run_config.obligations[0].obligation_tons
+                else:
+                    raise ApplicationError(
+                        f"FAIL_CLOSED: No liability volume or obligation found for organization {run_input.org_id} (FY {fiscal_year})",
+                        non_retryable=True,
+                    )
 
             #  -  -  -  -  Stage 1: Liability (Brand Liability Agent)  -  -  -  -
             self.stage_reached = 1
@@ -483,7 +504,7 @@ class MasterEPRComplianceWorkflow:
             self.current_status = "STAGE_2_REGULATORY_PARSING"
             rules = await workflow.execute_activity(
                 parse_regulatory_rules_activity,
-                args=["CPCB Plastic Waste Management Amendment Rules 2026"],
+                args=[run_config.pack.pack_name or "CPCB Plastic Waste Management Amendment Rules 2026"],
                 retry_policy=_RETRY,
                 start_to_close_timeout=_TIMEOUT,
             )

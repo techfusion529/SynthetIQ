@@ -171,9 +171,24 @@ class ObligationLedgerEntry(BaseModel):
     source: str
 
 
+class FacilitySnapshot(BaseModel):
+    """Read-only snapshot of an org facility/plant."""
+    facility_id: str
+    org_id: str
+    name: str
+    facility_type: str = "recycler_pwp"
+    state_code: str = "DL"
+    pincode: str | None = None
+    cpcb_pwp_reg_no: str | None = None
+    cto_number: str | None = None
+    licensed_capacity_tons_year: float = 5000.0
+    is_active: bool = True
+
+
 class RunConfig(BaseModel):
     """Complete run-time configuration bundle fetched at workflow Stage 0."""
     pack: RegulatoryPackPayload
     policy: OrgPolicySnapshot
     calibrations: list[PlantCalibrationSnapshot]
     obligations: list[ObligationLedgerEntry]
+    facilities: list[FacilitySnapshot] = []

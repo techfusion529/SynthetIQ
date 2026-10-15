@@ -22,6 +22,7 @@ from synthetiq_shared.models import (
     RegulatoryPack,
 )
 from synthetiq_shared.models.dynamic_config import (
+    FacilitySnapshot,
     ObligationLedgerEntry,
     OrgPolicySnapshot,
     PlantCalibrationSnapshot,
@@ -141,15 +142,42 @@ async def fetch_run_config_activity(org_id: str, regulatory_pack_version: str) -
             for o in obl_res.scalars().all()
         ]
 
+        # 5. Facilities — all registered facilities for this org
+        facilities = []
+        try:
+            from synthetiq_shared.models import Facility
+            fac_res = await session.execute(
+                select(Facility).where(Facility.org_id == org_id, Facility.is_active.is_(True))
+            )
+            facilities = [
+                FacilitySnapshot(
+                    facility_id=f.facility_id,
+                    org_id=f.org_id,
+                    name=f.name,
+                    facility_type=f.facility_type,
+                    state_code=f.state_code,
+                    pincode=f.pincode,
+                    cpcb_pwp_reg_no=f.cpcb_pwp_reg_no,
+                    cto_number=f.cto_number,
+                    licensed_capacity_tons_year=f.licensed_capacity_tons_year,
+                    is_active=f.is_active,
+                )
+                for f in fac_res.scalars().all()
+            ]
+        except Exception as fac_exc:
+            logger.debug(f"[config_activity] Facility query bypassed ({fac_exc})")
+
     run_config = RunConfig(
         pack=pack_payload,
         policy=policy_snapshot,
         calibrations=calibrations,
         obligations=obligations,
+        facilities=facilities,
     )
     logger.info(
         f"[config_activity] RunConfig assembled: pack={pack.version!r}, "
-        f"calibrations={len(calibrations)}, obligations={len(obligations)}"
+        f"facilities={len(facilities)}, calibrations={len(calibrations)}, "
+        f"obligations={len(obligations)}"
     )
     return run_config.model_dump(mode="json")
 

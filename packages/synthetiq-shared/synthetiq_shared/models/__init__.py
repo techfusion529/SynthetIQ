@@ -21,6 +21,12 @@ from .organization import (
     Membership,
     InviteToken,
 )
+from .facilities import (
+    PlasticCategory,
+    Facility,
+    EWayBillRecord,
+    TelemetryBatch,
+)
 
 # Dynamic Configuration ORM + Pydantic models (Phase 3)
 from .dynamic_config import (
@@ -32,6 +38,7 @@ from .dynamic_config import (
     OrgPolicySnapshot,
     PlantCalibrationSnapshot,
     ObligationLedgerEntry,
+    FacilitySnapshot,
     RunConfig,
 )
 
@@ -64,6 +71,10 @@ __all__ = [
     "LlmUsageLog",
     "Membership",
     "InviteToken",
+    "PlasticCategory",
+    "Facility",
+    "EWayBillRecord",
+    "TelemetryBatch",
     # Dynamic Config ORM (Phase 3)
     "RegulatoryPack",
     "OrgPolicy",
@@ -74,6 +85,7 @@ __all__ = [
     "OrgPolicySnapshot",
     "PlantCalibrationSnapshot",
     "ObligationLedgerEntry",
+    "FacilitySnapshot",
     "RunConfig",
     # Pydantic
     "OnboardedCompany",

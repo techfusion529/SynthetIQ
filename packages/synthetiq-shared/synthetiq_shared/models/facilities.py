@@ -185,3 +185,46 @@ class TelemetryBatch(Base):
             "is_tampered": self.is_tampered,
             "audit_id": self.audit_id,
         }
+
+
+class EPRCreditCertificate(Base):
+    """CPCB statutory EPR Credit Certificate minted and transferred across the ledger."""
+
+    __tablename__ = "epr_credit_certificates"
+
+    certificate_id: Mapped[str] = mapped_column(
+        String(64), primary_key=True, default=lambda: f"CERT-CPCB-{uuid.uuid4().hex[:8].upper()}"
+    )
+    brand_org_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("organizations.org_id"), index=True, nullable=False
+    )
+    recycler_org_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("organizations.org_id"), index=True, nullable=False
+    )
+    facility_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    category_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    credit_volume_tons: Mapped[float] = mapped_column(Float, nullable=False)
+    fiscal_year: Mapped[str] = mapped_column(String(16), default="FY2025-26")
+    po_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    form1_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    cpcb_portal_credit_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="ISSUED")  # ISSUED, TRANSFERRED, RETIRED
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "certificate_id": self.certificate_id,
+            "brand_org_id": self.brand_org_id,
+            "recycler_org_id": self.recycler_org_id,
+            "facility_id": self.facility_id,
+            "category_code": self.category_code,
+            "credit_volume_tons": self.credit_volume_tons,
+            "fiscal_year": self.fiscal_year,
+            "po_number": self.po_number,
+            "form1_id": self.form1_id,
+            "cpcb_portal_credit_id": self.cpcb_portal_credit_id,
+            "status": self.status,
+            "issued_at": self.issued_at.isoformat() if self.issued_at else None,
+        }

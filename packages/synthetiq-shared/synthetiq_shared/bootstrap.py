@@ -248,6 +248,114 @@ async def bootstrap_platform() -> None:
                 ))
                 logger.info(f"[Bootstrap] Seeded default AgentConfiguration: {agent_name}")
 
+        # 10. Canonical CPCB Plastic Categories
+        from synthetiq_shared.models.facilities import PlasticCategory, Facility, EWayBillRecord, TelemetryBatch, EPRCreditCertificate
+        canonical_categories = [
+            {
+                "category_code": "cat_i_rigid",
+                "name": "Category I - Rigid Plastic Packaging",
+                "statutory_schedule": "Schedule II",
+                "cpcb_description": "Rigid plastic packaging including PET, HDPE bottles, containers, crates",
+                "default_penalty_rate_inr_kg": 12.0,
+                "default_target_percentage": 0.80,
+                "requires_extrusive_verification": True,
+            },
+            {
+                "category_code": "cat_ii_flexible",
+                "name": "Category II - Flexible Plastic Packaging",
+                "statutory_schedule": "Schedule II",
+                "cpcb_description": "Flexible plastic packaging of single or multi-layer, plastic sheets, pouches, covers",
+                "default_penalty_rate_inr_kg": 10.0,
+                "default_target_percentage": 0.80,
+                "requires_extrusive_verification": False,
+            },
+            {
+                "category_code": "cat_iii_mlp",
+                "name": "Category III - Multi-Layered Plastic (MLP)",
+                "statutory_schedule": "Schedule II",
+                "cpcb_description": "Multi-layered plastic packaging (at least one layer of plastic and at least one layer of other material)",
+                "default_penalty_rate_inr_kg": 15.0,
+                "default_target_percentage": 0.70,
+                "requires_extrusive_verification": False,
+            },
+            {
+                "category_code": "cat_iv_compostable",
+                "name": "Category IV - Compostable & Biodegradable Plastic",
+                "statutory_schedule": "Schedule II",
+                "cpcb_description": "Plastic sheet or like used for packaging and carry bags made in accordance with IS/ISO 17088",
+                "default_penalty_rate_inr_kg": 8.0,
+                "default_target_percentage": 0.50,
+                "requires_extrusive_verification": False,
+            },
+        ]
+        for cat in canonical_categories:
+            existing_cat = (await session.execute(
+                select(PlasticCategory).where(PlasticCategory.category_code == cat["category_code"]).limit(1)
+            )).scalar_one_or_none()
+            if not existing_cat:
+                session.add(PlasticCategory(**cat))
+                logger.info(f"[Bootstrap] Seeded PlasticCategory: {cat['category_code']}")
+
+        # 11. Default Facility (FAC-OKHLA-01) for ORG-DEV-001
+        existing_facility = (await session.execute(
+            select(Facility).where(Facility.facility_id == "FAC-OKHLA-01").limit(1)
+        )).scalar_one_or_none()
+        if not existing_facility:
+            session.add(Facility(
+                facility_id="FAC-OKHLA-01",
+                org_id="ORG-DEV-001",
+                name="Okhla Recycling & Extrusion Plant 2",
+                facility_type="recycler_pwp",
+                state_code="DL",
+                pincode="110020",
+                cpcb_pwp_reg_no="CPCB-PWP-DL-2024-8841",
+                cto_number="SPCB/DPCC/CTO/2024/9182",
+                cto_valid_until=date(2028, 3, 31),
+                licensed_capacity_tons_year=12000.0,
+                is_active=True,
+            ))
+            logger.info("[Bootstrap] Seeded Facility: FAC-OKHLA-01")
+
+        # 12. Default E-Way Bill (EWB-2026-99210) for ORG-DEV-001
+        existing_ewb = (await session.execute(
+            select(EWayBillRecord).where(EWayBillRecord.eway_bill_no == "EWB-2026-99210").limit(1)
+        )).scalar_one_or_none()
+        if not existing_ewb:
+            session.add(EWayBillRecord(
+                eway_bill_no="EWB-2026-99210",
+                org_id="ORG-DEV-001",
+                facility_id="FAC-OKHLA-01",
+                transporter_gstin="07AAAAA0000A1Z5",
+                vehicle_number="DL-01-AB-1234",
+                source_pincode="110001",
+                destination_pincode="110020",
+                category_code="cat_i_rigid",
+                consignment_weight_tons=250.0,
+                status="VERIFIED",
+                verification_source="NIC_PORTAL",
+            ))
+            logger.info("[Bootstrap] Seeded EWayBillRecord: EWB-2026-99210")
+
+        # 13. Default Telemetry Batch (BATCH-20260401-001) for ORG-DEV-001
+        existing_batch = (await session.execute(
+            select(TelemetryBatch).where(TelemetryBatch.batch_id == "BATCH-20260401-001").limit(1)
+        )).scalar_one_or_none()
+        if not existing_batch:
+            session.add(TelemetryBatch(
+                batch_id="BATCH-20260401-001",
+                facility_id="FAC-OKHLA-01",
+                org_id="ORG-DEV-001",
+                category_code="cat_i_rigid",
+                total_kwh=95000.0,
+                actual_melt_kg=250000.0,
+                avg_torque_nm=46.5,
+                avg_power_factor=0.842,
+                avg_power_kw=94.0,
+                measured_sec_kwh_per_ton=380.0,
+                is_tampered=False,
+            ))
+            logger.info("[Bootstrap] Seeded TelemetryBatch: BATCH-20260401-001")
+
         await session.commit()
 
     logger.info("[Bootstrap] Platform bootstrap complete")

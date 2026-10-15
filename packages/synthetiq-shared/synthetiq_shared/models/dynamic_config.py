@@ -192,3 +192,4 @@ class RunConfig(BaseModel):
     calibrations: list[PlantCalibrationSnapshot]
     obligations: list[ObligationLedgerEntry]
     facilities: list[FacilitySnapshot] = []
+    eway_bills: list[str] = []

@@ -172,6 +172,19 @@ async def list_regulatory_packs(
         return [_pack_summary(p) for p in packs]
 
 
+@router.get("/master/plastic-categories")
+async def list_plastic_categories(
+    user: CurrentUser,
+) -> list[dict[str, Any]]:
+    """List all statutory CPCB plastic categories with penalty rates and rules."""
+    async with get_db_session() as session:
+        from synthetiq_shared.models.facilities import PlasticCategory
+        res = await session.execute(
+            select(PlasticCategory).order_by(PlasticCategory.category_code)
+        )
+        return [c.to_dict() for c in res.scalars().all()]
+
+
 @router.get("/{pack_id}")
 async def get_regulatory_pack(
     pack_id: str,

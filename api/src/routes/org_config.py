@@ -70,6 +70,31 @@ class CreateObligationRequest(BaseModel):
     source: str
 
 
+class CreateFacilityRequest(BaseModel):
+    name: str
+    facility_type: str = "recycler_pwp"
+    state_code: str = "DL"
+    pincode: str | None = None
+    cpcb_pwp_reg_no: str | None = None
+    cto_number: str | None = None
+    cto_valid_until: date | None = None
+    licensed_capacity_tons_year: float = 5000.0
+    is_active: bool = True
+
+
+class CreateEWayBillRequest(BaseModel):
+    eway_bill_no: str
+    facility_id: str | None = None
+    transporter_gstin: str | None = None
+    vehicle_number: str | None = None
+    source_pincode: str | None = None
+    destination_pincode: str | None = None
+    category_code: str | None = "cat_i_rigid"
+    consignment_weight_tons: float = 0.0
+    status: str = "VERIFIED"
+    verification_source: str = "NIC_PORTAL"
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -328,3 +353,119 @@ async def list_obligations(
             }
             for e in entries
         ]
+
+
+@router.get("/{org_id}/facilities")
+async def list_facilities(
+    org_id: str,
+    user: CurrentUser,
+    _: Any = Depends(require_permission("config:read")),
+) -> list[dict[str, Any]]:
+    """List all registered processing plants and facilities for an org."""
+    _require_same_org_or_platform_admin(user, org_id)
+
+    async with get_db_session() as session:
+        from synthetiq_shared.models.facilities import Facility
+        res = await session.execute(
+            select(Facility).where(Facility.org_id == org_id)
+        )
+        return [f.to_dict() for f in res.scalars().all()]
+
+
+@router.post("/{org_id}/facilities", status_code=status.HTTP_201_CREATED)
+async def create_facility(
+    org_id: str,
+    body: CreateFacilityRequest,
+    user: CurrentUser,
+    _: Any = Depends(require_permission("config:write")),
+) -> dict[str, Any]:
+    """Register a new processing plant or facility for an org."""
+    _require_same_org_or_platform_admin(user, org_id)
+
+    async with get_db_session() as session:
+        from synthetiq_shared.models.facilities import Facility
+        fac = Facility(
+            org_id=org_id,
+            name=body.name,
+            facility_type=body.facility_type,
+            state_code=body.state_code,
+            pincode=body.pincode,
+            cpcb_pwp_reg_no=body.cpcb_pwp_reg_no,
+            cto_number=body.cto_number,
+            cto_valid_until=body.cto_valid_until,
+            licensed_capacity_tons_year=body.licensed_capacity_tons_year,
+            is_active=body.is_active,
+        )
+        session.add(fac)
+        await session.commit()
+        return fac.to_dict()
+
+
+@router.get("/{org_id}/eway-bills")
+async def list_eway_bills(
+    org_id: str,
+    user: CurrentUser,
+    _: Any = Depends(require_permission("config:read")),
+) -> list[dict[str, Any]]:
+    """List all E-Way bills and transit consignments for an org."""
+    _require_same_org_or_platform_admin(user, org_id)
+
+    async with get_db_session() as session:
+        from synthetiq_shared.models.facilities import EWayBillRecord
+        res = await session.execute(
+            select(EWayBillRecord).where(EWayBillRecord.org_id == org_id)
+        )
+        return [ewb.to_dict() for ewb in res.scalars().all()]
+
+
+@router.post("/{org_id}/eway-bills", status_code=status.HTTP_201_CREATED)
+async def create_eway_bill(
+    org_id: str,
+    body: CreateEWayBillRequest,
+    user: CurrentUser,
+    _: Any = Depends(require_permission("config:write")),
+) -> dict[str, Any]:
+    """Register or log an E-Way bill consignment for an org."""
+    _require_same_org_or_platform_admin(user, org_id)
+
+    async with get_db_session() as session:
+        from synthetiq_shared.models.facilities import EWayBillRecord
+        ewb = EWayBillRecord(
+            eway_bill_no=body.eway_bill_no,
+            org_id=org_id,
+            facility_id=body.facility_id,
+            transporter_gstin=body.transporter_gstin,
+            vehicle_number=body.vehicle_number,
+            source_pincode=body.source_pincode,
+            destination_pincode=body.destination_pincode,
+            category_code=body.category_code,
+            consignment_weight_tons=body.consignment_weight_tons,
+            status=body.status,
+            verification_source=body.verification_source,
+        )
+        session.add(ewb)
+        await session.commit()
+        return ewb.to_dict()
+
+
+@router.get("/{org_id}/epr-certificates")
+async def list_epr_certificates(
+    org_id: str,
+    user: CurrentUser,
+    _: Any = Depends(require_permission("config:read")),
+) -> list[dict[str, Any]]:
+    """List all minted/transferred EPR credit certificates for an org."""
+    _require_same_org_or_platform_admin(user, org_id)
+
+    async with get_db_session() as session:
+        from synthetiq_shared.models.facilities import EPRCreditCertificate
+        from sqlalchemy import or_
+        res = await session.execute(
+            select(EPRCreditCertificate).where(
+                or_(
+                    EPRCreditCertificate.brand_org_id == org_id,
+                    EPRCreditCertificate.recycler_org_id == org_id,
+                )
+            ).order_by(EPRCreditCertificate.issued_at.desc())
+        )
+        return [cert.to_dict() for cert in res.scalars().all()]

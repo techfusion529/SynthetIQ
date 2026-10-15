@@ -167,16 +167,28 @@ async def fetch_run_config_activity(org_id: str, regulatory_pack_version: str) -
         except Exception as fac_exc:
             logger.debug(f"[config_activity] Facility query bypassed ({fac_exc})")
 
+        # 6. E-Way bills — active eway bills for this org
+        eway_bills = []
+        try:
+            from synthetiq_shared.models.facilities import EWayBillRecord
+            ewb_res = await session.execute(
+                select(EWayBillRecord.eway_bill_no).where(EWayBillRecord.org_id == org_id)
+            )
+            eway_bills = list(ewb_res.scalars().all())
+        except Exception as ewb_exc:
+            logger.debug(f"[config_activity] E-Way bill query bypassed ({ewb_exc})")
+
     run_config = RunConfig(
         pack=pack_payload,
         policy=policy_snapshot,
         calibrations=calibrations,
         obligations=obligations,
         facilities=facilities,
+        eway_bills=eway_bills,
     )
     logger.info(
         f"[config_activity] RunConfig assembled: pack={pack.version!r}, "
-        f"facilities={len(facilities)}, calibrations={len(calibrations)}, "
+        f"facilities={len(facilities)}, eway_bills={len(eway_bills)}, calibrations={len(calibrations)}, "
         f"obligations={len(obligations)}"
     )
     return run_config.model_dump(mode="json")

@@ -26,6 +26,7 @@ from .facilities import (
     Facility,
     EWayBillRecord,
     TelemetryBatch,
+    EPRCreditCertificate,
 )
 
 # Dynamic Configuration ORM + Pydantic models (Phase 3)
@@ -75,6 +76,7 @@ __all__ = [
     "Facility",
     "EWayBillRecord",
     "TelemetryBatch",
+    "EPRCreditCertificate",
     # Dynamic Config ORM (Phase 3)
     "RegulatoryPack",
     "OrgPolicy",

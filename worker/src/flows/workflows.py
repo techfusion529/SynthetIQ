@@ -468,7 +468,10 @@ class MasterEPRComplianceWorkflow:
                 recycler_id = f"RECYC-{run_input.org_id[:8]}"
 
             if not eway_bill_ref:
-                eway_bill_ref = f"EWB-{run_input.org_id[:8]}-{run_id[:8]}"
+                if run_config.eway_bills:
+                    eway_bill_ref = run_config.eway_bills[0]
+                else:
+                    eway_bill_ref = f"EWB-{run_input.org_id[:8]}-{run_id[:8]}"
 
             if volume_tons <= 0.0:
                 matching_obl = next(

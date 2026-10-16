@@ -5,8 +5,13 @@ export interface E2EStep {
   name: string;
   service: string;
   status: string;
-  data: Record<string, unknown>;
-  timestamp: number;
+  data?: Record<string, unknown>;
+  response?: Record<string, any>;
+  timestamp?: number;
+  runtime_ms?: number;
+  tokens?: number;
+  cost_usd?: number;
+  cost_inr?: number;
 }
 
 export interface E2ERunResult {
@@ -18,16 +23,22 @@ export interface E2ERunResult {
   /** Whether this run requires human-in-the-loop approval. */
   hitl_required?: boolean;
   status: string;
-  message: string;
+  message?: string;
   duration_seconds: number;
-  company_id: string;
+  total_runtime_ms?: number;
+  total_tokens?: number;
+  total_cost_usd?: number;
+  total_cost_inr?: number;
+  company_id?: string;
   category?: string;
   volume_tons?: number;
   audit_hash?: string;
   po_number?: string;
   portal_ack_number?: string;
   triggered_by?: string;
-  /** Step-by-step pipeline trace — not returned by the new /runs endpoint. */
+  started_at?: string;
+  completed_at?: string;
+  /** Step-by-step pipeline trace. */
   steps?: E2EStep[];
 }
 

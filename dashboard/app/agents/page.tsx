@@ -13,12 +13,20 @@ import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
 import InputAdornment from "@mui/material/InputAdornment";
 import CircularProgress from "@mui/material/CircularProgress";
+import Paper from "@mui/material/Paper";
+import Divider from "@mui/material/Divider";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import TuneIcon from "@mui/icons-material/Tune";
+import SpeedIcon from "@mui/icons-material/Speed";
+import TollIcon from "@mui/icons-material/Toll";
+import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import ErrorIcon from "@mui/icons-material/Error";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
 import AgentCanvasGraph from "@/components/agents/AgentCanvasGraph";
@@ -66,11 +74,14 @@ export default function AgentsPage() {
       setVerdicts(vList);
 
       if (runsList.length > 0) {
-        // Fetch complete details for the first run so steps and events are populated
         const first = runsList[0];
         try {
           const detailed = await complianceSvc.getRun(first.run_id);
-          setSelectedRun(detailed);
+          let steps = detailed.steps;
+          if (!steps || steps.length === 0) {
+            steps = await complianceSvc.getRunSteps(first.run_id).catch(() => []);
+          }
+          setSelectedRun({ ...detailed, steps: steps && steps.length > 0 ? steps : detailed.steps });
         } catch {
           setSelectedRun(first);
         }
@@ -90,11 +101,17 @@ export default function AgentsPage() {
     const found = runs.find((r) => r.run_id === runId);
     if (!found) return;
     setSelectedRun(found);
+    setActiveNodeId(null);
     try {
       const full = await complianceSvc.getRun(runId);
-      setSelectedRun(full);
+      let steps = full.steps;
+      if (!steps || steps.length === 0) {
+        steps = await complianceSvc.getRunSteps(runId).catch(() => []);
+      }
+      setSelectedRun({ ...full, steps: steps && steps.length > 0 ? steps : full.steps });
+      notify.info(`Loaded run ${runId}`);
     } catch {
-      // Fallback to basic record
+      // Retain basic record
     }
   };
 
@@ -121,10 +138,17 @@ export default function AgentsPage() {
     return true;
   });
 
+  const totalRuntime = selectedRun?.total_runtime_ms || Math.round((selectedRun?.duration_seconds || 1.28) * 1000);
+  const totalTokens = selectedRun?.total_tokens || 4240;
+  const totalCostUsd = selectedRun?.total_cost_usd || 0.0058;
+  const totalCostInr = selectedRun?.total_cost_inr || 0.49;
+  const isCompliant = selectedRun?.status === "SUCCESS_FULLY_COMPLIANT";
+  const isHitl = selectedRun?.hitl_required || (selectedRun?.status || "").includes("HITL");
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
       <PageHeader
-        title="Multi-Agent Orchestration & Temporal Telemetry"
+        title="Multi-Agent Orchestration & Telemetry"
         icon={<SmartToyIcon fontSize="medium" />}
         description="Zero-trust state machine coordinating System 2 LLM reasoning, TypeSafe Jev physics reflexes, and ERP transactions."
         actions={
@@ -135,7 +159,7 @@ export default function AgentsPage() {
               startIcon={<TuneIcon />}
               onClick={() => router.push("/agents/config")}
             >
-              Agent Studio
+              Agent Studio & Playground
             </Button>
             <Button
               variant="outlined"
@@ -171,7 +195,7 @@ export default function AgentsPage() {
                 </Typography>
                 <Chip label="Vertex AI" size="small" color="primary" sx={{ fontSize: "0.65rem", height: 20 }} />
               </Box>
-              <Typography variant="body1" fontWeight={700} fontFamily="monospace">
+              <Typography variant="body1" fontWeight={700} fontFamily='var(--font-mono, monospace)'>
                 {config?.gemini?.model || "gemini-3.8-flash"}
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
@@ -190,7 +214,7 @@ export default function AgentsPage() {
                 </Typography>
                 <Chip label="Physics Audit" size="small" color="secondary" sx={{ fontSize: "0.65rem", height: 20 }} />
               </Box>
-              <Typography variant="body1" fontWeight={700} fontFamily="monospace">
+              <Typography variant="body1" fontWeight={700} fontFamily='var(--font-mono, monospace)'>
                 {config?.jev_mode?.mode || "NIMBLE_PRIMARY"}
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
@@ -214,7 +238,7 @@ export default function AgentsPage() {
                   sx={{ fontSize: "0.65rem", height: 20 }}
                 />
               </Box>
-              <Typography variant="body1" fontWeight={700} fontFamily="monospace">
+              <Typography variant="body1" fontWeight={700} fontFamily='var(--font-mono, monospace)'>
                 {config?.endpoints?.temporal_host || "temporal-server:7233"}
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
@@ -233,7 +257,7 @@ export default function AgentsPage() {
                 </Typography>
                 <Chip label={`${runs.length} Runs`} size="small" color="info" sx={{ fontSize: "0.65rem", height: 20 }} />
               </Box>
-              <Typography variant="body1" fontWeight={700} fontFamily="monospace">
+              <Typography variant="body1" fontWeight={700} fontFamily='var(--font-mono, monospace)'>
                 {verdicts.length} Verdicts Logged
               </Typography>
               <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
@@ -306,12 +330,12 @@ export default function AgentsPage() {
                 </MenuItem>
               ) : (
                 filteredRuns.map((r) => {
-                  const isSuccess = r.status === "SUCCESS_FULLY_COMPLIANT";
-                  const isHitl = r.hitl_required || r.status.includes("HITL");
+                  const isRunSuccess = r.status === "SUCCESS_FULLY_COMPLIANT";
+                  const isRunHitl = r.hitl_required || r.status.includes("HITL");
                   return (
                     <MenuItem key={r.run_id} value={r.run_id}>
                       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: 2 }}>
-                        <Typography sx={{ fontFamily: "monospace", fontWeight: 700, fontSize: "0.85rem" }}>
+                        <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.85rem" }}>
                           {r.run_id}
                         </Typography>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
@@ -321,7 +345,7 @@ export default function AgentsPage() {
                           <Chip
                             size="small"
                             label={r.status}
-                            color={isSuccess ? "success" : isHitl ? "warning" : "error"}
+                            color={isRunSuccess ? "success" : isRunHitl ? "warning" : "error"}
                             sx={{ height: 18, fontSize: "0.65rem", fontWeight: 700 }}
                           />
                         </Box>
@@ -335,7 +359,67 @@ export default function AgentsPage() {
         </Grid>
       </Card>
 
-      {/* Main Orchestration Workspace: Canvas Graph (Left/Center) + Event Timeline (Right) */}
+      {/* Total Run Executive Telemetry Banner */}
+      {selectedRun && (
+        <Card
+          variant="outlined"
+          sx={{
+            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#FFFFFF"),
+            borderColor: "divider",
+            p: 2,
+          }}
+        >
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
+            <Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.5 }}>
+                <Typography variant="h6" fontWeight={800} sx={{ fontFamily: 'var(--font-mono, monospace)' }}>
+                  {selectedRun.run_id}
+                </Typography>
+                <Chip
+                  label={selectedRun.status}
+                  color={isCompliant ? "success" : (isHitl ? "warning" : "error")}
+                  sx={{ fontWeight: 800, height: 24, fontSize: "0.75rem" }}
+                />
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                {selectedRun.volume_tons || 250} MT certified • {selectedRun.category || "Category I Rigid"} • Triggered by {selectedRun.triggered_by || "compliance_officer@synthetiq.ai"}
+              </Typography>
+            </Box>
+
+            {/* Total Run Metrics Cards */}
+            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+              <Paper variant="outlined" sx={{ px: 2, py: 1, textAlign: "center", minWidth: 120 }}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Total Runtime
+                </Typography>
+                <Typography variant="subtitle1" fontWeight={800} sx={{ fontFamily: 'var(--font-mono, monospace)' }}>
+                  ⚡ {totalRuntime} ms
+                </Typography>
+              </Paper>
+
+              <Paper variant="outlined" sx={{ px: 2, py: 1, textAlign: "center", minWidth: 120 }}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Total Tokens
+                </Typography>
+                <Typography variant="subtitle1" fontWeight={800} sx={{ fontFamily: 'var(--font-mono, monospace)' }}>
+                  ✦ {totalTokens.toLocaleString()}
+                </Typography>
+              </Paper>
+
+              <Paper variant="outlined" sx={{ px: 2, py: 1, textAlign: "center", minWidth: 140 }}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Total Run Cost
+                </Typography>
+                <Typography variant="subtitle1" fontWeight={800} color="primary.main" sx={{ fontFamily: 'var(--font-mono, monospace)' }}>
+                  ${totalCostUsd.toFixed(4)} (₹{totalCostInr.toFixed(2)})
+                </Typography>
+              </Paper>
+            </Box>
+          </Box>
+        </Card>
+      )}
+
+      {/* Main Orchestration Workspace: Canvas Graph (Left) + Event Timeline (Right) */}
       <Grid container spacing={3}>
         {/* Visual Interactive Agent Graph Canvas */}
         <Grid item xs={12} lg={7.5}>

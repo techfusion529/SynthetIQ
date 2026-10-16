@@ -10,23 +10,29 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import { useTheme } from "@mui/material/styles";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "../app/lib/contexts/SessionContext";
 import { HEADER_H, NAV, RAIL_MINI, RAIL_W, findNav } from "./nav";
 
-const RAIL_BG = "#1C2329";
-const RAIL_TEXT = "#C9D1D9";
-const RAIL_MUTED = "#8B98A5";
-const RAIL_LINE = "rgba(255,255,255,0.08)";
-
 function NavList({ mini, onNavigate }: { mini: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const { user } = useSession();
   const role = user?.role ?? "viewer"; // fail closed: no role, no privileged links
   const can = (roles?: string[]) => !roles || roles.includes(role);
   const active = findNav(pathname || "/")?.item.href;
+
+  const railMuted = isDark ? "#8B98A5" : "#64748B";
+  const railLine = isDark ? "rgba(255,255,255,0.08)" : "#E2E8F0";
+  const railText = isDark ? "#C9D1D9" : "#334155";
+  const hoverBg = isDark ? "rgba(255,255,255,0.08)" : "#F1F5F9";
+  const selectedBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0, 114, 206, 0.08)";
+  const selectedColor = isDark ? "#FFFFFF" : theme.palette.primary.main;
+  const selectedBorder = isDark ? theme.palette.primary.light : theme.palette.primary.main;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -37,9 +43,9 @@ function NavList({ mini, onNavigate }: { mini: boolean; onNavigate?: () => void 
           return (
             <Box key={g.label} sx={{ mb: 1 }}>
               {mini ? (
-                gi > 0 && <Divider sx={{ borderColor: RAIL_LINE, mx: 1.5, mb: 1 }} />
+                gi > 0 && <Divider sx={{ borderColor: railLine, mx: 1.5, mb: 1 }} />
               ) : (
-                <Typography sx={{ px: 2.5, pt: 1.5, pb: 0.5, fontSize: "0.75rem", fontWeight: 600, color: RAIL_MUTED }}>
+                <Typography sx={{ px: 2.5, pt: 1.5, pb: 0.5, fontSize: "0.75rem", fontWeight: 700, color: railMuted, letterSpacing: "0.04em", textTransform: "uppercase" }}>
                   {g.label}
                 </Typography>
               )}
@@ -60,19 +66,31 @@ function NavList({ mini, onNavigate }: { mini: boolean; onNavigate?: () => void 
                         px: mini ? 0 : 2.25,
                         justifyContent: mini ? "center" : "flex-start",
                         borderLeft: "3px solid transparent",
-                        color: RAIL_TEXT,
-                        "&:hover": { bgcolor: "rgba(255,255,255,0.08)" },
-                        "&.Mui-selected": { bgcolor: "rgba(255,255,255,0.07)", borderLeftColor: "primary.light", color: "#FFFFFF" },
-                        "&.Mui-selected:hover": { bgcolor: "rgba(255,255,255,0.1)" },
+                        color: railText,
+                        "&:hover": { bgcolor: hoverBg },
+                        "&.Mui-selected": {
+                          bgcolor: selectedBg,
+                          borderLeftColor: selectedBorder,
+                          color: selectedColor,
+                          fontWeight: 600,
+                        },
+                        "&.Mui-selected:hover": { bgcolor: selectedBg },
                       }}
                     >
-                      <ListItemIcon sx={{ minWidth: mini ? 0 : 36, color: "inherit" }}>
+                      <ListItemIcon sx={{ minWidth: mini ? 0 : 36, color: selected ? selectedColor : "inherit" }}>
                         <Icon fontSize="small" />
                       </ListItemIcon>
                       {!mini && (
                         <>
-                          <ListItemText primary={i.label} primaryTypographyProps={{ fontSize: "0.85rem", noWrap: true }} />
-                          {i.external && <OpenInNewIcon sx={{ fontSize: 14, color: RAIL_MUTED }} />}
+                          <ListItemText
+                            primary={i.label}
+                            primaryTypographyProps={{
+                              fontSize: "0.85rem",
+                              noWrap: true,
+                              fontWeight: selected ? 600 : 400,
+                            }}
+                          />
+                          {i.external && <OpenInNewIcon sx={{ fontSize: 14, color: railMuted }} />}
                         </>
                       )}
                     </ListItemButton>
@@ -91,7 +109,7 @@ function NavList({ mini, onNavigate }: { mini: boolean; onNavigate?: () => void 
         })}
       </Box>
       {!mini && (
-        <Typography sx={{ p: 2, fontSize: "0.75rem", color: RAIL_MUTED, borderTop: `1px solid ${RAIL_LINE}` }}>
+        <Typography sx={{ p: 2, fontSize: "0.75rem", color: railMuted, borderTop: `1px solid ${railLine}` }}>
           SynthetIQ v0.2.0
         </Typography>
       )}
@@ -107,7 +125,13 @@ interface Props {
 }
 
 export default function AppSidebar({ collapsed, isDesktop, mobileOpen, onClose }: Props) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const w = isDesktop && collapsed ? RAIL_MINI : RAIL_W;
+
+  const sidebarBg = isDark ? "#16191F" : "#FFFFFF";
+  const sidebarBorder = isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid #E2E8F0";
+
   return (
     <Drawer
       variant={isDesktop ? "permanent" : "temporary"}
@@ -123,9 +147,8 @@ export default function AppSidebar({ collapsed, isDesktop, mobileOpen, onClose }
           boxSizing: "border-box",
           top: isDesktop ? HEADER_H : 0,
           height: isDesktop ? `calc(100% - ${HEADER_H}px)` : "100%",
-          bgcolor: RAIL_BG,
-          color: RAIL_TEXT,
-          borderRight: 0,
+          bgcolor: sidebarBg,
+          borderRight: isDesktop ? sidebarBorder : 0,
           overflowX: "hidden",
           transition: "width 0.2s ease",
         },

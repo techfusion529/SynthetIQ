@@ -275,6 +275,7 @@ async def list_runs(
                     "started_at": r.started_at.isoformat() if r.started_at else None,
                     "completed_at": r.completed_at.isoformat() if r.completed_at else None,
                     "duration_seconds": r.duration_seconds,
+                    **(r.result or {}),
                 }
                 for r in rows
             ]
@@ -322,6 +323,7 @@ async def get_run(
         "duration_seconds": row.duration_seconds,
         "error_message": row.error_message,
         "steps": (row.result or {}).get("steps", []),
+        **(row.result or {}),
     }
 
     # Merge live Temporal status (best-effort)

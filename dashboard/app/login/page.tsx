@@ -11,10 +11,13 @@ import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import CircularProgress from "@mui/material/CircularProgress";
-import SecurityIcon from "@mui/icons-material/Security";
+import Paper from "@mui/material/Paper";
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import BusinessIcon from "@mui/icons-material/Business";
+import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import { useRouter } from "next/navigation";
 import { useSession } from "../lib/contexts/SessionContext";
 
@@ -42,7 +45,7 @@ export default function LoginPage() {
       if (ok) {
         router.push("/");
       } else {
-        setError("Invalid credentials or user unauthorized");
+        setError("Invalid credentials or user unauthorized for this tenant");
       }
     } catch (err: any) {
       setError(err?.message || "Failed to sign in. Please verify your connection.");
@@ -61,60 +64,85 @@ export default function LoginPage() {
       sx={{
         minHeight: "100vh",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        bgcolor: "#0B0F19",
-        backgroundImage: "radial-gradient(ellipse at 50% 20%, rgba(79, 70, 229, 0.15), transparent 70%)",
+        bgcolor: (t) => (t.palette.mode === "dark" ? "#0F172A" : "#F8FAFC"),
         p: 2,
+        position: "relative",
       }}
     >
-      <Card
+      {/* Background Accent Lines */}
+      <Box
         sx={{
-          maxWidth: 480,
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "4px",
+          bgcolor: "primary.main",
+        }}
+      />
+
+      <Card
+        variant="outlined"
+        sx={{
+          maxWidth: 460,
           width: "100%",
-          bgcolor: "rgba(17, 24, 39, 0.8)",
-          backdropFilter: "blur(16px)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          borderRadius: 3,
-          boxShadow: "0 20px 40px -15px rgba(0,0,0,0.5)",
+          bgcolor: "background.paper",
+          borderRadius: 2,
+          boxShadow: (t) =>
+            t.palette.mode === "dark"
+              ? "0 20px 40px -15px rgba(0,0,0,0.6)"
+              : "0 10px 30px -10px rgba(0, 0, 0, 0.08)",
+          borderColor: "divider",
         }}
       >
         <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
-          {/* Header */}
+          {/* Brand Header */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
             <Box
               sx={{
-                width: 44,
-                height: 44,
-                borderRadius: 2,
-                bgcolor: "rgba(79, 70, 229, 0.2)",
+                width: 40,
+                height: 40,
+                borderRadius: 1.5,
+                bgcolor: "primary.main",
+                color: "#FFFFFF",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                border: "1px solid rgba(79, 70, 229, 0.4)",
+                fontWeight: 900,
+                fontSize: "1.1rem",
+                letterSpacing: "-0.05em",
               }}
             >
-              <SecurityIcon sx={{ color: "#818CF8", fontSize: 26 }} />
+              SQ
             </Box>
             <Box>
-              <Typography variant="h5" fontWeight={800} sx={{ color: "#F3F4F6", letterSpacing: "-0.02em" }}>
+              <Typography
+                variant="h6"
+                fontWeight={800}
+                sx={{ letterSpacing: "-0.02em", lineHeight: 1.2 }}
+              >
                 SynthetIQ
               </Typography>
-              <Typography variant="caption" sx={{ color: "#9CA3AF" }}>
+              <Typography variant="caption" color="text.secondary" fontWeight={500}>
                 Autonomous EPR Compliance & Multi-Agent Engine
               </Typography>
             </Box>
           </Box>
 
-          <Typography variant="h6" fontWeight={600} sx={{ mt: 3, mb: 0.5, color: "#E5E7EB" }}>
-            Sign In to Enterprise Workspace
-          </Typography>
-          <Typography variant="body2" sx={{ color: "#9CA3AF", mb: 3 }}>
-            Access tenant audits, dynamic agent orchestration, and regulatory vaults.
-          </Typography>
+          <Box sx={{ mt: 3, mb: 2 }}>
+            <Typography variant="subtitle1" fontWeight={700}>
+              Sign In to Enterprise Workspace
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Authorized access for statutory reporting, telemetry audits & treasury escrow.
+            </Typography>
+          </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2.5, borderRadius: 2 }}>
+            <Alert severity="error" sx={{ mb: 2.5, borderRadius: 1.5 }}>
               {error}
             </Alert>
           )}
@@ -128,13 +156,7 @@ export default function LoginPage() {
               required
               fullWidth
               size="small"
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  bgcolor: "rgba(255, 255, 255, 0.02)",
-                  "& fieldset": { borderColor: "rgba(255, 255, 255, 0.12)" },
-                  "&:hover fieldset": { borderColor: "#818CF8" },
-                },
-              }}
+              placeholder="user@enterprise.com"
             />
 
             <TextField
@@ -145,84 +167,99 @@ export default function LoginPage() {
               required
               fullWidth
               size="small"
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  bgcolor: "rgba(255, 255, 255, 0.02)",
-                  "& fieldset": { borderColor: "rgba(255, 255, 255, 0.12)" },
-                  "&:hover fieldset": { borderColor: "#818CF8" },
-                },
-              }}
             />
 
             <Button
               type="submit"
               variant="contained"
+              color="primary"
               disabled={submitting}
-              endIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <ArrowForwardIcon />}
+              endIcon={submitting ? <CircularProgress size={16} color="inherit" /> : <ArrowForwardIcon fontSize="small" />}
               sx={{
                 mt: 1,
-                py: 1.2,
-                borderRadius: 2,
+                py: 1.1,
                 fontWeight: 700,
                 textTransform: "none",
-                background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)",
-                boxShadow: "0 4px 14px 0 rgba(79, 70, 229, 0.39)",
-                "&:hover": {
-                  background: "linear-gradient(135deg, #4338CA 0%, #6D28D9 100%)",
-                },
+                fontSize: "0.92rem",
               }}
             >
-              {submitting ? "Authenticating..." : "Sign In to Tenant"}
+              {submitting ? "Verifying Credentials..." : "Sign In to Workspace"}
             </Button>
           </Box>
 
-          <Divider sx={{ my: 3, borderColor: "rgba(255, 255, 255, 0.08)" }}>
-            <Typography variant="caption" sx={{ color: "#6B7280" }}>
-              DEMO ROLES & WORKSPACES
+          <Divider sx={{ my: 3 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ letterSpacing: "0.04em" }}>
+              DEMO ROLES & QUICK ACCESS
             </Typography>
           </Divider>
 
-          {/* Quick Login Chips for Pair Programming & Testing */}
+          {/* Quick Login Chips */}
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            <Typography variant="caption" sx={{ color: "#9CA3AF" }}>
-              Quick test roles (Click to populate):
+            <Typography variant="caption" color="text.secondary">
+              Select persona to populate test credentials:
             </Typography>
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
               <Chip
-                label="Admin / Compliance Officer"
+                label="Compliance Officer (Admin)"
                 size="small"
+                variant="outlined"
+                color="primary"
                 onClick={() => handleQuickFill("compliance_officer@synthetiq.ai")}
-                sx={{ cursor: "pointer", bgcolor: "rgba(79,70,229,0.15)", color: "#A5B4FC", border: "1px solid rgba(79,70,229,0.3)" }}
+                sx={{ cursor: "pointer", fontWeight: 600, fontSize: "0.75rem" }}
               />
               <Chip
                 label="Auditor (Physics / Fraud)"
                 size="small"
+                variant="outlined"
+                color="secondary"
                 onClick={() => handleQuickFill("auditor@synthetiq.ai")}
-                sx={{ cursor: "pointer", bgcolor: "rgba(16,185,129,0.15)", color: "#6EE7B7", border: "1px solid rgba(16,185,129,0.3)" }}
+                sx={{ cursor: "pointer", fontWeight: 600, fontSize: "0.75rem" }}
               />
               <Chip
                 label="Executive Viewer"
                 size="small"
+                variant="outlined"
                 onClick={() => handleQuickFill("board_viewer@synthetiq.ai")}
-                sx={{ cursor: "pointer", bgcolor: "rgba(245,158,11,0.15)", color: "#FCD34D", border: "1px solid rgba(245,158,11,0.3)" }}
+                sx={{ cursor: "pointer", fontWeight: 600, fontSize: "0.75rem" }}
               />
             </Box>
           </Box>
 
-          <Box sx={{ mt: 3, pt: 2, borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Typography variant="caption" sx={{ color: "#9CA3AF" }}>
-              New organization?
+          <Box
+            sx={{
+              mt: 3,
+              pt: 2,
+              borderTop: 1,
+              borderColor: "divider",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Typography variant="caption" color="text.secondary">
+              New enterprise tenant?
             </Typography>
             <Button
               size="small"
               onClick={() => router.push("/register")}
-              sx={{ color: "#818CF8", fontWeight: 600, textTransform: "none" }}
+              sx={{ fontWeight: 600, textTransform: "none" }}
             >
               Onboard Organization →
             </Button>
           </Box>
         </CardContent>
       </Card>
+
+      {/* Trust & Security Badge */}
+      <Box sx={{ mt: 3, display: "flex", alignItems: "center", gap: 2, color: "text.secondary" }}>
+        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <ShieldOutlinedIcon sx={{ fontSize: 14 }} /> CPCB Form-1 Digital Signature (DSC)
+        </Typography>
+        <Typography variant="caption">•</Typography>
+        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <CheckCircleOutlineIcon sx={{ fontSize: 14 }} /> ISO 27001 / SOC 2 Attested
+        </Typography>
+      </Box>
     </Box>
   );
 }

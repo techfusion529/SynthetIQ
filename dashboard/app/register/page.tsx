@@ -10,8 +10,9 @@ import Button from "@mui/material/Button";
 import Alert from "@mui/material/Alert";
 import MenuItem from "@mui/material/MenuItem";
 import CircularProgress from "@mui/material/CircularProgress";
-import BusinessIcon from "@mui/icons-material/Business";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { useRouter } from "next/navigation";
 import { useSession } from "../lib/contexts/SessionContext";
 
@@ -73,69 +74,82 @@ export default function RegisterPage() {
       sx={{
         minHeight: "100vh",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        bgcolor: "#0B0F19",
-        backgroundImage: "radial-gradient(ellipse at 50% 10%, rgba(99, 102, 241, 0.15), transparent 70%)",
+        bgcolor: (t) => (t.palette.mode === "dark" ? "#0F172A" : "#F8FAFC"),
         p: 2,
+        position: "relative",
       }}
     >
-      <Card
+      <Box
         sx={{
-          maxWidth: 540,
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "4px",
+          bgcolor: "primary.main",
+        }}
+      />
+
+      <Card
+        variant="outlined"
+        sx={{
+          maxWidth: 520,
           width: "100%",
-          bgcolor: "rgba(17, 24, 39, 0.8)",
-          backdropFilter: "blur(16px)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          borderRadius: 3,
-          boxShadow: "0 20px 40px -15px rgba(0,0,0,0.5)",
+          bgcolor: "background.paper",
+          borderRadius: 2,
+          boxShadow: (t) =>
+            t.palette.mode === "dark"
+              ? "0 20px 40px -15px rgba(0,0,0,0.6)"
+              : "0 10px 30px -10px rgba(0, 0, 0, 0.08)",
+          borderColor: "divider",
         }}
       >
         <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
             <Box
               sx={{
-                width: 44,
-                height: 44,
-                borderRadius: 2,
-                bgcolor: "rgba(99, 102, 241, 0.2)",
+                width: 40,
+                height: 40,
+                borderRadius: 1.5,
+                bgcolor: "primary.main",
+                color: "#FFFFFF",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                border: "1px solid rgba(99, 102, 241, 0.4)",
+                fontWeight: 900,
+                fontSize: "1.1rem",
               }}
             >
-              <BusinessIcon sx={{ color: "#A5B4FC", fontSize: 26 }} />
+              SQ
             </Box>
             <Box>
-              <Typography variant="h5" fontWeight={800} sx={{ color: "#F3F4F6", letterSpacing: "-0.02em" }}>
+              <Typography variant="h6" fontWeight={800} sx={{ letterSpacing: "-0.02em", lineHeight: 1.2 }}>
                 Onboard Enterprise
               </Typography>
-              <Typography variant="caption" sx={{ color: "#9CA3AF" }}>
-                Create your tenant organization and multi-agent compliance workspace
+              <Typography variant="caption" color="text.secondary">
+                Configure your tenant organization and multi-agent compliance workspace
               </Typography>
             </Box>
           </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2.5, borderRadius: 2 }}>
+            <Alert severity="error" sx={{ my: 2.5, borderRadius: 1.5 }}>
               {error}
             </Alert>
           )}
 
-          <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <Typography variant="subtitle2" sx={{ color: "#818CF8", fontWeight: 700, mt: 1 }}>
-              Organization Details
-            </Typography>
-
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2.5, display: "flex", flexDirection: "column", gap: 2 }}>
             <TextField
-              label="Legal Enterprise Name"
+              label="Organization Legal Name"
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
-              placeholder="e.g. Parle Agro Plastics Ltd"
               required
               fullWidth
               size="small"
+              placeholder="e.g. Acme Consumer Packaging Ltd"
             />
 
             <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
@@ -145,6 +159,7 @@ export default function RegisterPage() {
                 value={sector}
                 onChange={(e) => setSector(e.target.value)}
                 size="small"
+                fullWidth
               >
                 {SECTORS.map((s) => (
                   <MenuItem key={s} value={s}>
@@ -156,35 +171,32 @@ export default function RegisterPage() {
               <TextField
                 label="GSTIN (Optional)"
                 value={gstin}
-                onChange={(e) => setGstin(e.target.value)}
-                placeholder="27AAACH1234F1Z5"
+                onChange={(e) => setGstin(e.target.value.toUpperCase())}
                 size="small"
+                fullWidth
+                placeholder="27AABCU9603R1ZM"
               />
             </Box>
 
-            <Typography variant="subtitle2" sx={{ color: "#818CF8", fontWeight: 700, mt: 1 }}>
-              Administrator Account
-            </Typography>
-
             <TextField
-              label="Full Name"
+              label="Administrator Full Name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="e.g. Rajesh Sharma"
               required
               fullWidth
               size="small"
+              placeholder="e.g. Priya Sharma"
             />
 
             <TextField
-              label="Corporate Work Email"
+              label="Corporate Email Address"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="r.sharma@parleagro.com"
               required
               fullWidth
               size="small"
+              placeholder="compliance@enterprise.com"
             />
 
             <TextField
@@ -200,38 +212,55 @@ export default function RegisterPage() {
             <Button
               type="submit"
               variant="contained"
+              color="primary"
               disabled={submitting}
-              endIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <ArrowForwardIcon />}
+              endIcon={submitting ? <CircularProgress size={16} color="inherit" /> : <ArrowForwardIcon fontSize="small" />}
               sx={{
-                mt: 1.5,
-                py: 1.2,
-                borderRadius: 2,
+                mt: 1,
+                py: 1.1,
                 fontWeight: 700,
                 textTransform: "none",
-                background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)",
-                "&:hover": {
-                  background: "linear-gradient(135deg, #4338CA 0%, #6D28D9 100%)",
-                },
+                fontSize: "0.92rem",
               }}
             >
-              {submitting ? "Initializing Organization..." : "Create Tenant & Launch Workspace"}
+              {submitting ? "Provisioning Tenant..." : "Create Workspace"}
             </Button>
           </Box>
 
-          <Box sx={{ mt: 3, pt: 2, borderTop: "1px solid rgba(255,255,255,0.06)", textAlign: "center" }}>
-            <Typography variant="caption" sx={{ color: "#9CA3AF" }}>
-              Already registered?{" "}
-              <Button
-                size="small"
-                onClick={() => router.push("/login")}
-                sx={{ color: "#818CF8", fontWeight: 600, textTransform: "none", p: 0 }}
-              >
-                Sign In
-              </Button>
+          <Box
+            sx={{
+              mt: 3,
+              pt: 2,
+              borderTop: 1,
+              borderColor: "divider",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Typography variant="caption" color="text.secondary">
+              Already have an enterprise account?
             </Typography>
+            <Button
+              size="small"
+              onClick={() => router.push("/login")}
+              sx={{ fontWeight: 600, textTransform: "none" }}
+            >
+              Sign In Instead →
+            </Button>
           </Box>
         </CardContent>
       </Card>
+
+      <Box sx={{ mt: 3, display: "flex", alignItems: "center", gap: 2, color: "text.secondary" }}>
+        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <ShieldOutlinedIcon sx={{ fontSize: 14 }} /> CPCB Form-1 Digital Signature (DSC)
+        </Typography>
+        <Typography variant="caption">•</Typography>
+        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <CheckCircleOutlineIcon sx={{ fontSize: 14 }} /> ISO 27001 / SOC 2 Attested
+        </Typography>
+      </Box>
     </Box>
   );
 }

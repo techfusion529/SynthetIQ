@@ -76,12 +76,18 @@ export default function AgentsPage() {
       if (runsList.length > 0) {
         const first = runsList[0];
         try {
-          const detailed = await complianceSvc.getRun(first.run_id);
-          let steps = detailed.steps;
-          if (!steps || steps.length === 0) {
-            steps = await complianceSvc.getRunSteps(first.run_id).catch(() => []);
-          }
-          setSelectedRun({ ...detailed, steps: steps && steps.length > 0 ? steps : detailed.steps });
+          const [detailed, eventsData] = await Promise.all([
+            complianceSvc.getRun(first.run_id).catch(() => first),
+            complianceSvc.getRunEvents(first.run_id).catch(() => null),
+          ]);
+          setSelectedRun({
+            ...detailed,
+            steps: eventsData?.events || detailed.steps || [],
+            total_runtime_ms: eventsData?.total_runtime_ms ?? detailed.total_runtime_ms,
+            total_tokens: eventsData?.total_tokens ?? detailed.total_tokens,
+            total_cost_usd: eventsData?.total_cost_usd ?? detailed.total_cost_usd,
+            total_cost_inr: eventsData?.total_cost_inr ?? detailed.total_cost_inr,
+          });
         } catch {
           setSelectedRun(first);
         }
@@ -103,12 +109,18 @@ export default function AgentsPage() {
     setSelectedRun(found);
     setActiveNodeId(null);
     try {
-      const full = await complianceSvc.getRun(runId);
-      let steps = full.steps;
-      if (!steps || steps.length === 0) {
-        steps = await complianceSvc.getRunSteps(runId).catch(() => []);
-      }
-      setSelectedRun({ ...full, steps: steps && steps.length > 0 ? steps : full.steps });
+      const [full, eventsData] = await Promise.all([
+        complianceSvc.getRun(runId).catch(() => found),
+        complianceSvc.getRunEvents(runId).catch(() => null),
+      ]);
+      setSelectedRun({
+        ...full,
+        steps: eventsData?.events || full.steps || [],
+        total_runtime_ms: eventsData?.total_runtime_ms ?? full.total_runtime_ms,
+        total_tokens: eventsData?.total_tokens ?? full.total_tokens,
+        total_cost_usd: eventsData?.total_cost_usd ?? full.total_cost_usd,
+        total_cost_inr: eventsData?.total_cost_inr ?? full.total_cost_inr,
+      });
       notify.info(`Loaded run ${runId}`);
     } catch {
       // Retain basic record

@@ -69,8 +69,9 @@ export interface Form1Payload {
 }
 
 export interface ApproveEscrowParams {
-  run_id: string;
-  audit_id: string;
+  run_id?: string;
+  audit_id?: string;
+  po_number?: string;
   workflow_id?: string;
   action?: "APPROVE" | "REJECT";
 }

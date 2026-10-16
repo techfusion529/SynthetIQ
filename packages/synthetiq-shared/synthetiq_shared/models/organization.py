@@ -439,19 +439,40 @@ class EscrowPORecord(Base):
     escrow_status: Mapped[str] = mapped_column(String(32), default="advance_pending")
 
     def to_dict(self) -> dict:
+        total = float(self.total_amount_inr or 0.0)
+        if total <= 0.0:
+            total = float(self.advance_amount or 0.0) + float(self.holdback_amount or 0.0)
+        advance = float(self.advance_amount_inr or 0.0)
+        if advance <= 0.0:
+            advance = float(self.advance_amount or 0.0)
+        if advance <= 0.0 and total > 0.0:
+            advance = round(total * 0.8, 2)
+
+        retention = float(self.retention_amount_inr or 0.0)
+        if retention <= 0.0:
+            retention = float(self.holdback_amount or 0.0)
+        if retention <= 0.0 and total > 0.0:
+            retention = round(total * 0.2, 2)
+
+        recycler = self.recycler_name or self.recycler_id or "Delhi Plastic Recyclers Ltd"
+
         return {
-            "po_number": self.po_number, "company_id": self.company_id,
-            "recycler_id": self.recycler_id, "recycler_name": self.recycler_name,
-            "category": self.category, "plastic_tons": self.plastic_tons,
-            "total_amount_inr": self.total_amount_inr,
-            "advance_amount_inr": self.advance_amount_inr,
-            "retention_amount_inr": self.retention_amount_inr,
-            "status": self.status, "escrow_account": self.escrow_account,
+            "po_number": self.po_number,
+            "company_id": self.company_id,
+            "recycler_id": self.recycler_id,
+            "recycler_name": recycler,
+            "category": self.category,
+            "plastic_tons": self.plastic_tons,
+            "total_amount_inr": total,
+            "advance_amount_inr": advance,
+            "retention_amount_inr": retention,
+            "status": self.status,
+            "escrow_account": self.escrow_account,
             "audit_id": self.audit_id,
-            "sap_purchase_order_number": self.sap_purchase_order_number,
+            "sap_purchase_order_number": self.sap_purchase_order_number or self.po_number,
             "sap_sync_status": self.sap_sync_status,
-            "advance_amount": self.advance_amount,
-            "holdback_amount": self.holdback_amount,
+            "advance_amount": advance,
+            "holdback_amount": retention,
             "escrow_status": self.escrow_status,
         }
 

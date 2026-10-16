@@ -2,16 +2,43 @@
 
 export interface E2EStep {
   step: number;
+  event_id?: string;
   name: string;
   service: string;
+  role?: string;
+  system?: string;
   status: string;
   data?: Record<string, unknown>;
+  input?: Record<string, any>;
+  output?: Record<string, any>;
   response?: Record<string, any>;
-  timestamp?: number;
+  timestamp?: string | number;
   runtime_ms?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
   tokens?: number;
   cost_usd?: number;
   cost_inr?: number;
+}
+
+export interface E2ERunEvent extends E2EStep {
+  timestamp: string | number;
+  runtime_ms: number;
+  tokens: number;
+  cost_usd: number;
+  cost_inr: number;
+}
+
+export interface E2ERunEventsResponse {
+  run_id: string;
+  workflow_type?: string;
+  status: string;
+  temporal_workflow_id?: string;
+  total_runtime_ms: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  total_cost_inr: number;
+  events: E2ERunEvent[];
 }
 
 export interface E2ERunResult {

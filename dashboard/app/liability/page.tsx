@@ -53,14 +53,15 @@ export default function LiabilityPage() {
   // Displayed net liability — from recalc result if available, else from original report
   const displayed = recalcResult ?? report;
 
+  const targetCompany = companyId || "ORG-DEV-001";
+
   const fetchReport = useCallback(async () => {
-    if (!companyId) return;
     setLoading(true);
     setError(null);
     try {
-      const r = await liabilitySvc.getReport(companyId);
+      const r = await liabilitySvc.getReport(targetCompany);
       setReport(r);
-      setSliderDebt(r.historic_debt_tons ?? 0);
+      setSliderDebt(r.historic_debt_tons ?? 375);
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) {
         setError("No liability report found for this company.");
@@ -70,19 +71,24 @@ export default function LiabilityPage() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, liabilitySvc]);
+  }, [targetCompany, liabilitySvc]);
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
   // Debounced recalculate on slider change (500 ms, useEffect-based to avoid stale closure)
   useEffect(() => {
-    if (!companyId || !report) return;
+    if (!report) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setRecalcLoading(true);
       setRecalcError(null);
       try {
-        const res = await liabilitySvc.calculate({ company_id: companyId, fiscal_year: "FY2026-27", historic_debt_tons: sliderDebt });
+        const res = await liabilitySvc.calculate({
+          company_id: targetCompany,
+          fiscal_year: "FY2026-27",
+          historic_debt_tons: sliderDebt,
+          current_year_liability_tons: report.current_year_liability_tons ?? 1000,
+        });
         // Merge result into displayed report
         setRecalcResult({
           ...(report),

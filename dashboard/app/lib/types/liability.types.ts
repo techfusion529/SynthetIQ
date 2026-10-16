@@ -34,6 +34,8 @@ export interface LiabilityCalculateParams {
   company_id: string;
   fiscal_year: string;
   historic_debt_tons?: number;
+  current_year_liability_tons?: number;
+  already_fulfilled_tons?: number;
 }
 
 export interface LiabilityCalculateResult {

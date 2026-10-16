@@ -37,6 +37,11 @@ class HITLResolveRequest(BaseModel):
         "REGULATORY_EXEMPTION",
         "EWAY_BILL_RESUBMISSION",
         "AUDITOR_JUDGMENT_OVERRIDE",
+        "DATA_VERIFIED_CORRECT",
+        "DATA_CORRECTED_BY_OPERATOR",
+        "MANUAL_MEASUREMENT_ACCEPTED",
+        "FALSE_POSITIVE_TAMPER_ALERT",
+        "ESCALATED_TO_COMPLIANCE_TEAM",
     ]
     override_tons: Optional[float] = None
     notes: str

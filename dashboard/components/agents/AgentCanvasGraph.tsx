@@ -159,17 +159,27 @@ export default function AgentCanvasGraph({
       else if (st.includes("SKIP")) status = "SKIPPED";
 
       let metric = "";
-      if (node.id === "brand_liability") metric = `${selectedRun.volume_tons || 450} MT Net`;
-      else if (node.id === "regulatory_watchdog") metric = "100% Mandate";
-      else if (node.id === "auction") metric = "₹4,150/MT Cleared";
-      else if (node.id === "scada_auditor") {
-        metric = status === "HALTED" ? "PF 0.99 (Resistive Spoof)" : (status === "HITL" ? "Δ Variance 4.8%" : "45.2 Nm · PF 0.84");
+      const out = (step as any).output || step.response || step.data || {};
+      if (node.id === "brand_liability") {
+        metric = out.net_liability_tons ? `${out.net_liability_tons} MT Net` : `${selectedRun.volume_tons || 450} MT Net`;
+      } else if (node.id === "regulatory_watchdog") {
+        metric = out.mandated_target_pct ? `${out.mandated_target_pct}% Mandate` : "100% Mandate";
+      } else if (node.id === "auction") {
+        metric = out.clearing_price ? `₹${out.clearing_price.toLocaleString()}/MT Cleared` : "₹4,150/MT Cleared";
+      } else if (node.id === "scada_auditor") {
+        if (status === "HALTED") {
+          metric = out.is_spoofed ? "PF 0.99 (Resistive Spoof)" : "Halted: Physics Anomaly";
+        } else if (status === "HITL") {
+          metric = "Δ Variance Exceeded";
+        } else {
+          metric = out.torque_nm ? `${out.torque_nm} Nm · PF ${out.power_factor || 0.84}` : "45.2 Nm · PF 0.84";
+        }
       } else if (node.id === "forensic_auditor") {
-        metric = status === "HALTED" ? "Halted: Upstream Fraud" : (status === "HITL" ? "Requires Officer Approval" : "98.4% Confidence");
+        metric = status === "HALTED" ? "Halted: Upstream Fraud" : (status === "HITL" ? "Requires Officer Approval" : (out.confidence_pct ? `${out.confidence_pct}% Confidence` : "98.4% Confidence"));
       } else if (node.id === "escrow") {
-        metric = status === "HALTED" || status === "SKIPPED" ? "Payment Halted" : (status === "QUEUED" ? "Gate Locked" : "80/20 PO Disbursed");
+        metric = status === "HALTED" || status === "SKIPPED" ? "Payment Halted" : (status === "QUEUED" ? "Gate Locked" : (out.status ? out.status.replace("_", " ") : "80/20 PO Disbursed"));
       } else if (node.id === "cpcb_dispatch") {
-        metric = status === "HALTED" || status === "SKIPPED" ? "Filing Blocked" : (status === "QUEUED" ? "Awaiting Escrow" : "DSC Form-1 Signed");
+        metric = status === "HALTED" || status === "SKIPPED" ? "Filing Blocked" : (status === "QUEUED" ? "Awaiting Escrow" : (out.portal_ack_number ? "DSC Form-1 Signed" : "DSC Form-1 Signed"));
       }
 
       return {

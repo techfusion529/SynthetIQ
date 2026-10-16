@@ -356,9 +356,23 @@ export default function AgentEventTimeline({
                         sx={{ height: 18, fontSize: "0.65rem", fontWeight: 700 }}
                       />
                     </Box>
-                    <Typography variant="caption" color="text.secondary" noWrap display="block">
-                      {step.role || step.service}
-                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.25, flexWrap: "wrap" }}>
+                      <Typography variant="caption" color="text.secondary" noWrap>
+                        {step.role || step.service}
+                      </Typography>
+                      {step.timestamp && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontFamily: 'var(--font-mono, monospace)',
+                            color: "text.disabled",
+                            fontSize: "0.68rem",
+                          }}
+                        >
+                          • {typeof step.timestamp === "number" ? new Date(step.timestamp).toLocaleTimeString() : String(step.timestamp).replace("T", " ").substring(0, 19)}
+                        </Typography>
+                      )}
+                    </Box>
                   </Box>
                 </Box>
 
@@ -396,52 +410,102 @@ export default function AgentEventTimeline({
                 </Typography>
               </Box>
 
-              {/* Expandable Agent Response Payload */}
+              {/* Expandable Agent Input & Output Payloads */}
               <Collapse in={isExpanded}>
-                <Box sx={{ p: 1.5, pt: 0 }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                    <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <AutoAwesomeIcon sx={{ fontSize: 13, color: "primary.main" }} /> AGENT RESPONSE PAYLOAD
-                    </Typography>
-                    <Button
-                      size="small"
-                      variant="text"
-                      startIcon={copiedStep === step.step ? <CheckIcon sx={{ fontSize: 12 }} /> : <ContentCopyIcon sx={{ fontSize: 12 }} />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyPayload(step.step, step.response || step.data);
+                <Box sx={{ p: 1.5, pt: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  {/* Step Input Payload */}
+                  <Box>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
+                      <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <ScheduleIcon sx={{ fontSize: 13, color: "info.main" }} /> INPUT ARGUMENTS (TEMPORAL DISPATCH)
+                      </Typography>
+                      <Button
+                        size="small"
+                        variant="text"
+                        startIcon={copiedStep === -(step.step) ? <CheckIcon sx={{ fontSize: 12 }} /> : <ContentCopyIcon sx={{ fontSize: 12 }} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyPayload(-(step.step), (step as any).input || {});
+                        }}
+                        sx={{ py: 0, fontSize: "0.7rem", textTransform: "none" }}
+                      >
+                        {copiedStep === -(step.step) ? "Copied" : "Copy Input"}
+                      </Button>
+                    </Box>
+
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 1.25,
+                        bgcolor: (t) => (t.palette.mode === "dark" ? "#090D16" : "#F1F5F9"),
+                        borderRadius: 1,
+                        maxHeight: 160,
+                        overflowY: "auto",
                       }}
-                      sx={{ py: 0, fontSize: "0.7rem", textTransform: "none" }}
                     >
-                      {copiedStep === step.step ? "Copied" : "Copy JSON"}
-                    </Button>
+                      <Typography
+                        variant="caption"
+                        component="pre"
+                        sx={{
+                          m: 0,
+                          fontFamily: 'var(--font-mono, monospace)',
+                          fontSize: "0.75rem",
+                          color: (t) => (t.palette.mode === "dark" ? "#93C5FD" : "#1D4ED8"),
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {JSON.stringify((step as any).input || {}, null, 2)}
+                      </Typography>
+                    </Paper>
                   </Box>
 
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 1.25,
-                      bgcolor: (t) => (t.palette.mode === "dark" ? "#0D1117" : "#F8FAFC"),
-                      borderRadius: 1,
-                      maxHeight: 200,
-                      overflowY: "auto",
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      component="pre"
+                  {/* Step Output Payload */}
+                  <Box>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
+                      <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <AutoAwesomeIcon sx={{ fontSize: 13, color: "primary.main" }} /> AGENT OUTPUT PAYLOAD (RESPONSE)
+                      </Typography>
+                      <Button
+                        size="small"
+                        variant="text"
+                        startIcon={copiedStep === step.step ? <CheckIcon sx={{ fontSize: 12 }} /> : <ContentCopyIcon sx={{ fontSize: 12 }} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyPayload(step.step, (step as any).output || step.response || step.data || {});
+                        }}
+                        sx={{ py: 0, fontSize: "0.7rem", textTransform: "none" }}
+                      >
+                        {copiedStep === step.step ? "Copied" : "Copy Output"}
+                      </Button>
+                    </Box>
+
+                    <Paper
+                      variant="outlined"
                       sx={{
-                        m: 0,
-                        fontFamily: 'var(--font-mono, monospace)',
-                        fontSize: "0.75rem",
-                        color: (t) => (t.palette.mode === "dark" ? "#86EFAC" : "#15803d"),
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-all",
+                        p: 1.25,
+                        bgcolor: (t) => (t.palette.mode === "dark" ? "#0D1117" : "#F8FAFC"),
+                        borderRadius: 1,
+                        maxHeight: 180,
+                        overflowY: "auto",
                       }}
                     >
-                      {JSON.stringify(step.response || step.data || {}, null, 2)}
-                    </Typography>
-                  </Paper>
+                      <Typography
+                        variant="caption"
+                        component="pre"
+                        sx={{
+                          m: 0,
+                          fontFamily: 'var(--font-mono, monospace)',
+                          fontSize: "0.75rem",
+                          color: (t) => (t.palette.mode === "dark" ? "#86EFAC" : "#15803d"),
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {JSON.stringify((step as any).output || step.response || step.data || {}, null, 2)}
+                      </Typography>
+                    </Paper>
+                  </Box>
                 </Box>
               </Collapse>
             </Card>

@@ -1,7 +1,7 @@
 /** ComplianceService — end-to-end compliance run endpoints. */
 
 import { BaseService } from "./base.service";
-import type { E2ERunResult, RunInput, E2EStep } from "../types/compliance.types";
+import type { E2ERunResult, RunInput, E2EStep, E2ERunEventsResponse } from "../types/compliance.types";
 
 export class ComplianceService extends BaseService {
   /**
@@ -64,6 +64,23 @@ export class ComplianceService extends BaseService {
         return await this.request<E2EStep[]>(
           "GET",
           `/api/v1/compliance/runs/${encodeURIComponent(runId)}/steps`
+        );
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Returns rich execution events from Temporal & API level with timestamps, inputs, outputs, tokens, and compute costs.
+   */
+  async getRunEvents(runId: string): Promise<E2ERunEventsResponse> {
+    try {
+      return await this.request<E2ERunEventsResponse>("GET", `/api/v1/runs/${encodeURIComponent(runId)}/events`);
+    } catch (e: any) {
+      if (e?.status === 404) {
+        return await this.request<E2ERunEventsResponse>(
+          "GET",
+          `/api/v1/compliance/runs/${encodeURIComponent(runId)}/events`
         );
       }
       throw e;

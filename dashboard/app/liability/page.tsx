@@ -112,7 +112,7 @@ export default function LiabilityPage() {
   const skeletonRowCount = report ? Object.keys(report.breakdown_by_category ?? {}).length : 4;
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
       <PageHeader
         title="Plastic Liability & 1/3 Debt Amortization Matrix"
         icon={<ScaleIcon fontSize="medium" />}
@@ -140,7 +140,7 @@ export default function LiabilityPage() {
           {loading ? <Skeleton variant="rounded" height={100} /> : <StatCard label="Historic Debt" value={sliderDebt} unit="Tons" color="#f59e0b" />}
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          {loading ? <Skeleton variant="rounded" height={100} /> : <StatCard label="Amortized 1/3" value={displayed?.amortized_debt_tons ?? null} unit="Tons" color="#4f46e5" />}
+          {loading ? <Skeleton variant="rounded" height={100} /> : <StatCard label="Amortized 1/3" value={displayed?.amortized_debt_tons ?? null} unit="Tons" color="#8b5cf6" />}
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           {loading ? <Skeleton variant="rounded" height={100} /> : <StatCard label="Net Obligation" value={displayed?.net_liability_tons ?? null} unit="Tons" color="#10b981" />}
@@ -149,17 +149,17 @@ export default function LiabilityPage() {
 
       {/* Amortization slider */}
       <Card>
-        <CardContent>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-            <CalculateIcon color="secondary" />
+        <CardContent sx={{ p: 2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+            <CalculateIcon color="primary" />
             <Typography variant="subtitle1" fontWeight={700}>Statutory 1/3 Historic Debt Amortization Engine</Typography>
             {recalcLoading && <Chip label="Recalculating…" size="small" color="primary" variant="outlined" sx={{ ml: "auto" }} />}
           </Box>
           <Typography variant="caption" color="text.secondary">
             Rule 13(2): Past deficits amortized in equal 33.33% fractions over 3 rolling fiscal years
           </Typography>
-          <Box sx={{ px: 1, mt: 2 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+          <Box sx={{ px: 1, mt: 1.5 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
               <Typography variant="body2" color="text.secondary">Historic Carryover Debt</Typography>
               <Typography variant="body2" fontWeight={700} fontFamily="monospace" color="warning.main">
                 {sliderDebt.toLocaleString()} Tons
@@ -174,8 +174,8 @@ export default function LiabilityPage() {
             />
           </Box>
           {recalcError && <Alert severity="error" sx={{ mt: 1 }}>{recalcError}</Alert>}
-          <Box sx={{ mt: 2, p: 1.5, bgcolor: "rgba(79,70,229,0.07)", borderRadius: 2, border: "1px solid rgba(79,70,229,0.15)" }}>
-            <Typography variant="caption" color="primary.light" fontFamily="monospace">
+          <Box sx={{ mt: 1.5, p: 1.25, bgcolor: "rgba(139, 92, 246, 0.08)", borderRadius: 2, border: "1px solid rgba(139, 92, 246, 0.2)" }}>
+            <Typography variant="caption" color="primary.main" fontFamily="monospace">
               Net = Current ({displayed?.current_year_liability_tons?.toLocaleString() ?? "…"}) + Amortized (
               {displayed?.amortized_debt_tons?.toLocaleString() ?? "…"}) − Fulfilled (
               {displayed?.already_fulfilled_tons?.toLocaleString() ?? "…"}) ={" "}

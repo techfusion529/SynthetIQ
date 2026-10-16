@@ -85,7 +85,7 @@ function StageBadge({ step }: { step: E2EStep }) {
 
 // ─── Dynamic Category Palettes ───────────────────────────────────────────────
 const CATEGORY_COLORS: Record<string, string> = {
-  cat_i_rigid: "#4f46e5",
+  cat_i_rigid: "#8B5CF6",
   cat_ii_flexible: "#06b6d4",
   cat_iii_mlp: "#10b981",
   cat_iv_compostable: "#f59e0b",
@@ -268,7 +268,7 @@ export default function ExecutiveOverviewPage() {
   const runInProgress = running || latestRun?.status === "RUNNING";
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 5 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
       {/* ── Top System Engine Status Strip ──────────────────────────────────── */}
       <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider" }}>
         <CardContent sx={{ py: "10px !important", px: 2 }}>
@@ -560,7 +560,7 @@ export default function ExecutiveOverviewPage() {
             unit="Tons"
             subtitle={`${fiscalYear} ERP Sales Total`}
             icon={<ScaleIcon />}
-            color="#4f46e5"
+            color="#8B5CF6"
             loading={liabilityLoading}
             error={liabilityError}
           />

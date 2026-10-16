@@ -56,10 +56,10 @@ const COLOR_MAP: Record<NotificationType, { border: string; bgLight: string; bgD
     icon: "#F59E0B",
   },
   info: {
-    border: "#3B82F6",
-    bgLight: "rgba(239, 246, 255, 0.95)",
-    bgDark: "rgba(30, 58, 138, 0.90)",
-    icon: "#3B82F6",
+    border: "#8B5CF6",
+    bgLight: "rgba(245, 243, 255, 0.95)",
+    bgDark: "rgba(91, 33, 182, 0.90)",
+    icon: "#8B5CF6",
   },
 };
 

@@ -193,14 +193,14 @@ export default function HitlPage() {
     user.user_id === selectedRun.triggered_by;
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
       <PageHeader
         title="HITL Console"
         tags={<Chip label="Human-in-the-Loop" size="small" color="warning" sx={{ borderRadius: "2px", height: 20, fontSize: "0.68rem", fontWeight: 700 }} />}
         description="Review and resolve workflow runs that require human approval before processing can continue."
       />
 
-      <Grid container spacing={3}>
+      <Grid container spacing={2}>
         {/* Left pane — run list */}
         <Grid item xs={12} md={4}>
           <Card variant="outlined" sx={{ height: "100%" }}>

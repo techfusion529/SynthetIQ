@@ -108,7 +108,7 @@ export default function SettlementPage() {
   const STEPS = ["Jev Melt Proof", "80% Advance Released", "Form-1 Dispatched", "20% Retention Released"];
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
       <PageHeader
         title="Financial Settlement & 80/20 Escrow Gate"
         icon={<AccountBalanceWalletIcon color="success" fontSize="medium" />}

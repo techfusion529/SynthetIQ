@@ -100,7 +100,7 @@ export default function SchedulesPage() {
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
       <PageHeader
         title="Scheduled Multi‑Agent Workflows"
         description="Temporal‑driven periodic compliance runs (daily, weekly, monthly) with automatic audit and settlement."

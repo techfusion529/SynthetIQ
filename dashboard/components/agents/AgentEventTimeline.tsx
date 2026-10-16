@@ -223,82 +223,44 @@ export default function AgentEventTimeline({
       {/* Panel Header */}
       <Box
         sx={{
-          p: 2,
+          px: 2,
+          py: 1.25,
           borderBottom: 1,
           borderColor: "divider",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          flexWrap: "wrap",
-          gap: 1,
+          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#FAFAFA"),
         }}
       >
-        <Box>
-          <Typography variant="subtitle1" fontWeight={700}>
-            Agent Execution Timeline & Telemetry
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Typography sx={{ fontWeight: 800, fontSize: "0.9rem", letterSpacing: "-0.01em" }}>
+            Execution Timeline & Telemetry
           </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {selectedRun ? `${resolvedSteps.length} discrete agent steps for ${selectedRun.run_id}` : "Select a run to view execution events"}
-          </Typography>
+          {selectedRun && (
+            <Chip
+              size="small"
+              label={`${resolvedSteps.length} Steps`}
+              sx={{ fontWeight: 700, height: 22, fontSize: "0.72rem" }}
+            />
+          )}
         </Box>
 
         {selectedRun && (
           <Button
             size="small"
             variant="outlined"
-            endIcon={<OpenInNewIcon fontSize="small" />}
+            endIcon={<OpenInNewIcon sx={{ fontSize: 13 }} />}
             href={`/temporal/namespaces/default/workflows/${encodeURIComponent(
               selectedRun.temporal_workflow_id || selectedRun.run_id
             )}`}
             target="_blank"
-            sx={{ fontSize: "0.72rem", textTransform: "none" }}
+            sx={{ fontSize: "0.72rem", py: 0.25, px: 1, textTransform: "none", borderRadius: "8px" }}
           >
             Temporal Workflow
           </Button>
         )}
       </Box>
-
-      {/* Total Run Executive Metrics Ribbon */}
-      {selectedRun && (
-        <Box
-          sx={{
-            p: 1.5,
-            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#F8FAFC"),
-            borderBottom: 1,
-            borderColor: "divider",
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 1,
-          }}
-        >
-          <Paper variant="outlined" sx={{ p: 1, textAlign: "center", bgcolor: "background.paper" }}>
-            <Typography variant="caption" color="text.secondary" display="block">
-              Total Runtime
-            </Typography>
-            <Typography variant="subtitle2" fontWeight={800} sx={{ fontFamily: 'var(--font-mono, monospace)' }}>
-              ⚡ {totalRuntime} ms
-            </Typography>
-          </Paper>
-
-          <Paper variant="outlined" sx={{ p: 1, textAlign: "center", bgcolor: "background.paper" }}>
-            <Typography variant="caption" color="text.secondary" display="block">
-              Total Tokens
-            </Typography>
-            <Typography variant="subtitle2" fontWeight={800} sx={{ fontFamily: 'var(--font-mono, monospace)' }}>
-              ✦ {totalTokens.toLocaleString()}
-            </Typography>
-          </Paper>
-
-          <Paper variant="outlined" sx={{ p: 1, textAlign: "center", bgcolor: "background.paper" }}>
-            <Typography variant="caption" color="text.secondary" display="block">
-              Total Model Cost
-            </Typography>
-            <Typography variant="subtitle2" fontWeight={800} color="primary.main" sx={{ fontFamily: 'var(--font-mono, monospace)' }}>
-              ₹{totalCostInr.toFixed(2)}
-            </Typography>
-          </Paper>
-        </Box>
-      )}
 
       {/* Steps List */}
       <Box
@@ -335,7 +297,7 @@ export default function AgentEventTimeline({
                 borderRadius: 1.5,
                 borderColor: isSelected ? "primary.main" : (isHalted ? "error.main" : "divider"),
                 bgcolor: isSelected
-                  ? (t) => (t.palette.mode === "dark" ? "rgba(59, 130, 246, 0.08)" : "rgba(0, 114, 206, 0.04)")
+                  ? (t) => (t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.12)" : "rgba(124, 58, 237, 0.06)")
                   : "background.paper",
                 transition: "all 0.2s ease-in-out",
               }}

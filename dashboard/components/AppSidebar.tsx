@@ -30,7 +30,7 @@ function NavList({ mini, onNavigate }: { mini: boolean; onNavigate?: () => void 
   const railLine = isDark ? "rgba(255,255,255,0.08)" : "#E2E8F0";
   const railText = isDark ? "#C9D1D9" : "#334155";
   const hoverBg = isDark ? "rgba(255,255,255,0.08)" : "#F1F5F9";
-  const selectedBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0, 114, 206, 0.08)";
+  const selectedBg = isDark ? "rgba(139, 92, 246, 0.12)" : "rgba(124, 58, 237, 0.08)";
   const selectedColor = isDark ? "#FFFFFF" : theme.palette.primary.main;
   const selectedBorder = isDark ? theme.palette.primary.light : theme.palette.primary.main;
 

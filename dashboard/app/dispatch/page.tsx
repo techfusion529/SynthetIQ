@@ -324,7 +324,7 @@ export default function DispatchPage() {
   })();
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
       <PageHeader
         title="CPCB Form-1 Statutory Dispatch Vault"
         icon={<DescriptionIcon color="primary" fontSize="medium" />}

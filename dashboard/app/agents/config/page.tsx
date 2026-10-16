@@ -1204,7 +1204,7 @@ export default function AgentConfigStudioPage() {
                     sx={{
                       p: 2.5,
                       borderRadius: "50%",
-                      bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(59, 130, 246, 0.1)" : "rgba(59, 130, 246, 0.05)"),
+                      bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.12)" : "rgba(124, 58, 237, 0.08)"),
                       color: "primary.main",
                     }}
                   >
@@ -1385,9 +1385,9 @@ export default function AgentConfigStudioPage() {
                           sx={{
                             p: 2,
                             bgcolor: (t) =>
-                              t.palette.mode === "dark" ? "rgba(59, 130, 246, 0.08)" : "rgba(59, 130, 246, 0.04)",
+                              t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.08)" : "rgba(124, 58, 237, 0.04)",
                             borderColor: (t) =>
-                              t.palette.mode === "dark" ? "rgba(59, 130, 246, 0.25)" : "rgba(59, 130, 246, 0.2)",
+                              t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.25)" : "rgba(124, 58, 237, 0.2)",
                             borderRadius: 1.5,
                           }}
                         >

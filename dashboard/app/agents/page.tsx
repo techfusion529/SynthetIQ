@@ -15,6 +15,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import CircularProgress from "@mui/material/CircularProgress";
 import Paper from "@mui/material/Paper";
 import Divider from "@mui/material/Divider";
+import Tooltip from "@mui/material/Tooltip";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import SearchIcon from "@mui/icons-material/Search";
@@ -196,149 +197,57 @@ export default function AgentsPage() {
 
       {error && <Alert severity="error">{error}</Alert>}
 
-      {/* Engine Architecture Stat Cards */}
-      <Grid container spacing={2}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card variant="outlined">
-            <CardContent sx={{ p: "16px !important" }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
-                <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase">
-                  System 2 Reasoning
-                </Typography>
-                <Chip label="Vertex AI" size="small" color="primary" sx={{ fontSize: "0.65rem", height: 20 }} />
-              </Box>
-              <Typography variant="body1" fontWeight={700} fontFamily='var(--font-mono, monospace)'>
-                {config?.gemini?.model || "gemini-3.8-flash"}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                Ambient ADC / Workload Identity
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+      {/* System Architecture Inline Badges */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+        <Chip
+          icon={<SmartToyIcon sx={{ fontSize: 14 }} />}
+          label={`System 2: ${config?.gemini?.model || "gemini-3.8-flash"}`}
+          size="small"
+          color="primary"
+          variant="outlined"
+          sx={{ fontWeight: 600, fontSize: "0.75rem" }}
+        />
+        <Chip
+          icon={<SpeedIcon sx={{ fontSize: 14 }} />}
+          label={`Physics Reflex: ${config?.jev_mode?.mode || "NIMBLE"} (Torque ≥ 8 Nm)`}
+          size="small"
+          variant="outlined"
+          sx={{ fontWeight: 600, fontSize: "0.75rem" }}
+        />
+        <Chip
+          icon={<CheckCircleIcon sx={{ fontSize: 14 }} />}
+          label={`Temporal: ${config?.services?.temporal?.status || "CONNECTED"}`}
+          size="small"
+          color={config?.services?.temporal?.status === "CONNECTED" ? "success" : "warning"}
+          variant="outlined"
+          sx={{ fontWeight: 600, fontSize: "0.75rem" }}
+        />
+        <Chip
+          icon={<TollIcon sx={{ fontSize: 14 }} />}
+          label={`Audits: ${verdicts.length} Logged (${runs.length} Runs)`}
+          size="small"
+          variant="outlined"
+          sx={{ fontWeight: 600, fontSize: "0.75rem" }}
+        />
+      </Box>
 
-        <Grid item xs={12} sm={6} md={3}>
-          <Card variant="outlined">
-            <CardContent sx={{ p: "16px !important" }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
-                <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase">
-                  System 1 Reflex
-                </Typography>
-                <Chip label="Physics Audit" size="small" color="secondary" sx={{ fontSize: "0.65rem", height: 20 }} />
-              </Box>
-              <Typography variant="body1" fontWeight={700} fontFamily='var(--font-mono, monospace)'>
-                {config?.jev_mode?.mode || "NIMBLE_PRIMARY"}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                Torque ≥ {config?.jev_mode?.torque_threshold_nm ?? 8.0} Nm · PF 0.78–0.96
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card variant="outlined">
-            <CardContent sx={{ p: "16px !important" }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
-                <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase">
-                  Temporal Engine
-                </Typography>
-                <Chip
-                  label={config?.services?.temporal?.status || "CONNECTED"}
-                  size="small"
-                  color={config?.services?.temporal?.status === "CONNECTED" ? "success" : "warning"}
-                  sx={{ fontSize: "0.65rem", height: 20 }}
-                />
-              </Box>
-              <Typography variant="body1" fontWeight={700} fontFamily='var(--font-mono, monospace)'>
-                {config?.endpoints?.temporal_host || "temporal-server:7233"}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                Task Queue: epr-compliance
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card variant="outlined">
-            <CardContent sx={{ p: "16px !important" }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
-                <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase">
-                  Active Audits & Runs
-                </Typography>
-                <Chip label={`${runs.length} Runs`} size="small" color="info" sx={{ fontSize: "0.65rem", height: 20 }} />
-              </Box>
-              <Typography variant="body1" fontWeight={700} fontFamily='var(--font-mono, monospace)'>
-                {verdicts.length} Verdicts Logged
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                Continuous zero-trust attestation
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Runs Selection Toolbar with Datetime Filter */}
-      <Card variant="outlined" sx={{ p: 2, bgcolor: "background.paper" }}>
-        <Grid container spacing={2} alignItems="center">
-          {/* Datetime Filter Select */}
-          <Grid item xs={12} sm={3} md={2.5}>
+      {/* Unified Compact Orchestration Run Toolbar */}
+      <Card variant="outlined" sx={{ p: 1.5, bgcolor: "background.paper", borderRadius: 2 }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
+          {/* Controls: Run Selector + Datetime + Search */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", flex: 1, minWidth: 300 }}>
             <TextField
               select
-              label="Datetime Filter"
-              size="small"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value as DateFilter)}
-              fullWidth
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <FilterListIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
-            >
-              <MenuItem value="ALL">All Time</MenuItem>
-              <MenuItem value="TODAY">Today (Last 24h)</MenuItem>
-              <MenuItem value="7D">Last 7 Days</MenuItem>
-              <MenuItem value="30D">Last 30 Days</MenuItem>
-            </TextField>
-          </Grid>
-
-          {/* Quick Search */}
-          <Grid item xs={12} sm={4} md={3}>
-            <TextField
-              placeholder="Search Run ID, Category..."
-              size="small"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              fullWidth
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Grid>
-
-          {/* Runs Dropdown Select */}
-          <Grid item xs={12} sm={5} md={6.5}>
-            <TextField
-              select
-              label={`Select Compliance Run (${filteredRuns.length} available)`}
+              label="Select Compliance Run"
               size="small"
               value={selectedRun?.run_id || ""}
               onChange={(e) => handleSelectRun(e.target.value)}
-              fullWidth
               disabled={loading || filteredRuns.length === 0}
+              sx={{ minWidth: 260, flex: { xs: "1 1 100%", md: "1 1 auto" } }}
             >
               {filteredRuns.length === 0 ? (
                 <MenuItem value="" disabled>
-                  No runs match the selected filter
+                  No runs match filter
                 </MenuItem>
               ) : (
                 filteredRuns.map((r) => {
@@ -350,7 +259,7 @@ export default function AgentsPage() {
                         <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.85rem" }}>
                           {r.run_id}
                         </Typography>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Typography variant="caption" color="text.secondary">
                             {r.category || "cat_i_rigid"} ({r.volume_tons || 250} T)
                           </Typography>
@@ -358,7 +267,7 @@ export default function AgentsPage() {
                             size="small"
                             label={r.status}
                             color={isRunSuccess ? "success" : isRunHitl ? "warning" : "error"}
-                            sx={{ height: 18, fontSize: "0.65rem", fontWeight: 700 }}
+                            sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
                           />
                         </Box>
                       </Box>
@@ -367,74 +276,90 @@ export default function AgentsPage() {
                 })
               )}
             </TextField>
-          </Grid>
-        </Grid>
+
+            <TextField
+              select
+              label="Period"
+              size="small"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as DateFilter)}
+              sx={{ minWidth: 110 }}
+            >
+              <MenuItem value="ALL">All Time</MenuItem>
+              <MenuItem value="TODAY">Last 24h</MenuItem>
+              <MenuItem value="7D">Last 7d</MenuItem>
+              <MenuItem value="30D">Last 30d</MenuItem>
+            </TextField>
+
+            <TextField
+              placeholder="Search..."
+              size="small"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ minWidth: 130 }}
+            />
+          </Box>
+
+          {/* Active Run Executive Summary Ribbon */}
+          {selectedRun && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+              <Chip
+                label={selectedRun.status}
+                color={isCompliant ? "success" : isHitl ? "warning" : "error"}
+                sx={{ fontWeight: 800, height: 26, fontSize: "0.75rem" }}
+              />
+              <Chip
+                label={`${selectedRun.volume_tons || 250} MT • ${selectedRun.category || "cat_i_rigid"}`}
+                variant="outlined"
+                size="small"
+                sx={{ fontWeight: 600, height: 26, fontSize: "0.75rem" }}
+              />
+              <Paper
+                variant="outlined"
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  px: 1.5,
+                  py: 0.5,
+                  bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"),
+                  borderRadius: 1.5,
+                }}
+              >
+                <Tooltip title="Total Runtime">
+                  <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.78rem" }}>
+                    ⚡ {totalRuntime} ms
+                  </Typography>
+                </Tooltip>
+                <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
+                <Tooltip title="Total Tokens">
+                  <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.78rem", color: "secondary.main" }}>
+                    ✦ {totalTokens.toLocaleString()}
+                  </Typography>
+                </Tooltip>
+                <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
+                <Tooltip title="Total Run Cost">
+                  <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.78rem", color: "primary.main" }}>
+                    ₹{totalCostInr.toFixed(2)}
+                  </Typography>
+                </Tooltip>
+              </Paper>
+            </Box>
+          )}
+        </Box>
       </Card>
 
-      {/* Total Run Executive Telemetry Banner */}
-      {selectedRun && (
-        <Card
-          variant="outlined"
-          sx={{
-            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#FFFFFF"),
-            borderColor: "divider",
-            p: 2,
-          }}
-        >
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
-            <Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.5 }}>
-                <Typography variant="h6" fontWeight={800} sx={{ fontFamily: 'var(--font-mono, monospace)' }}>
-                  {selectedRun.run_id}
-                </Typography>
-                <Chip
-                  label={selectedRun.status}
-                  color={isCompliant ? "success" : (isHitl ? "warning" : "error")}
-                  sx={{ fontWeight: 800, height: 24, fontSize: "0.75rem" }}
-                />
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                {selectedRun.volume_tons || 250} MT certified • {selectedRun.category || "Category I Rigid"} • Triggered by {selectedRun.triggered_by || "compliance_officer@synthetiq.ai"}
-              </Typography>
-            </Box>
-
-            {/* Total Run Metrics Cards */}
-            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-              <Paper variant="outlined" sx={{ px: 2, py: 1, textAlign: "center", minWidth: 120 }}>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Total Runtime
-                </Typography>
-                <Typography variant="subtitle1" fontWeight={800} sx={{ fontFamily: 'var(--font-mono, monospace)' }}>
-                  ⚡ {totalRuntime} ms
-                </Typography>
-              </Paper>
-
-              <Paper variant="outlined" sx={{ px: 2, py: 1, textAlign: "center", minWidth: 120 }}>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Total Tokens
-                </Typography>
-                <Typography variant="subtitle1" fontWeight={800} sx={{ fontFamily: 'var(--font-mono, monospace)' }}>
-                  ✦ {totalTokens.toLocaleString()}
-                </Typography>
-              </Paper>
-
-              <Paper variant="outlined" sx={{ px: 2, py: 1, textAlign: "center", minWidth: 140 }}>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Total Run Cost
-                </Typography>
-                <Typography variant="subtitle1" fontWeight={800} color="primary.main" sx={{ fontFamily: 'var(--font-mono, monospace)' }}>
-                  ${totalCostUsd.toFixed(4)} (₹{totalCostInr.toFixed(2)})
-                </Typography>
-              </Paper>
-            </Box>
-          </Box>
-        </Card>
-      )}
-
       {/* Main Orchestration Workspace: Canvas Graph (Left) + Event Timeline (Right) */}
-      <Grid container spacing={3}>
+      <Grid container spacing={2} alignItems="stretch">
         {/* Visual Interactive Agent Graph Canvas */}
-        <Grid item xs={12} lg={7.5}>
+        <Grid item xs={12} lg={7.5} sx={{ display: "flex", flexDirection: "column" }}>
           <AgentCanvasGraph
             selectedRun={selectedRun}
             activeNodeId={activeNodeId}
@@ -443,7 +368,7 @@ export default function AgentsPage() {
         </Grid>
 
         {/* Right-Hand Event Timeline & Payload Inspector */}
-        <Grid item xs={12} lg={4.5}>
+        <Grid item xs={12} lg={4.5} sx={{ display: "flex", flexDirection: "column" }}>
           <AgentEventTimeline
             selectedRun={selectedRun}
             activeNodeId={activeNodeId}

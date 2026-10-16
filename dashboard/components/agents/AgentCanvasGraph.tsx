@@ -233,7 +233,7 @@ export default function AgentCanvasGraph({
       case "HALTED":
         return { border: "#EF4444", bg: "rgba(239, 68, 68, 0.12)", text: "#EF4444", badge: "error" as const };
       case "QUEUED":
-        return { border: "#3B82F6", bg: "rgba(59, 130, 246, 0.08)", text: "#3B82F6", badge: "info" as const };
+        return { border: "#8B5CF6", bg: "rgba(139, 92, 246, 0.08)", text: "#8B5CF6", badge: "info" as const };
       case "SKIPPED":
         return { border: "#6B7280", bg: "rgba(107, 114, 128, 0.08)", text: "#9CA3AF", badge: "default" as const };
       default:
@@ -250,6 +250,7 @@ export default function AgentCanvasGraph({
     <Box
       sx={{
         width: "100%",
+        height: { xs: "auto", lg: 520 },
         bgcolor: "background.paper",
         border: 1,
         borderColor: "divider",
@@ -338,19 +339,19 @@ export default function AgentCanvasGraph({
       </Box>
 
       {/* SVG Canvas Area */}
-      <Box sx={{ flexGrow: 1, position: "relative", width: "100%", height: 460 }}>
+      <Box sx={{ flexGrow: 1, position: "relative", width: "100%", height: "100%", minHeight: 0, overflow: "hidden" }}>
         <svg
-          viewBox="0 0 1200 460"
-          style={{ width: "100%", height: "100%", minHeight: 440 }}
+          viewBox="0 0 1200 440"
+          style={{ width: "100%", height: "100%" }}
           preserveAspectRatio="xMidYMid meet"
         >
           <defs>
             <linearGradient id="edgeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4" />
+              <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.5" />
               <stop offset="100%" stopColor="#10B981" stopOpacity="0.8" />
             </linearGradient>
             <linearGradient id="edgeAlert" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4" />
+              <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.5" />
               <stop offset="100%" stopColor="#F59E0B" stopOpacity="0.8" />
             </linearGradient>
             <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -435,7 +436,7 @@ export default function AgentCanvasGraph({
                     height="102"
                     rx="10"
                     fill="none"
-                    stroke="#3B82F6"
+                    stroke="#8B5CF6"
                     strokeWidth="2.5"
                     strokeDasharray="5 3"
                     filter="url(#glow)"

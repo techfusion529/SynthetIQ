@@ -197,7 +197,7 @@ export default function OrganizationsPage() {
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
       <PageHeader
         title="Enterprise Multi-Tenancy & Access Control"
         icon={<BusinessIcon color="primary" fontSize="medium" />}

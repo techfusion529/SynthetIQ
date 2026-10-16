@@ -416,7 +416,7 @@ export default function DataSourcesPage() {
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
       <PageHeader
         title="Dynamic Data Sources Studio"
         icon={<StorageIcon color="primary" fontSize="medium" />}

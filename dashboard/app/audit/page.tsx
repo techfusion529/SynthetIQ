@@ -162,7 +162,7 @@ export default function AuditPage() {
   const chartColor = isGenuine ? "#06b6d4" : "#f43f5e";
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
       <PageHeader
         title="Quad-Core Fraud Audit & Live SCADA Telemetry"
         tags={<Chip label="Workflow 3" size="small" color="primary" sx={{ borderRadius: "2px", height: 20, fontSize: "0.68rem", fontWeight: 700 }} />}
@@ -291,7 +291,7 @@ export default function AuditPage() {
       </Card>
 
       {/* Audit Trigger & Verdicts */}
-      <Grid container spacing={3}>
+      <Grid container spacing={2}>
         {/* Trigger Panel */}
         <Grid item xs={12} md={5}>
           <Card variant="outlined">

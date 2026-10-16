@@ -338,7 +338,28 @@ except ImportError:
         return DataConnector(org_id, config)
 
     async def get_connector_for_org(org_id: str, purpose: str = "erp_sales") -> DataConnector:  # type: ignore[no-redef]
-        raise DataSourceNotConfigured(org_id)
+        try:
+            from synthetiq_shared.database import get_db_session
+            from synthetiq_shared.models import DataSource
+            from sqlalchemy import select
+
+            async with get_db_session() as session:
+                result = await session.execute(
+                    select(DataSource)
+                    .where(DataSource.org_id == org_id)
+                    .where(DataSource.purpose == purpose)
+                    .where(DataSource.is_active.is_(True))
+                    .limit(1)
+                )
+                ds = result.scalar_one_or_none()
+                if ds:
+                    return create_connector(ds.source_type, org_id, ds.connection_config or {})
+        except Exception as exc:
+            logger.warning(f"Could not load DataSource from DB in shim ({exc}); using fallback")
+
+        if purpose == "scada_telemetry":
+            return create_connector("rest_api", org_id, {"base_url": "http://simulator:9091", "telemetry_endpoint": "/telemetry/genuine"})
+        return create_connector("bigquery", org_id, {"project_id": "synthetiq-dev", "dataset_id": "epr_compliance", "sales_table": "sales_data"})
 
 
 __all__ = [

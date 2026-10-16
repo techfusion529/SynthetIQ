@@ -211,10 +211,13 @@ export default function AgentEventTimeline({
     <Card
       variant="outlined"
       sx={{
-        height: "100%",
+        height: { xs: "auto", lg: 520 },
+        maxHeight: { xs: "none", lg: 520 },
         display: "flex",
         flexDirection: "column",
         bgcolor: "background.paper",
+        borderRadius: 2,
+        overflow: "hidden",
       }}
     >
       {/* Panel Header */}
@@ -298,7 +301,22 @@ export default function AgentEventTimeline({
       )}
 
       {/* Steps List */}
-      <Box sx={{ flexGrow: 1, overflowY: "auto", p: 1.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
+      <Box
+        sx={{
+          flexGrow: 1,
+          overflowY: "auto",
+          p: 1.25,
+          display: "flex",
+          flexDirection: "column",
+          gap: 1,
+          "&::-webkit-scrollbar": { width: 6 },
+          "&::-webkit-scrollbar-track": { bgcolor: "transparent" },
+          "&::-webkit-scrollbar-thumb": {
+            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"),
+            borderRadius: 3,
+          },
+        }}
+      >
         {resolvedSteps.map((step) => {
           const isSelected = activeNodeId === step.service;
           const isExpanded = !!expandedSteps[step.step];
@@ -329,7 +347,7 @@ export default function AgentEventTimeline({
                   toggleExpand(step.step);
                 }}
                 sx={{
-                  p: 1.5,
+                  p: 1.2,
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",

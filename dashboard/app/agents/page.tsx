@@ -32,6 +32,7 @@ import { useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
 import AgentCanvasGraph from "@/components/agents/AgentCanvasGraph";
 import AgentEventTimeline from "@/components/agents/AgentEventTimeline";
+import AgentNodeDetailPanel from "@/components/agents/AgentNodeDetailPanel";
 import { useComplianceService, useConfigService, useAuditService } from "../lib/hooks/useServices";
 import { useNotification } from "../lib/contexts/NotificationContext";
 import { ApiError } from "../lib/services/base.service";
@@ -356,25 +357,38 @@ export default function AgentsPage() {
         </Box>
       </Card>
 
-      {/* Main Orchestration Workspace: Canvas Graph (Left) + Event Timeline (Right) */}
+      {/* Main Orchestration Workspace: Full Width Canvas or Shrunk Canvas + Right Detail Panel */}
       <Grid container spacing={2} alignItems="stretch">
         {/* Visual Interactive Agent Graph Canvas */}
-        <Grid item xs={12} lg={7.5} sx={{ display: "flex", flexDirection: "column" }}>
+        <Grid
+          item
+          xs={12}
+          lg={activeNodeId ? 6.8 : 12}
+          sx={{ display: "flex", flexDirection: "column", transition: "all 0.25s ease-in-out" }}
+        >
           <AgentCanvasGraph
             selectedRun={selectedRun}
             activeNodeId={activeNodeId}
-            onSelectNode={(nodeId) => setActiveNodeId(nodeId)}
+            onSelectNode={(nodeId) => setActiveNodeId((prev) => (prev === nodeId ? null : nodeId))}
           />
         </Grid>
 
-        {/* Right-Hand Event Timeline & Payload Inspector */}
-        <Grid item xs={12} lg={4.5} sx={{ display: "flex", flexDirection: "column" }}>
-          <AgentEventTimeline
-            selectedRun={selectedRun}
-            activeNodeId={activeNodeId}
-            onSelectNode={(nodeId) => setActiveNodeId(nodeId)}
-          />
-        </Grid>
+        {/* Right-Hand Node Detail Panel (Inputs & Outputs Tables with Paginator) */}
+        {activeNodeId && (
+          <Grid
+            item
+            xs={12}
+            lg={5.2}
+            sx={{ display: "flex", flexDirection: "column", transition: "all 0.25s ease-in-out" }}
+          >
+            <AgentNodeDetailPanel
+              selectedRun={selectedRun}
+              activeNodeId={activeNodeId}
+              onClose={() => setActiveNodeId(null)}
+              onSelectNode={(nodeId) => setActiveNodeId(nodeId)}
+            />
+          </Grid>
+        )}
       </Grid>
     </Box>
   );

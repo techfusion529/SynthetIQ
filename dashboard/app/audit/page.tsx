@@ -20,6 +20,14 @@ import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
 import Tooltip from "@mui/material/Tooltip";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import TablePagination from "@mui/material/TablePagination";
+import Paper from "@mui/material/Paper";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
@@ -85,6 +93,8 @@ export default function AuditPage() {
   const [auditResult, setAuditResult]   = useState<AuditVerdict | null>(null);
   const [auditError, setAuditError]     = useState<string | null>(null);
   const [verdicts, setVerdicts]         = useState<AuditVerdict[]>([]);
+  const [auditPage, setAuditPage]       = useState(0);
+  const [auditRowsPerPage, setAuditRowsPerPage] = useState(5);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sampleIndex = useRef(0);
@@ -389,47 +399,85 @@ export default function AuditPage() {
               {verdicts.length === 0 ? (
                 <Alert severity="info">No forensic audits recorded yet. Trigger an audit to create a verifiable record.</Alert>
               ) : (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                  {verdicts.map((v) => {
-                    const approved = v.audit_verdict === "APPROVED";
-                    return (
-                      <Card
-                        key={v.audit_id}
-                        variant="outlined"
-                        sx={{
-                          p: 1.5,
-                          borderColor: approved ? "rgba(16,185,129,0.3)" : "rgba(244,63,94,0.3)",
-                          bgcolor: approved ? "rgba(16,185,129,0.03)" : "rgba(244,63,94,0.03)",
-                        }}
-                      >
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                          <Box>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                              {approved ? <CheckCircleIcon color="success" fontSize="small" /> : <ErrorIcon color="error" fontSize="small" />}
-                              <Typography variant="subtitle2" fontWeight={700} fontFamily="monospace">
-                                {v.audit_id}
-                              </Typography>
-                            </Box>
-                            <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                              {v.recycler_id} · {v.plant_id} · {v.plastic_category} ({v.reported_volume_tons} T)
-                            </Typography>
-                          </Box>
-                          <Chip
-                            label={v.audit_verdict}
-                            size="small"
-                            color={approved ? "success" : "error"}
-                            sx={{ fontWeight: 700 }}
-                          />
-                        </Box>
-                        {v.audit_hash && (
-                          <Typography variant="caption" fontFamily="monospace" color="text.secondary" display="block" sx={{ wordBreak: "break-all", mt: 1 }}>
-                            Hash: {v.audit_hash}
-                          </Typography>
-                        )}
-                      </Card>
-                    );
-                  })}
-                </Box>
+                <>
+                  <TableContainer component={Paper} variant="outlined" sx={{ flexGrow: 1, borderRadius: 1.5, overflow: "hidden" }}>
+                    <Table size="small" aria-label="audit verdicts ledger">
+                      <TableHead sx={{ bgcolor: (t) => (t.palette.mode === "dark" ? "#16191F" : "#F8FAFC") }}>
+                        <TableRow sx={{ "& th": { fontWeight: 700, fontSize: "0.7rem", py: 0.75 } }}>
+                          <TableCell>Audit ID</TableCell>
+                          <TableCell>Facility / Recycler</TableCell>
+                          <TableCell>Category</TableCell>
+                          <TableCell align="right">Melt (T)</TableCell>
+                          <TableCell>Verdict</TableCell>
+                          <TableCell>SHA-256 Hash</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {verdicts
+                          .slice(auditPage * auditRowsPerPage, auditPage * auditRowsPerPage + auditRowsPerPage)
+                          .map((v) => {
+                            const approved = v.audit_verdict === "APPROVED";
+                            return (
+                              <TableRow key={v.audit_id} hover sx={{ "& td": { py: 0.75, fontSize: "0.74rem" } }}>
+                                <TableCell sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700 }}>
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                                    {approved ? (
+                                      <CheckCircleIcon color="success" sx={{ fontSize: 16 }} />
+                                    ) : (
+                                      <ErrorIcon color="error" sx={{ fontSize: 16 }} />
+                                    )}
+                                    {v.audit_id}
+                                  </Box>
+                                </TableCell>
+                                <TableCell sx={{ color: "text.secondary", fontSize: "0.7rem" }}>
+                                  {v.recycler_id} • {v.plant_id}
+                                </TableCell>
+                                <TableCell>
+                                  <Chip label={v.plastic_category} size="small" variant="outlined" sx={{ height: 18, fontSize: "0.62rem" }} />
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 600 }}>
+                                  {v.reported_volume_tons} T
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={v.audit_verdict}
+                                    size="small"
+                                    color={approved ? "success" : "error"}
+                                    sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ fontFamily: 'var(--font-mono, monospace)', fontSize: "0.68rem", color: "text.secondary" }}>
+                                  <Tooltip title={v.audit_hash || ""}>
+                                    <span>{v.audit_hash ? `${v.audit_hash.substring(0, 10)}...` : "—"}</span>
+                                  </Tooltip>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  <TablePagination
+                    component="div"
+                    count={verdicts.length}
+                    page={auditPage}
+                    onPageChange={(_, p) => setAuditPage(p)}
+                    rowsPerPage={auditRowsPerPage}
+                    onRowsPerPageChange={(e) => {
+                      setAuditRowsPerPage(parseInt(e.target.value, 10));
+                      setAuditPage(0);
+                    }}
+                    rowsPerPageOptions={[5, 10]}
+                    labelRowsPerPage="Audits per page"
+                    sx={{
+                      borderTop: 1,
+                      borderColor: "divider",
+                      "& .MuiTablePagination-toolbar": { minHeight: 36, px: 1 },
+                      "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": { fontSize: "0.7rem" },
+                    }}
+                  />
+                </>
               )}
             </CardContent>
           </Card>

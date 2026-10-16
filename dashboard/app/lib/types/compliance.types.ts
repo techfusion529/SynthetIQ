@@ -59,6 +59,8 @@ export interface E2ERunResult {
   company_id?: string;
   category?: string;
   volume_tons?: number;
+  fiscal_year?: string;
+  input_params?: Record<string, any>;
   audit_hash?: string;
   po_number?: string;
   portal_ack_number?: string;

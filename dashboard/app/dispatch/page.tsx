@@ -34,6 +34,7 @@ import WarningIcon from "@mui/icons-material/Warning";
 import DownloadIcon from "@mui/icons-material/Download";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PageHeader from "@/components/ui/PageHeader";
+import StatutoryRegistryTable from "@/components/dispatch/StatutoryRegistryTable";
 import { useRouter } from "next/navigation";
 
 import { useSettlementService, useRunService } from "../lib/hooks/useServices";
@@ -513,30 +514,19 @@ export default function DispatchPage() {
       {error && <Alert severity="error">{error}</Alert>}
 
       {loading ? (
-        <Grid container spacing={2}>
-          {[1, 2, 3].map((i) => (
-            <Grid item xs={12} sm={6} md={4} key={i}>
-              <Skeleton variant="rounded" height={160} />
-            </Grid>
-          ))}
-        </Grid>
+        <Skeleton variant="rounded" height={320} sx={{ borderRadius: 2 }} />
       ) : forms.length === 0 ? (
         <Alert severity="info">
           No statutory Form-1 records have been dispatched yet. Select an Escrow PO above and click dispatch.
         </Alert>
       ) : (
-        <>
-          <Typography variant="subtitle1" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <DescriptionIcon fontSize="small" /> Statutory CPCB Form‑1 Registry ({forms.length})
-          </Typography>
-          <Grid container spacing={2}>
-            {forms.map((f) => (
-              <Grid item xs={12} sm={6} md={4} key={f.form_id}>
-                <FormCard f={f} onView={(form) => { setSelectedForm(form); setViewOpen(true); }} />
-              </Grid>
-            ))}
-          </Grid>
-        </>
+        <StatutoryRegistryTable
+          forms={forms}
+          onOpenDialogModal={(form) => {
+            setSelectedForm(form);
+            setViewOpen(true);
+          }}
+        />
       )}
 
       {/* View Modal */}

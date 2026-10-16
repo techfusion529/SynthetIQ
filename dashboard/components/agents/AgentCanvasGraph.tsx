@@ -287,6 +287,22 @@ export default function AgentCanvasGraph({
               sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, height: 22, fontSize: "0.72rem" }}
             />
           )}
+          {activeNodeId ? (
+            <Chip
+              size="small"
+              color="primary"
+              label="Node Selected • Click ✕ to expand canvas"
+              onDelete={() => onSelectNode(activeNodeId)}
+              sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
+            />
+          ) : (
+            <Chip
+              size="small"
+              variant="outlined"
+              label="💡 Click any node to inspect Inputs & Outputs"
+              sx={{ height: 22, fontSize: "0.68rem" }}
+            />
+          )}
         </Box>
 
         {/* Live Total Run Telemetry Strip */}

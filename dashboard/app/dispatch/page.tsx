@@ -102,11 +102,15 @@ function FormCard({ f, onView }: { f: Form1Payload; onView: (f: Form1Payload) =>
           <Typography variant="caption" color="text.secondary">Company:</Typography>
           <Typography variant="caption" fontWeight={600}>{f.company_id || "—"}</Typography>
           <Typography variant="caption" color="text.secondary">SAP PO:</Typography>
-          <Typography variant="caption" fontWeight={600} fontFamily="monospace">{f.sap_purchase_order_number || "—"}</Typography>
+          <Typography variant="caption" fontWeight={600} fontFamily="monospace">{f.sap_purchase_order_number || f.po_number || "—"}</Typography>
           <Typography variant="caption" color="text.secondary">Category:</Typography>
-          <Typography variant="caption" fontWeight={600}>{f.plastic_category || "—"}</Typography>
+          <Typography variant="caption" fontWeight={600}>{f.plastic_category || f.category || "—"}</Typography>
           <Typography variant="caption" color="text.secondary">Verified Melt:</Typography>
-          <Typography variant="caption" fontWeight={600} color="success.main">{f.physical_melt_verified_tons?.toLocaleString()} T</Typography>
+          <Typography variant="caption" fontWeight={600} color="success.main">
+            {(f.physical_melt_verified_tons ?? f.physical_melt_tons ?? f.credited_tons ?? f.plastic_tons) != null
+              ? `${(f.physical_melt_verified_tons ?? f.physical_melt_tons ?? f.credited_tons ?? f.plastic_tons)!.toLocaleString()} T`
+              : "—"}
+          </Typography>
         </Box>
         <Divider sx={{ mb: 1 }} />
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 0.5 }}>
@@ -565,15 +569,19 @@ export default function DispatchPage() {
                     <Typography variant="caption" color="text.secondary">GSTIN:</Typography>
                     <Typography variant="caption" fontWeight={700} fontFamily="monospace">{selectedForm.gstin || "—"}</Typography>
                     <Typography variant="caption" color="text.secondary">SAP PO Number:</Typography>
-                    <Typography variant="caption" fontWeight={700} fontFamily="monospace">{selectedForm.sap_purchase_order_number || "—"}</Typography>
+                    <Typography variant="caption" fontWeight={700} fontFamily="monospace">{selectedForm.sap_purchase_order_number || selectedForm.po_number || "—"}</Typography>
                     <Typography variant="caption" color="text.secondary">Recycler:</Typography>
-                    <Typography variant="caption" fontWeight={700}>{selectedForm.recycler_name || selectedForm.recycler_id}</Typography>
+                    <Typography variant="caption" fontWeight={700}>{selectedForm.recycler_name || selectedForm.recycler_id || "—"}</Typography>
                     <Typography variant="caption" color="text.secondary">Category:</Typography>
-                    <Typography variant="caption" fontWeight={700}>{selectedForm.plastic_category}</Typography>
+                    <Typography variant="caption" fontWeight={700}>{selectedForm.plastic_category || selectedForm.category || "—"}</Typography>
                     <Typography variant="caption" color="text.secondary">Verified Melt:</Typography>
-                    <Typography variant="caption" fontWeight={700} color="success.main">{selectedForm.physical_melt_verified_tons} Tons</Typography>
+                    <Typography variant="caption" fontWeight={700} color="success.main">
+                      {(selectedForm.physical_melt_verified_tons ?? selectedForm.physical_melt_tons ?? selectedForm.credited_tons ?? selectedForm.plastic_tons) != null
+                        ? `${(selectedForm.physical_melt_verified_tons ?? selectedForm.physical_melt_tons ?? selectedForm.credited_tons ?? selectedForm.plastic_tons)!.toLocaleString()} Tons`
+                        : "—"}
+                    </Typography>
                     <Typography variant="caption" color="text.secondary">Conversion Factor (Cf):</Typography>
-                    <Typography variant="caption" fontWeight={700}>{selectedForm.conversion_factor_cf || 1.0}</Typography>
+                    <Typography variant="caption" fontWeight={700}>{selectedForm.conversion_factor_cf ?? 1.0}</Typography>
                   </Box>
                 </Card>
               </Grid>

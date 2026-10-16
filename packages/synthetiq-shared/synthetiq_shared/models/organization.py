@@ -1,4 +1,4 @@
-﻿"""Multi-tenant ORM models  -  Organizations, Users, DataSources, and Schedules.
+"""Multi-tenant ORM models  -  Organizations, Users, DataSources, and Schedules.
 
 These models persist in PostgreSQL (or SQLite for dev) and drive
 the generic multi-tenant onboarding and scheduling capabilities.
@@ -488,11 +488,23 @@ class Form1Record(Base):
     def to_dict(self) -> dict:
         d = dict(self.full_payload or {})
         d.update({
-            "form_id": self.form_id, "company_id": self.company_id,
-            "recycler_id": self.recycler_id, "po_number": self.po_number,
-            "audit_id": self.audit_id, "portal_status": self.portal_status,
+            "form_id": self.form_id,
+            "company_id": self.company_id,
+            "recycler_id": self.recycler_id,
+            "recycler_name": self.recycler_name,
+            "po_number": self.po_number,
+            "sap_purchase_order_number": self.po_number,
+            "audit_id": self.audit_id,
+            "plastic_category": self.plastic_category,
+            "physical_melt_tons": self.physical_melt_tons,
+            "physical_melt_verified_tons": self.physical_melt_tons,
+            "conversion_factor_cf": self.conversion_factor_cf,
+            "credited_tons": self.credited_tons,
+            "portal_status": self.portal_status,
             "portal_ack_number": self.portal_ack_number,
-            "dsc_signature": self.dsc_signature, "dispatched_by": self.dispatched_by,
+            "dsc_signature": self.dsc_signature,
+            "signed": bool(self.dsc_signature),
+            "dispatched_by": self.dispatched_by,
         })
         return d
 

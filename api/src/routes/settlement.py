@@ -180,22 +180,29 @@ async def dispatch_form1_statutory(
         digest = hashlib.sha256(doc_content.encode("utf-8")).hexdigest()
         dsc_sig = f"DSC_SIG_{digest[:32].upper()}"
 
-        # Resolve quantities and parties
-        company_id = po.company_id if po else org_id
-        recycler_id = (po.vendor_id if po else None) or "RECYC-DELHI-01"
-        audit_id = po.audit_id if po else None
-        tons = 250.0
+        # Resolve quantities and parties safely from EscrowPORecord
+        company_id = getattr(po, "company_id", None) or org_id
+        recycler_id = getattr(po, "recycler_id", None) or getattr(po, "vendor_id", None) or "RECYC-DELHI-01"
+        recycler_name = getattr(po, "recycler_name", None) or "Delhi Plastic Recyclers Ltd"
+        audit_id = getattr(po, "audit_id", None)
+        category = getattr(po, "category", None) or getattr(po, "plastic_category", None) or "cat_i_rigid"
+        tons = float(getattr(po, "plastic_tons", 0.0) or 250.0)
 
         full_details = {
             "form_id": form_id,
             "po_number": po_number or "PO-GENERIC",
+            "sap_purchase_order_number": getattr(po, "sap_purchase_order_number", None) or po_number or "PO-GENERIC",
             "company_id": company_id,
             "recycler_id": recycler_id,
+            "recycler_name": recycler_name,
             "audit_id": audit_id,
-            "plastic_category": "cat_i_rigid",
+            "plastic_category": category,
             "physical_melt_tons": tons,
+            "physical_melt_verified_tons": tons,
             "conversion_factor": 1.0,
+            "conversion_factor_cf": 1.0,
             "credited_compliance_tons": tons,
+            "credited_tons": tons,
             "portal_status": "CPCB_ACCEPTED",
             "portal_ack_number": ack_number,
             "dsc_signature": dsc_sig,
@@ -215,10 +222,10 @@ async def dispatch_form1_statutory(
             form_id=form_id,
             company_id=company_id,
             recycler_id=recycler_id,
-            recycler_name="Delhi Plastic Recyclers Ltd",
+            recycler_name=recycler_name,
             po_number=po_number or "PO-GENERIC",
             audit_id=audit_id,
-            plastic_category="cat_i_rigid",
+            plastic_category=category,
             physical_melt_tons=tons,
             conversion_factor_cf=1.0,
             credited_tons=tons,

@@ -58,7 +58,7 @@ def _get_seed_password() -> str:
 DEFAULT_AGENTS_CONFIG = [
     {
         "agent_name": "brand_liability",
-        "model_name": "gemini-2.0-flash",
+        "model_name": "gemini-3.8-flash",
         "temperature": 0.2,
         "system_prompt": (
             "You are the Brand Liability Agent. Query ERP sales data, calculate plastic category "
@@ -71,7 +71,7 @@ DEFAULT_AGENTS_CONFIG = [
     },
     {
         "agent_name": "regulatory_watchdog",
-        "model_name": "gemini-2.0-flash",
+        "model_name": "gemini-3.8-flash",
         "temperature": 0.1,
         "system_prompt": (
             "You are the Regulatory Watchdog Agent. Parse CPCB Gazette notifications, extract plastic "
@@ -84,7 +84,7 @@ DEFAULT_AGENTS_CONFIG = [
     },
     {
         "agent_name": "treasury",
-        "model_name": "gemini-2.0-flash",
+        "model_name": "gemini-3.8-flash",
         "temperature": 0.2,
         "system_prompt": (
             "You are the Treasury Agent. Run a continuous double auction matching EPR liability bids "
@@ -98,7 +98,7 @@ DEFAULT_AGENTS_CONFIG = [
     },
     {
         "agent_name": "logistics",
-        "model_name": "gemini-2.0-flash",
+        "model_name": "gemini-3.8-flash",
         "temperature": 0.1,
         "system_prompt": (
             "You are the Logistics Agent. Validate GST E-Way bills, GPS waypoints, and weighbridge "
@@ -111,7 +111,7 @@ DEFAULT_AGENTS_CONFIG = [
     },
     {
         "agent_name": "auditor",
-        "model_name": "gemini-2.0-flash",
+        "model_name": "gemini-3.8-flash",
         "temperature": 0.0,
         "system_prompt": (
             "You are the Auditor Agent powered by Nimble System 1 and Jev physics reflex. "
@@ -127,7 +127,7 @@ DEFAULT_AGENTS_CONFIG = [
     },
     {
         "agent_name": "erp",
-        "model_name": "gemini-2.0-flash",
+        "model_name": "gemini-3.8-flash",
         "temperature": 0.1,
         "system_prompt": (
             "You are the ERP Agent. Generate split-escrow purchase orders (80% advance upon audit approval, "
@@ -141,7 +141,7 @@ DEFAULT_AGENTS_CONFIG = [
     },
     {
         "agent_name": "legal",
-        "model_name": "gemini-2.0-flash",
+        "model_name": "gemini-3.8-flash",
         "temperature": 0.1,
         "system_prompt": (
             "You are the Legal Agent. Generate statutory CPCB Form-1 filing packets, apply cryptographic "

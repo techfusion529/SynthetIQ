@@ -913,11 +913,14 @@ export default function AgentConfigStudioPage() {
                   select
                   label="LLM Model"
                   size="small"
-                  value={currentConfig.model_name}
+                  value={currentConfig.model_name || "gemini-3.8-flash"}
                   onChange={(e) => setCurrentConfig({ ...currentConfig, model_name: e.target.value })}
                 >
                   <MenuItem value="gemini-3.8-flash">Gemini 3.8 Flash (Enterprise Default)</MenuItem>
-                  <MenuItem value="gemini-2.0-flash">Gemini 2.0 Flash</MenuItem>
+                  <MenuItem value="gemini-4-argon">Gemini 4 Argon (Google Cloud Model Garden)</MenuItem>
+                  <MenuItem value="gemini-2.5-flash">Gemini 2.5 Flash</MenuItem>
+                  <MenuItem value="gemini-1.5-pro">Gemini 1.5 Pro</MenuItem>
+                  <MenuItem value="gemini-2.0-flash">Gemini 2.0 Flash (Legacy)</MenuItem>
                 </TextField>
 
                 <Box>

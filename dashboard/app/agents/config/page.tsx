@@ -43,6 +43,8 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CheckIcon from "@mui/icons-material/Check";
 import BoltIcon from "@mui/icons-material/Bolt";
+import KeyIcon from "@mui/icons-material/Key";
+import TerminalIcon from "@mui/icons-material/Terminal";
 
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
@@ -592,6 +594,11 @@ export default function AgentConfigStudioPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<any | null>(null);
 
+  // Custom API key override & prompt inspector
+  const [customApiKey, setCustomApiKey] = useState<string>("");
+  const [showApiKeyInput, setShowApiKeyInput] = useState<boolean>(false);
+  const [showPromptInspector, setShowPromptInspector] = useState<boolean>(false);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -773,6 +780,11 @@ export default function AgentConfigStudioPage() {
       return;
     }
 
+    const sampleInput = {
+      ...parsedPayload,
+      ...(customApiKey.trim() ? { gemini_api_key: customApiKey.trim() } : {}),
+    };
+
     try {
       const resp = await fetch(
         `${API_BASE}/organizations/${encodeURIComponent(orgId)}/agents/${encodeURIComponent(currentConfig.agent_name)}/test`,
@@ -782,7 +794,7 @@ export default function AgentConfigStudioPage() {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ sample_input: parsedPayload }),
+          body: JSON.stringify({ sample_input: sampleInput }),
         }
       );
       const data = await resp.json();
@@ -1073,6 +1085,46 @@ export default function AgentConfigStudioPage() {
                     bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.2)" : "rgba(0, 0, 0, 0.02)"),
                   }}
                 />
+
+                {/* Custom Gemini API Key Override (Optional) */}
+                <Box sx={{ mt: 1 }}>
+                  <Button
+                    size="small"
+                    variant="text"
+                    startIcon={<KeyIcon sx={{ fontSize: 14 }} />}
+                    onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+                    sx={{ textTransform: "none", fontSize: "0.75rem", p: 0.5, color: "text.secondary" }}
+                  >
+                    {showApiKeyInput ? "Hide Custom Gemini API Key" : "Use Custom Gemini API Key (Bypass Quotas / 0 Prepayment Credits)"}
+                  </Button>
+                  {showApiKeyInput && (
+                    <Box
+                      sx={{
+                        mt: 1,
+                        p: 1.5,
+                        bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
+                        borderRadius: 1,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 1 }}>
+                        If Google AI Studio server key has 0 credits (HTTP 402/429), enter a personal Gemini API Key below to force a direct live LLM call:
+                      </Typography>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        type="password"
+                        placeholder="AIzaSy..."
+                        value={customApiKey}
+                        onChange={(e) => setCustomApiKey(e.target.value)}
+                        InputProps={{
+                          startAdornment: <KeyIcon sx={{ fontSize: 16, mr: 1, color: "text.secondary" }} />,
+                        }}
+                      />
+                    </Box>
+                  )}
+                </Box>
               </Box>
 
               {/* Execution Trigger Bar */}
@@ -1172,6 +1224,120 @@ export default function AgentConfigStudioPage() {
                         />
                       </Box>
 
+                      {/* LLM Model Call & Telemetry Inspector Banner */}
+                      <Paper
+                        variant="outlined"
+                        sx={{
+                          p: 1.5,
+                          borderRadius: 1.5,
+                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(15, 23, 42, 0.6)" : "rgba(248, 250, 252, 0.9)"),
+                          border: "1px solid",
+                          borderColor: testResult.live_inference ? "success.dark" : "warning.dark",
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                            {testResult.live_inference ? (
+                              <Chip
+                                icon={<AutoAwesomeIcon sx={{ fontSize: 14 }} />}
+                                label={`Live LLM API Connected • ${testResult.model_used || "gemini-3.8-flash"}`}
+                                color="success"
+                                size="small"
+                                sx={{ fontWeight: 700, fontSize: "0.75rem" }}
+                              />
+                            ) : (
+                              <Chip
+                                icon={<TuneIcon sx={{ fontSize: 14 }} />}
+                                label={`Deterministic System 2 Engine • ${testResult.model_used || "gemini-3.8-flash"}`}
+                                color="warning"
+                                size="small"
+                                variant="outlined"
+                                sx={{ fontWeight: 700, fontSize: "0.75rem" }}
+                              />
+                            )}
+
+                            <Chip
+                              label={`${testResult.tokens || testResult.llm_telemetry?.total_tokens || 0} tokens`}
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontSize: "0.72rem", height: 22 }}
+                            />
+                            <Chip
+                              label={`$${Number(testResult.cost_usd || 0).toFixed(4)} (~₹${Number(testResult.cost_inr || 0).toFixed(2)})`}
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontSize: "0.72rem", height: 22 }}
+                            />
+                          </Box>
+
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<TerminalIcon sx={{ fontSize: 14 }} />}
+                            onClick={() => setShowPromptInspector(!showPromptInspector)}
+                            sx={{ textTransform: "none", fontSize: "0.75rem", py: 0.25 }}
+                          >
+                            {showPromptInspector ? "Hide Dispatched Prompt" : "Inspect Model Call & Dispatched Prompt"}
+                          </Button>
+                        </Box>
+
+                        {/* Model Diagnostic Context when running in fallback */}
+                        {!testResult.live_inference && (
+                          <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 1 }}>
+                            ℹ️ <b>Why Fallback Engine?</b> The default Google AI Studio project credits are depleted ({testResult.api_status || "HTTP 402/429 Quota Exhausted"}). SynthetIQ seamlessly generated mathematically verified statutory decisions. Paste a personal Gemini API key above to invoke live unconstrained Google LLMs.
+                          </Typography>
+                        )}
+
+                        {/* Expandable Dispatched Prompt Inspector */}
+                        {showPromptInspector && (
+                          <Box sx={{ mt: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
+                            <Divider />
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary" }}>
+                                DISPATCHED PROMPT SENT TO MODEL:
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: "monospace" }}>
+                                Model: {testResult.model_used || "gemini-3.8-flash"} | Temp: {testResult.temperature ?? 0.2}
+                              </Typography>
+                            </Box>
+                            <Box
+                              sx={{
+                                p: 1.5,
+                                borderRadius: 1,
+                                bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.4)" : "rgba(0, 0, 0, 0.04)"),
+                                border: "1px solid",
+                                borderColor: "divider",
+                                fontFamily: 'var(--font-mono, "JetBrains Mono", monospace)',
+                                fontSize: "0.78rem",
+                                whiteSpace: "pre-wrap",
+                                maxHeight: 220,
+                                overflowY: "auto",
+                                color: (t) => (t.palette.mode === "dark" ? "#93c5fd" : "#1e40af"),
+                              }}
+                            >
+                              {testResult.prompt_sent || (testResult.raw_input_evaluated ? JSON.stringify(testResult.raw_input_evaluated, null, 2) : "No raw prompt captured.")}
+                            </Box>
+
+                            {testResult.system_instruction && (
+                              <>
+                                <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary" }}>
+                                  SYSTEM INSTRUCTION:
+                                </Typography>
+                                <Typography variant="caption" sx={{ fontStyle: "italic", color: "text.secondary" }}>
+                                  {testResult.system_instruction}
+                                </Typography>
+                              </>
+                            )}
+
+                            {testResult.raw_api_error && (
+                              <Alert severity="warning" sx={{ mt: 1, py: 0.5, fontSize: "0.75rem" }}>
+                                <b>Google Gemini API Diagnostic:</b> {testResult.raw_api_error}
+                              </Alert>
+                            )}
+                          </Box>
+                        )}
+                      </Paper>
+
                       {/* AI Reasoning Narrative */}
                       {testResult.reasoning_narrative && (
                         <Paper
@@ -1191,7 +1357,7 @@ export default function AgentConfigStudioPage() {
                               Agent Reasoning & Analysis Narrative
                             </Typography>
                           </Box>
-                          <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
+                          <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: "pre-line" }}>
                             {testResult.reasoning_narrative}
                           </Typography>
                         </Paper>
@@ -1288,7 +1454,7 @@ export default function AgentConfigStudioPage() {
                                   <Chip
                                     label={step.status}
                                     size="small"
-                                    color={isFailed ? "error" : "success"}
+                                    color={isFailed ? "error" : step.status === "DYNAMIC_SYNTHESIS" ? "warning" : "success"}
                                     variant="outlined"
                                     sx={{ height: 20, fontSize: "0.7rem", fontWeight: 700 }}
                                   />

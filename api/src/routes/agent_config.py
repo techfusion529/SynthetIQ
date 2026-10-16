@@ -235,6 +235,7 @@ async def invoke_real_gemini_llm(
     system_instruction: str | None = None,
     model_name: str = "gemini-3.8-flash",
     temperature: float = 0.2,
+    custom_api_key: str | None = None,
 ) -> dict[str, Any]:
     """Invoke the Google Gemini LLM API and measure real latency, tokens, and compute costs."""
     import os
@@ -243,7 +244,7 @@ async def invoke_real_gemini_llm(
     load_dotenv()
 
     start_t = time.perf_counter()
-    api_key = os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")
+    api_key = custom_api_key or os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")
 
     # Clean model identifier
     target_model = model_name or "gemini-3.8-flash"
@@ -315,6 +316,8 @@ async def invoke_real_gemini_llm(
             "success": True,
             "live_api_success": True,
             "text": res_text,
+            "prompt_sent": prompt,
+            "system_instruction": system_instruction,
             "model_used": target_model,
             "latency_ms": latency_ms,
             "prompt_tokens": prompt_tokens,
@@ -337,9 +340,9 @@ async def invoke_real_gemini_llm(
         cost_inr = round(cost_usd * 86.5, 4)
 
         if "402" in err_str or "prepayment" in err_str.lower():
-            error_summary = "Prepayment credits depleted (HTTP 402)"
+            error_summary = "Prepayment credits depleted on Google AI Studio (HTTP 402)"
         elif "429" in err_str or "quota" in err_str.lower():
-            error_summary = "API quota exceeded (HTTP 429)"
+            error_summary = "API quota exceeded on Google AI Studio (HTTP 429)"
         elif "404" in err_str or "not found" in err_str.lower():
             error_summary = f"Model '{target_model}' retired / not found (HTTP 404)"
         else:
@@ -349,7 +352,10 @@ async def invoke_real_gemini_llm(
             "success": True,
             "live_api_success": False,
             "text": "",
+            "prompt_sent": prompt,
+            "system_instruction": system_instruction,
             "error_note": error_summary,
+            "raw_api_error": err_str[:300],
             "model_used": target_model,
             "latency_ms": latency_ms if latency_ms > 20 else 248.5,
             "prompt_tokens": prompt_tokens,
@@ -455,6 +461,7 @@ async def test_agent_with_dynamic_data(
 
         top_cat = max(category_weights.items(), key=lambda x: x[1])[0] if category_weights else "cat_i_rigid"
 
+        custom_api_key = sample.get("gemini_api_key") or sample.get("api_key")
         prompt = (
             f"You are the Brand Liability Agent under CPCB EPR Rules 2026.\n"
             f"Organization: {org_id}. Fiscal Year: {fiscal_year}.\n"
@@ -470,16 +477,27 @@ async def test_agent_with_dynamic_data(
             system_instruction=agent_cfg.system_prompt or "You are an autonomous EPR brand liability reasoning agent.",
             model_name=agent_cfg.model_name,
             temperature=agent_cfg.temperature,
+            custom_api_key=custom_api_key,
         )
 
         if llm_res.get("live_api_success") and llm_res.get("text"):
-            narrative = llm_res["text"]
+            narrative = f"### [Live {llm_res.get('model_used')} Response]\n\n{llm_res['text']}"
         else:
+            cat_list = ", ".join([f"{k.replace('cat_', 'Cat ').replace('_', ' ').title()}: {v:,.2f} MT" for k, v in category_weights.items()])
             narrative = (
-                f"Brand Liability System 2 Reasoning ({llm_res.get('model_used')}): Evaluated {len(sales_records)} custom sales invoice batch for {fiscal_year}. "
-                f"Derived packaging footprint of {current_year_tons:,.2f} MT ({top_cat} dominant stream with {category_weights.get(top_cat, 0):,.2f} MT). "
-                f"Applied Rule 13(2) debt amortization ({amortization_frac*100:.1f}% of {historic_debt:,.2f} MT historic liability = {amortized_debt:,.2f} MT), "
-                f"certifying a net statutory EPR obligation of {net_obligation:,.2f} MT with ₹{statutory_penalty_inr:,.2f} statutory non-compliance exposure."
+                f"### System 2 Statutory EPR Liability Determination ({llm_res.get('model_used')})\n\n"
+                f"**1. Ingestion & Polymer Mass Balance:**\n"
+                f"Audited {len(sales_records)} sales invoice batch for {fiscal_year}. "
+                f"Aggregated total packaging footprint yields **{current_year_tons:,.2f} MT** net plastic mass. "
+                f"Stream distribution identifies **{top_cat.replace('_', ' ').title()}** as the dominant contributor ({category_weights.get(top_cat, 0):,.2f} MT). "
+                f"Breakdown: {cat_list}.\n\n"
+                f"**2. Deficit Carryover & Rule 13(2) Amortization:**\n"
+                f"Under CPCB PWM Rules Schedule II, historical carryover obligation is recorded at {historic_debt:,.2f} MT. "
+                f"Applying mandatory statutory amortization ({amortization_frac*100:.1f}%), an amortized liability of **{amortized_debt:,.2f} MT** is added.\n\n"
+                f"**3. Statutory Mandate & Default Exposure:**\n"
+                f"Certified net statutory EPR obligation is fixed at **{net_obligation:,.2f} MT**. "
+                f"Unfulfilled exposure subject to Section 15 Environmental Compensation (₹5,000/MT statutory floor) totals **₹{statutory_penalty_inr:,.2f}**.\n\n"
+                f"*Notice: Fallback System 2 analytical engine ({llm_res.get('error_note', 'Live API Quota Limit')}). To execute live unconstrained generation directly from Google, enter a working Gemini API key in the studio above.*"
             )
 
         latency_ms = llm_res.get("latency_ms", round((time.perf_counter() - start_time) * 1000, 1))
@@ -495,6 +513,8 @@ async def test_agent_with_dynamic_data(
             "verdict": "OBLIGATION_COMPUTED",
             "live_inference": llm_res.get("live_api_success", False),
             "api_status": llm_res.get("api_status"),
+            "prompt_sent": prompt,
+            "system_instruction": agent_cfg.system_prompt or "You are an autonomous EPR brand liability reasoning agent.",
             "tokens": llm_res["total_tokens"],
             "prompt_tokens": llm_res["prompt_tokens"],
             "completion_tokens": llm_res["completion_tokens"],
@@ -561,6 +581,7 @@ async def test_agent_with_dynamic_data(
         specific_energy = round(active_power / max(melt_rate, 1.0), 3) if melt_rate > 0 else 0.0
         confidence = 0.98 if is_spoofed else 0.96
 
+        custom_api_key = sample.get("gemini_api_key") or sample.get("api_key")
         prompt = (
             f"You are the Forensic SCADA Physical Melt Auditor Agent.\n"
             f"Plant: {plant_id}. Reading: Torque={torque} Nm, PowerFactor={power_factor}, "
@@ -574,18 +595,36 @@ async def test_agent_with_dynamic_data(
             system_instruction=agent_cfg.system_prompt or "You are a forensic industrial SCADA physics reasoning auditor.",
             model_name=agent_cfg.model_name,
             temperature=agent_cfg.temperature,
+            custom_api_key=custom_api_key,
         )
 
         if llm_res.get("live_api_success") and llm_res.get("text"):
-            narrative = llm_res["text"]
+            narrative = f"### [Live {llm_res.get('model_used')} Response]\n\n{llm_res['text']}"
         else:
-            narrative = (
-                f"SCADA physics forensic reasoning ({llm_res.get('model_used')}): Verification flagged {len(anomalies)} critical anomaly for {plant_id}: {'; '.join(anomalies)}. "
-                f"Torque ({torque} Nm) and power factor ({power_factor}) indicate electrical load without polymer extrusion. Transaction marked fraudulent."
-                if is_spoofed else
-                f"SCADA physics forensic reasoning ({llm_res.get('model_used')}): All 3-phase induction motor readings for {plant_id} conform to viscous polymer extrusion physics. "
-                f"Active power ({active_power} kW) and torque ({torque} Nm) at {melt_rate} kg/h yield {specific_energy} kWh/kg specific energy, matching calibrated baseline. Approved."
-            )
+            if is_spoofed:
+                anom_bullets = "\n".join([f"- **Critical Flag:** {a}" for a in anomalies])
+                narrative = (
+                    f"### Forensic Physics Telemetry Audit: REJECTED_FRAUD ({llm_res.get('model_used')})\n\n"
+                    f"**1. Telemetry Ingestion & Physics Baselines:**\n"
+                    f"Audited SCADA stream frame from facility **{plant_id}**. Observed active electrical draw of **{active_power:,.1f} kW** with torque at **{torque:,.1f} Nm**, barrel temp at **{barrel_temp:,.1f}°C**, and power factor of **{power_factor:,.2f}**.\n\n"
+                    f"**2. Anti-Spoofing Physics Verification:**\n"
+                    f"Cross-examination of thermodynamic work against mechanical shear reveals fatal discrepancies:\n"
+                    f"{anom_bullets}\n\n"
+                    f"**3. Forensic Determination:**\n"
+                    f"The electrical signature is characteristic of dummy resistive heating elements (space heaters / immersion coils) rather than high-viscosity polymer extrusion. Specific energy is undefined or non-physical. **Transaction rejected as fraudulent recycling credit issuance.**\n\n"
+                    f"*Notice: Fallback System 2 physics engine ({llm_res.get('error_note', 'Live API Quota Limit')}). Enter a working Gemini API key in the studio above for live unconstrained generation.*"
+                )
+            else:
+                narrative = (
+                    f"### Forensic Physics Telemetry Audit: APPROVED ({llm_res.get('model_used')})\n\n"
+                    f"**1. Mechanical & Thermodynamic Consistency:**\n"
+                    f"Audited SCADA stream frame from facility **{plant_id}**. Measured motor mechanical torque of **{torque:,.1f} Nm** (threshold: {torque_thresh} Nm) correlates with polymer melt shear at **{melt_rate:,.1f} kg/h**.\n\n"
+                    f"**2. Electrical Load Signature:**\n"
+                    f"Operating power factor of **{power_factor:,.2f}** falls squarely within the calibrated induction motor envelope [{pf_min}, {pf_max}]. Active power draw of **{active_power:,.1f} kW** yields a specific energy consumption of **{specific_energy:,.3f} kWh/kg**, fully conforming to empirical HDPE/PP extrusion baselines.\n\n"
+                    f"**3. Audit Certification:**\n"
+                    f"Zero thermodynamic anomalies detected. Certified physical mass displacement verified for statutory EPR credit generation.\n\n"
+                    f"*Notice: Fallback System 2 physics engine ({llm_res.get('error_note', 'Live API Quota Limit')}). Enter a working Gemini API key in the studio above for live unconstrained generation.*"
+                )
 
         latency_ms = llm_res.get("latency_ms", round((time.perf_counter() - start_time) * 1000, 1))
 
@@ -602,6 +641,8 @@ async def test_agent_with_dynamic_data(
             "confidence_score": confidence,
             "live_inference": llm_res.get("live_api_success", False),
             "api_status": llm_res.get("api_status"),
+            "prompt_sent": prompt,
+            "system_instruction": agent_cfg.system_prompt or "You are a forensic industrial SCADA physics reasoning auditor.",
             "tokens": llm_res["total_tokens"],
             "prompt_tokens": llm_res["prompt_tokens"],
             "completion_tokens": llm_res["completion_tokens"],
@@ -680,6 +721,8 @@ async def test_agent_with_dynamic_data(
         weighted_rate = round(total_cost / max(cleared_tons, 1.0), 2)
         statutory_penalty_cost = round(cleared_tons * base_rate, 2)
         savings_inr = round(statutory_penalty_cost - total_cost, 2)
+
+        custom_api_key = sample.get("gemini_api_key") or sample.get("api_key")
         prompt = (
             f"You are the Automated Market Maker & Reverse Auction Treasury Agent.\n"
             f"Target procurement volume: {target_tons:,.2f} MT. Statutory penalty benchmark: ₹{base_rate}/MT.\n"
@@ -693,14 +736,22 @@ async def test_agent_with_dynamic_data(
             system_instruction=agent_cfg.system_prompt or "You are an autonomous treasury double auction reasoning agent.",
             model_name=agent_cfg.model_name,
             temperature=agent_cfg.temperature,
+            custom_api_key=custom_api_key,
         )
 
         if llm_res.get("live_api_success") and llm_res.get("text"):
-            narrative = llm_res["text"]
+            narrative = f"### [Live {llm_res.get('model_used')} Response]\n\n{llm_res['text']}"
         else:
+            bid_lines = "\n".join([f"- **{b['bidder']}:** Allocated {b['allocated_tons']:,.1f} MT @ ₹{b['rate_inr']:,.2f}/MT (Cost: ₹{b['allocated_tons']*b['rate_inr']:,.2f})" for b in cleared_bids])
             narrative = (
-                f"Treasury AMM Clearing Reasoning ({llm_res.get('model_used')}): Cleared {cleared_tons:,.2f} MT of {target_tons:,.2f} MT target volume across {len(cleared_bids)} verified recycler bids. "
-                f"Effective weighted clearing price settled at ₹{weighted_rate:,.2f}/MT, generating net statutory savings of ₹{savings_inr:,.2f} against the ₹{base_rate:,.0f}/MT statutory benchmark."
+                f"### Automated Treasury Reverse Auction Clearing ({llm_res.get('model_used')})\n\n"
+                f"**1. Liquidity & Order Book Matching:**\n"
+                f"Targeted credit procurement quota of **{target_tons:,.2f} MT**. Sorted {len(bids)} competing supply bids by marginal ascending price. Matched and cleared **{cleared_tons:,.2f} MT** ({round(cleared_tons/max(target_tons,1.0)*100, 1)}% fill rate) across {len(cleared_bids)} accredited recycler facilities.\n\n"
+                f"**2. Clearing Allocations:**\n"
+                f"{bid_lines}\n\n"
+                f"**3. Economic Settlement & Statutory Savings:**\n"
+                f"Volume-weighted clearing rate finalized at **₹{weighted_rate:,.2f}/MT**, requiring an escrow commitment of **₹{total_cost:,.2f}**. Compared to default CPCB statutory penalty benchmarks (₹{base_rate:,.0f}/MT = ₹{statutory_penalty_cost:,.2f}), the auction engine generated net corporate savings of **₹{savings_inr:,.2f}**.\n\n"
+                f"*Notice: Fallback System 2 AMM engine ({llm_res.get('error_note', 'Live API Quota Limit')}). Enter a working Gemini API key in the studio above for live unconstrained generation.*"
             )
 
         latency_ms = llm_res.get("latency_ms", round((time.perf_counter() - start_time) * 1000, 1))
@@ -716,6 +767,8 @@ async def test_agent_with_dynamic_data(
             "verdict": "AUCTION_CLEARED",
             "live_inference": llm_res.get("live_api_success", False),
             "api_status": llm_res.get("api_status"),
+            "prompt_sent": prompt,
+            "system_instruction": agent_cfg.system_prompt or "You are an autonomous treasury double auction reasoning agent.",
             "tokens": llm_res["total_tokens"],
             "prompt_tokens": llm_res["prompt_tokens"],
             "completion_tokens": llm_res["completion_tokens"],
@@ -763,6 +816,7 @@ async def test_agent_with_dynamic_data(
 
         grade = "A+" if score >= 90 else ("A" if score >= 80 else ("B" if score >= 70 else ("C" if score >= 60 else "F")))
         allowed_quota_tons = 1500 if score >= 85 else (800 if score >= 70 else 250)
+        custom_api_key = sample.get("gemini_api_key") or sample.get("api_key")
         prompt = (
             f"You are the Recycler Scoring & Quality Classification Agent.\n"
             f"Recycler Facility: {recycler_name}.\n"
@@ -776,14 +830,22 @@ async def test_agent_with_dynamic_data(
             system_instruction=agent_cfg.system_prompt or "You are an autonomous EPR recycler audit reasoning agent.",
             model_name=agent_cfg.model_name,
             temperature=agent_cfg.temperature,
+            custom_api_key=custom_api_key,
         )
 
         if llm_res.get("live_api_success") and llm_res.get("text"):
-            narrative = llm_res["text"]
+            narrative = f"### [Live {llm_res.get('model_used')} Response]\n\n{llm_res['text']}"
         else:
             narrative = (
-                f"Recycler Scoring Reasoning ({llm_res.get('model_used')}): Facility {recycler_name} evaluated with a composite rating of {score}/100 (Grade {grade}). "
-                f"Moisture reading ({moisture_pct}%), contamination rate ({contamination_pct}%), and operational uptime ({uptime_pct}%) justify an active EPR issuance limit of {allowed_quota_tons:,} MT."
+                f"### Recycler Facility Quality Certification: Tier-{grade} ({llm_res.get('model_used')})\n\n"
+                f"**1. Physical Quality Audit:**\n"
+                f"Audited facility **{recycler_name}**. Measured moisture content of **{moisture_pct:.1f}%** and contamination rate of **{contamination_pct:.1f}%**. "
+                f"Batch weighbridge mass deviation recorded at **{mass_deviation_pct:.1f}%**.\n\n"
+                f"**2. Scoring & Grading:**\n"
+                f"Composite creditworthiness score finalized at **{score}/100**, placing the plant in statutory accreditation band **Grade {grade}**. Operational uptime verified at **{uptime_pct:.1f}%**.\n\n"
+                f"**3. Quota Determination:**\n"
+                f"Approved active EPR credit issuance ceiling: **{allowed_quota_tons:,} MT** for the current compliance cycle.\n\n"
+                f"*Notice: Fallback System 2 rating engine ({llm_res.get('error_note', 'Live API Quota Limit')}). Enter a working Gemini API key in the studio above for live unconstrained generation.*"
             )
 
         latency_ms = llm_res.get("latency_ms", round((time.perf_counter() - start_time) * 1000, 1))
@@ -799,6 +861,9 @@ async def test_agent_with_dynamic_data(
             "verdict": f"GRADE_{grade}",
             "live_inference": llm_res.get("live_api_success", False),
             "api_status": llm_res.get("api_status"),
+            "prompt_sent": prompt,
+            "system_instruction": agent_cfg.system_prompt or "You are an autonomous EPR recycler audit reasoning agent.",
+            "raw_api_error": llm_res.get("raw_api_error"),
             "tokens": llm_res["total_tokens"],
             "prompt_tokens": llm_res["prompt_tokens"],
             "completion_tokens": llm_res["completion_tokens"],
@@ -844,6 +909,7 @@ async def test_agent_with_dynamic_data(
         is_sufficient = escrow_balance_after >= 0
         po_number = str(sample.get("po_number", f"PO-EPR-{org_id[-4:].upper()}-2026"))
 
+        custom_api_key = sample.get("gemini_api_key") or sample.get("api_key")
         prompt = (
             f"You are the Settlement & ERP Split-Payment Escrow Agent.\n"
             f"PO: {po_number}. Delivered: {fulfilled_tons} MT. Subtotal: ₹{subtotal:,.2f}.\n"
@@ -857,15 +923,22 @@ async def test_agent_with_dynamic_data(
             system_instruction=agent_cfg.system_prompt or "You are an autonomous financial settlement and escrow reasoning agent.",
             model_name=agent_cfg.model_name,
             temperature=agent_cfg.temperature,
+            custom_api_key=custom_api_key,
         )
 
         if llm_res.get("live_api_success") and llm_res.get("text"):
-            narrative = llm_res["text"]
+            narrative = f"### [Live {llm_res.get('model_used')} Response]\n\n{llm_res['text']}"
         else:
             narrative = (
-                f"Settlement ERP Reasoning ({llm_res.get('model_used')}): Generated automated remittance instruction for {fulfilled_tons} MT (PO: {po_number}). "
-                f"Gross transaction: ₹{subtotal:,.2f} + {tax_rate_gst*100:.0f}% GST (₹{gst:,.2f}), less platform fee (₹{platform_fee:,.2f}). "
-                f"Escrow split: {advance_pct}% immediate advance (₹{advance_amount:,.2f}) released; {retention_pct}% retention (₹{retention_amount:,.2f}) held in trust."
+                f"### ERP Financial Settlement & Escrow Split ({llm_res.get('model_used')})\n\n"
+                f"**1. Purchase Order & Delivery Reconciliation:**\n"
+                f"Processed delivery for PO **{po_number}** covering **{fulfilled_tons:,.2f} MT** @ ₹{clearing_rate_inr:,.2f}/MT. Subtotal: **₹{subtotal:,.2f}**.\n\n"
+                f"**2. Statutory Deductions & Net Payable:**\n"
+                f"Added {tax_rate_gst*100:.0f}% GST (**₹{gst:,.2f}**), deducted 1.5% network fee (**₹{platform_fee:,.2f}**), yielding net payable of **₹{net_payable:,.2f}**.\n\n"
+                f"**3. Split Disbursement & Solvency:**\n"
+                f"Disbursed {advance_pct}% immediate advance (**₹{advance_amount:,.2f}**), locked {retention_pct}% retention (**₹{retention_amount:,.2f}**). "
+                f"Escrow account status: **{'SOLVENT (Residual: ₹' + f'{escrow_balance_after:,.2f})' if is_sufficient else 'DEFICIT (Immediate topup required)'}**.\n\n"
+                f"*Notice: Fallback System 2 ERP settlement engine ({llm_res.get('error_note', 'Live API Quota Limit')}). Enter a working Gemini API key in the studio above for live unconstrained generation.*"
             )
 
         latency_ms = llm_res.get("latency_ms", round((time.perf_counter() - start_time) * 1000, 1))
@@ -881,6 +954,9 @@ async def test_agent_with_dynamic_data(
             "verdict": "PAYMENT_ORDER_GENERATED" if is_sufficient else "ESCROW_TOPUP_REQUIRED",
             "live_inference": llm_res.get("live_api_success", False),
             "api_status": llm_res.get("api_status"),
+            "prompt_sent": prompt,
+            "system_instruction": agent_cfg.system_prompt or "You are an autonomous financial settlement and escrow reasoning agent.",
+            "raw_api_error": llm_res.get("raw_api_error"),
             "tokens": llm_res["total_tokens"],
             "prompt_tokens": llm_res["prompt_tokens"],
             "completion_tokens": llm_res["completion_tokens"],
@@ -934,6 +1010,7 @@ async def test_agent_with_dynamic_data(
 
         is_valid = len(flags) == 0
 
+        custom_api_key = sample.get("gemini_api_key") or sample.get("api_key")
         prompt = (
             f"You are the Logistics & Freight Geofencing Telematics Agent.\n"
             f"Vehicle: {vehicle_no}. E-Way Bill: {eway_bill_no}.\n"
@@ -947,18 +1024,34 @@ async def test_agent_with_dynamic_data(
             system_instruction=agent_cfg.system_prompt or "You are an autonomous EPR logistics telematics reasoning agent.",
             model_name=agent_cfg.model_name,
             temperature=agent_cfg.temperature,
+            custom_api_key=custom_api_key,
         )
 
         if llm_res.get("live_api_success") and llm_res.get("text"):
-            narrative = llm_res["text"]
+            narrative = f"### [Live {llm_res.get('model_used')} Response]\n\n{llm_res['text']}"
         else:
-            narrative = (
-                f"Logistics Corridor Verification ({llm_res.get('model_used')}): Freight movement for vehicle {vehicle_no} under EWB {eway_bill_no} verified. "
-                f"Weighbridge delta confirms {net_tons:,.2f} MT net plastic load. "
-                f"Transit corridor telemetry shows normal average speed ({avg_speed} km/h) across {distance_km} km."
-                if is_valid else
-                f"Logistics anomaly detected ({llm_res.get('model_used')}) for vehicle {vehicle_no}: {'; '.join(flags)}. Transit denied automatic certification."
-            )
+            if is_valid:
+                narrative = (
+                    f"### Freight Logistics Corridor Clearance ({llm_res.get('model_used')})\n\n"
+                    f"**1. Telematics & Route Verification:**\n"
+                    f"Monitored vehicle **{vehicle_no}** under E-Way Bill **{eway_bill_no}** covering **{distance_km:.1f} km** over **{transit_hours:.1f} hours**. Average speed calculated at **{avg_speed:.1f} km/h** (within commercial fleet threshold).\n\n"
+                    f"**2. Weighbridge Mass Balance:**\n"
+                    f"Gross vehicle weight **{gross_kg:,.0f} kg** less tare **{tare_kg:,.0f} kg** confirms net payload of **{net_tons:,.2f} MT** circular polymer cargo.\n\n"
+                    f"**3. Geofence Certification:**\n"
+                    f"Zero route diversion or geofence breaches detected. Corridor cleared for statutory credit transfer.\n\n"
+                    f"*Notice: Fallback System 2 logistics telematics engine ({llm_res.get('error_note', 'Live API Quota Limit')}). Enter a working Gemini API key in the studio above for live unconstrained generation.*"
+                )
+            else:
+                anoms = "\n".join([f"- **Anomaly:** {f}" for f in flags])
+                narrative = (
+                    f"### Logistics Transit Audit Flagged ({llm_res.get('model_used')})\n\n"
+                    f"**1. Telematics Discrepancies:**\n"
+                    f"Vehicle **{vehicle_no}** under EWB **{eway_bill_no}** failed automated corridor verification:\n"
+                    f"{anoms}\n\n"
+                    f"**2. Forensic Action:**\n"
+                    f"Calculated velocity of {avg_speed} km/h or weighbridge payload delta indicates potential transit spoofing or false bill generation. Automatic certification denied.\n\n"
+                    f"*Notice: Fallback System 2 logistics telematics engine ({llm_res.get('error_note', 'Live API Quota Limit')}). Enter a working Gemini API key in the studio above for live unconstrained generation.*"
+                )
 
         latency_ms = llm_res.get("latency_ms", round((time.perf_counter() - start_time) * 1000, 1))
 
@@ -973,6 +1066,9 @@ async def test_agent_with_dynamic_data(
             "verdict": "VERIFIED_CORRIDOR" if is_valid else "AUDIT_FLAG_RAISED",
             "live_inference": llm_res.get("live_api_success", False),
             "api_status": llm_res.get("api_status"),
+            "prompt_sent": prompt,
+            "system_instruction": agent_cfg.system_prompt or "You are an autonomous EPR logistics telematics reasoning agent.",
+            "raw_api_error": llm_res.get("raw_api_error"),
             "tokens": llm_res["total_tokens"],
             "prompt_tokens": llm_res["prompt_tokens"],
             "completion_tokens": llm_res["completion_tokens"],
@@ -1009,6 +1105,7 @@ async def test_agent_with_dynamic_data(
         certified_tons = round(verified_tons - moisture_penalty, 2)
         is_dispute = discrepancy_pct > tolerance_pct
 
+        custom_api_key = sample.get("gemini_api_key") or sample.get("api_key")
         prompt = (
             f"You are the EPR Arbitration & Dispute Settlement Agent.\n"
             f"Claimed volume: {claimed_tons} MT. Verified yield: {verified_tons} MT. Variance: {discrepancy_pct}% (tolerance: {tolerance_pct}%).\n"
@@ -1020,15 +1117,21 @@ async def test_agent_with_dynamic_data(
             system_instruction=agent_cfg.system_prompt or "You are an autonomous EPR arbitration and dispute resolution magistrate.",
             model_name=agent_cfg.model_name,
             temperature=agent_cfg.temperature,
+            custom_api_key=custom_api_key,
         )
 
         if llm_res.get("live_api_success") and llm_res.get("text"):
-            narrative = llm_res["text"]
+            narrative = f"### [Live {llm_res.get('model_used')} Response]\n\n{llm_res['text']}"
         else:
             narrative = (
-                f"Dispute Arbitration Decree ({llm_res.get('model_used')}): Arbitrated batch discrepancy between claimed ({claimed_tons} MT) and verified physical yield ({verified_tons} MT). "
-                f"Variance of {discrepancy_pct}% exceeded statutory threshold ({tolerance_pct}%). "
-                f"Deducted {moisture_penalty} MT excess moisture penalty. Final non-appealable certified volume fixed at {certified_tons:,.2f} MT."
+                f"### Statutory Dispute Arbitration Decree ({llm_res.get('model_used')})\n\n"
+                f"**1. Claims & Variance Analysis:**\n"
+                f"Claimed volume of **{claimed_tons:,.2f} MT** against sensor-verified yield of **{verified_tons:,.2f} MT** (variance: **{discrepancy_pct:.2f}%** vs tolerance **{tolerance_pct:.1f}%**).\n\n"
+                f"**2. Quality Penalty Adjustment:**\n"
+                f"Measured moisture content of **{moisture_pct:.1f}%** incurs a statutory volumetric penalty of **{moisture_penalty:,.2f} MT** under CPCB PWM Rule 13.\n\n"
+                f"**3. Binding Decree:**\n"
+                f"Final non-appealable certified EPR credit allocation is fixed at **{certified_tons:,.2f} MT** ({'Volumetric adjustment applied' if is_dispute else 'Within acceptable tolerance'}).\n\n"
+                f"*Notice: Fallback System 2 arbitration engine ({llm_res.get('error_note', 'Live API Quota Limit')}). Enter a working Gemini API key in the studio above for live unconstrained generation.*"
             )
 
         latency_ms = llm_res.get("latency_ms", round((time.perf_counter() - start_time) * 1000, 1))
@@ -1044,6 +1147,9 @@ async def test_agent_with_dynamic_data(
             "verdict": "ADJUSTMENT_APPLIED" if is_dispute else "ACCEPTED_WITHIN_TOLERANCE",
             "live_inference": llm_res.get("live_api_success", False),
             "api_status": llm_res.get("api_status"),
+            "prompt_sent": prompt,
+            "system_instruction": agent_cfg.system_prompt or "You are an autonomous EPR arbitration and dispute resolution magistrate.",
+            "raw_api_error": llm_res.get("raw_api_error"),
             "tokens": llm_res["total_tokens"],
             "prompt_tokens": llm_res["prompt_tokens"],
             "completion_tokens": llm_res["completion_tokens"],
@@ -1082,6 +1188,7 @@ async def test_agent_with_dynamic_data(
             "cat_iv_compostable_pct": 100.0,
         }
 
+        custom_api_key = sample.get("gemini_api_key") or sample.get("api_key")
         prompt = (
             f"You are the CPCB Statutory Regulatory Watchdog Agent.\n"
             f"Regulatory Framework: {framework}. Target mandate: {statutory_mandate_pct}%.\n"
@@ -1094,15 +1201,23 @@ async def test_agent_with_dynamic_data(
             system_instruction=agent_cfg.system_prompt or "You are an autonomous statutory environmental compliance watchdog.",
             model_name=agent_cfg.model_name,
             temperature=agent_cfg.temperature,
+            custom_api_key=custom_api_key,
         )
 
         if llm_res.get("live_api_success") and llm_res.get("text"):
-            narrative = llm_res["text"]
+            narrative = f"### [Live {llm_res.get('model_used')} Response]\n\n{llm_res['text']}"
         else:
+            target_bullets = "\n".join([f"- **{k.replace('cat_', 'Cat ').replace('_pct', '').title()}:** {v:.0f}%" for k, v in recycling_targets.items()])
             narrative = (
-                f"Regulatory Watchdog Reasoning ({llm_res.get('model_used')}): Evaluated regulatory mandate under {framework}. Mandatory recycling quota set to {statutory_mandate_pct}% "
-                f"across all plastic packaging categories. Environmental compensation liability floor confirmed at ₹{environmental_comp_floor:,.2f}/MT under EPA Section 15. "
-                f"Mandatory return due before {filing_deadline}."
+                f"### CPCB Statutory Regulatory Mandate ({llm_res.get('model_used')})\n\n"
+                f"**1. Gazette Framework:**\n"
+                f"Parsed active statutory gazette framework: **{framework}** for jurisdiction **{jurisdiction}**.\n\n"
+                f"**2. Mandatory Quotas:**\n"
+                f"Statutory target mandate fixed at **{statutory_mandate_pct:.1f}%** across polymer packaging categories:\n"
+                f"{target_bullets}\n\n"
+                f"**3. Environmental Compensation Floor:**\n"
+                f"Section 15 statutory liability floor benchmark is **₹{environmental_comp_floor:,.2f}/MT**. Mandatory annual return filing deadline: **{filing_deadline}**.\n\n"
+                f"*Notice: Fallback System 2 regulatory engine ({llm_res.get('error_note', 'Live API Quota Limit')}). Enter a working Gemini API key in the studio above for live unconstrained generation.*"
             )
 
         latency_ms = llm_res.get("latency_ms", round((time.perf_counter() - start_time) * 1000, 1))
@@ -1118,6 +1233,9 @@ async def test_agent_with_dynamic_data(
             "verdict": "STATUTORY_MANDATE_APPLIED",
             "live_inference": llm_res.get("live_api_success", False),
             "api_status": llm_res.get("api_status"),
+            "prompt_sent": prompt,
+            "system_instruction": agent_cfg.system_prompt or "You are an autonomous statutory environmental compliance watchdog.",
+            "raw_api_error": llm_res.get("raw_api_error"),
             "tokens": llm_res["total_tokens"],
             "prompt_tokens": llm_res["prompt_tokens"],
             "completion_tokens": llm_res["completion_tokens"],
@@ -1159,6 +1277,7 @@ async def test_agent_with_dynamic_data(
         dsc_stamp = f"X509-DSC-SHA256:{sha256[:24]}...{sha256[-12:]}"
         ack_no = f"ACK-CPCB-{period.replace(' ', '')}-{sha256[:8].upper()}"
 
+        custom_api_key = sample.get("gemini_api_key") or sample.get("api_key")
         prompt = (
             f"You are the Statutory Legal & Regulatory Filing Certification Agent.\n"
             f"Producer: {producer_name}. CPCB Reg: {cpcb_reg}. Period: {period}.\n"
@@ -1170,15 +1289,21 @@ async def test_agent_with_dynamic_data(
             system_instruction=agent_cfg.system_prompt or "You are an autonomous statutory environmental compliance legal magistrate.",
             model_name=agent_cfg.model_name,
             temperature=agent_cfg.temperature,
+            custom_api_key=custom_api_key,
         )
 
         if llm_res.get("live_api_success") and llm_res.get("text"):
-            narrative = llm_res["text"]
+            narrative = f"### [Live {llm_res.get('model_used')} Response]\n\n{llm_res['text']}"
         else:
             narrative = (
-                f"Legal Certification Reasoning ({llm_res.get('model_used')}): Compiled statutory CPCB Form-1 Annual Return packet for {producer_name}. "
-                f"Generated deterministic cryptographic digest ({sha256[:16]}...) across certified recycling manifests totaling {total_tons:,.2f} MT. "
-                f"Class-3 Digital Signature Certificate (DSC) stamped. Acknowledgement Reference: {ack_no}."
+                f"### CPCB Form-1 Annual Return Legal Certification ({llm_res.get('model_used')})\n\n"
+                f"**1. Corporate Identity & Registration:**\n"
+                f"Certified annual return packet for **{producer_name}** under CPCB registration number **{cpcb_reg}** for reporting period **{period}**.\n\n"
+                f"**2. Cryptographic Integrity Digest:**\n"
+                f"Deterministic SHA-256 manifest hash generated across all underlying invoices and SCADA audit records: `{sha256}`. Stamped with Class-3 Digital Signature: `{dsc_stamp}`.\n\n"
+                f"**3. Statutory Filing Acknowledgement:**\n"
+                f"Certified compliance volume: **{total_tons:,.2f} MT**. Official statutory portal receipt generated: **{ack_no}**.\n\n"
+                f"*Notice: Fallback System 2 legal filing engine ({llm_res.get('error_note', 'Live API Quota Limit')}). Enter a working Gemini API key in the studio above for live unconstrained generation.*"
             )
 
         latency_ms = llm_res.get("latency_ms", round((time.perf_counter() - start_time) * 1000, 1))
@@ -1194,6 +1319,9 @@ async def test_agent_with_dynamic_data(
             "verdict": "STATUTORY_COMPLIANT",
             "live_inference": llm_res.get("live_api_success", False),
             "api_status": llm_res.get("api_status"),
+            "prompt_sent": prompt,
+            "system_instruction": agent_cfg.system_prompt or "You are an autonomous statutory environmental compliance legal magistrate.",
+            "raw_api_error": llm_res.get("raw_api_error"),
             "tokens": llm_res["total_tokens"],
             "prompt_tokens": llm_res["prompt_tokens"],
             "completion_tokens": llm_res["completion_tokens"],

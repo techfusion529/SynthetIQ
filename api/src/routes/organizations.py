@@ -420,7 +420,7 @@ async def preview_data_source(
             if ds.purpose == "scada_telemetry":
                 records = await connector.query_telemetry(plant_id="PLANT-OKHLA-2", time_range_hours=1)
             else:
-                records = await connector.query_sales_data(company_id=org_id, fiscal_year="")
+                records = await connector.query_sales_data(company_id=org_id, fiscal_year="FY2026-27")
         except Exception as e:
             logger.warning(f"Failed to fetch preview from {source_id}: {e}")
             return {

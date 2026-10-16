@@ -307,7 +307,7 @@ async def preview_datasource_rows(
         if ds.purpose == "scada_telemetry" and hasattr(conn, "query_telemetry"):
             records = await conn.query_telemetry(plant_id="PLANT-OKHLA-2", time_range_hours=1)
         elif hasattr(conn, "query_sales_data"):
-            records = await conn.query_sales_data(company_id=org_id, fiscal_year="")
+            records = await conn.query_sales_data(company_id=org_id, fiscal_year="FY2026-27")
     except Exception as exc:
         logger.warning("Preview fetch failed for %s: %s", source_id, exc)
         return {
@@ -371,7 +371,7 @@ async def update_mapping(
         from src.services.data_connector_shim import create_connector  # type: ignore[import-not-found]
         conn = create_connector(ds.source_type, org_id, ds.connection_config or {})
         if hasattr(conn, "query_sales_data"):
-            rows = await conn.query_sales_data(org_id, "")
+            rows = await conn.query_sales_data(org_id, "FY2026-27")
             preview = rows[:5]
     except Exception as exc:
         logger.debug("Preview fetch failed (non-fatal): %s", exc)
@@ -396,6 +396,8 @@ async def validate_datasource(
 
     mapping: list[dict] = ds.mapping or []
     schema_type: str = getattr(ds, "schema_type", "") or ""
+    if not schema_type:
+        schema_type = "telemetry" if ds.purpose == "scada_telemetry" else "sales"
 
     # Resolve the schema class
     schema_cls = None
@@ -418,23 +420,35 @@ async def validate_datasource(
     try:
         from src.services.data_connector_shim import create_connector
         conn = create_connector(ds.source_type, org_id, ds.connection_config or {})
-        if hasattr(conn, "query_sales_data"):
-            raw_rows = (await conn.query_sales_data(org_id, ""))[:10]
+        if ds.purpose == "scada_telemetry" and hasattr(conn, "query_telemetry"):
+            raw_rows = (await conn.query_telemetry(plant_id="PLANT-OKHLA-2", time_range_hours=24))[:10]
+        elif hasattr(conn, "query_sales_data"):
+            raw_rows = (await conn.query_sales_data(org_id, "FY2026-27"))[:10]
+        elif hasattr(conn, "query_telemetry"):
+            raw_rows = (await conn.query_telemetry(plant_id="PLANT-OKHLA-2", time_range_hours=24))[:10]
     except Exception as exc:
         fetch_error = str(exc)
 
     if fetch_error:
-        return {"valid": False, "errors": [f"Fetch failed: {fetch_error}"], "sample_rows": []}
+        return {"valid": False, "error_count": 1, "errors": [f"Fetch failed: {fetch_error}"], "sample_rows": []}
 
     # Apply mapping
     errors: list[str] = []
     sample_rows: list[dict] = []
     for i, row in enumerate(raw_rows):
-        mapped: dict = {}
-        for entry in mapping:
-            src_col = entry.get("source_column", "")
-            dst_col = entry.get("canonical_field", "")
-            mapped[dst_col] = row.get(src_col)
+        if mapping:
+            mapped: dict = {}
+            for entry in mapping:
+                src_col = entry.get("source_column", "")
+                dst_col = entry.get("canonical_field", "")
+                if src_col and dst_col:
+                    mapped[dst_col] = row.get(src_col)
+            for k, v in row.items():
+                if k not in mapped:
+                    mapped[k] = v
+        else:
+            mapped = dict(row)
+
         if schema_cls:
             try:
                 schema_cls(**mapped)
@@ -446,8 +460,10 @@ async def validate_datasource(
 
     return {
         "valid": len(errors) == 0,
+        "error_count": len(errors),
         "errors": errors,
         "sample_rows": sample_rows[:5],
+        "total_records_evaluated": len(raw_rows),
     }
 
 
@@ -528,7 +544,7 @@ async def sync_datasource(
         if ds.purpose == "scada_telemetry" and hasattr(conn, "query_telemetry"):
             rows = await conn.query_telemetry(plant_id="PLANT-OKHLA-2", time_range_hours=24)
         elif hasattr(conn, "query_sales_data"):
-            rows = await conn.query_sales_data(company_id=org_id, fiscal_year="")
+            rows = await conn.query_sales_data(company_id=org_id, fiscal_year="FY2026-27")
         else:
             # General query probe
             if hasattr(conn, "health_check"):

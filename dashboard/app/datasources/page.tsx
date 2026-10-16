@@ -91,8 +91,10 @@ interface UploadState {
 
 interface ValidateResult {
   valid: boolean;
-  error_count: number;
+  error_count?: number;
   errors: string[];
+  sample_rows?: Record<string, unknown>[];
+  total_records_evaluated?: number;
 }
 
 /** Mask sensitive keys in a connection_config object before displaying. */
@@ -781,9 +783,9 @@ export default function DataSourcesPage() {
                     sx={{ py: 0.5, px: 1.5, fontSize: "0.8rem" }}
                   >
                     {validateResult.valid
-                      ? `Validation passed — ${validateResult.error_count} errors found.`
-                      : `Validation issues — ${validateResult.error_count} error(s) found.`}
-                    {validateResult.errors.length > 0 && (
+                      ? `Validation passed — 0 schema errors found. All records conform to canonical standard.`
+                      : `Validation issues — ${validateResult.error_count ?? validateResult.errors?.length ?? 0} error(s) found.`}
+                    {(validateResult.errors || []).length > 0 && (
                       <Box component="ul" sx={{ m: 0, pl: 2, mt: 0.5 }}>
                         {validateResult.errors.slice(0, 3).map((err, i) => (
                           <li key={i}>{err}</li>

@@ -47,6 +47,11 @@ spec:
                 secretKeyRef:
                   name: synthetiq-secrets
                   key: JWT_SECRET
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: synthetiq-secrets
+                  key: GEMINI_API_KEY
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
           livenessProbe:

@@ -206,6 +206,8 @@ jobs:
             --set config.gcpProjectId="${{ vars.GCP_PROJECT_ID || 'synthetiq-dev' }}" \
             --set config.gcpRegion="${{ vars.GCP_REGION || 'asia-south1' }}" \
             --set config.geminiModel="${{ vars.GEMINI_MODEL || 'gemini-3.8-flash' }}" \
+            --set config.useVertexAi="${{ vars.USE_VERTEX_AI || 'true' }}" \
+            --set config.vertexEndpointId="${{ vars.VERTEX_ENDPOINT_ID || '' }}" \
             --set config.bigqueryDatasetId="${{ vars.BIGQUERY_DATASET_ID || 'epr_compliance' }}" \
             --set config.pubsubScadaTopic="${{ vars.PUBSUB_SCADA_TOPIC || 'scada-telemetry-stream' }}" \
             --set config.jevMode="${{ vars.JEV_MODE || 'NIMBLE_PRIMARY' }}" \

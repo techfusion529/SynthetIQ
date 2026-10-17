@@ -144,20 +144,31 @@ class GeminiAIService:
             # 1. Use Vertex AI Model Garden Client if active
             if self.genai_client:
                 from google.genai import types as genai_types
-                resp = await self.genai_client.aio.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt,
-                    config=genai_types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        temperature=self.temperature,
-                        max_output_tokens=self.max_tokens,
-                        response_mime_type="application/json",
-                    ),
-                )
-                text_content = resp.text or "{}"
-                result = json.loads(text_content)
-                logger.debug(f"Gemini (Vertex AI Model Garden) response: {result}")
-                return result
+                candidate_models = [self.model_name]
+                for fb in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+                    if fb not in candidate_models:
+                        candidate_models.append(fb)
+
+                for cand in candidate_models:
+                    try:
+                        resp = await self.genai_client.aio.models.generate_content(
+                            model=cand,
+                            contents=prompt,
+                            config=genai_types.GenerateContentConfig(
+                                system_instruction=system_instruction,
+                                temperature=self.temperature,
+                                max_output_tokens=self.max_tokens,
+                                response_mime_type="application/json",
+                            ),
+                        )
+                        text_content = resp.text or "{}"
+                        result = json.loads(text_content)
+                        logger.debug(f"Gemini (Vertex AI Model Garden: {cand}) response: {result}")
+                        return result
+                    except Exception as ce:
+                        if "404" in str(ce) or "not found" in str(ce).lower():
+                            continue
+                        raise ce
 
             # 2. Fallback to legacy GenerativeModel if api_key mode
             generation_config = GenerationConfig(

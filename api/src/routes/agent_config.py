@@ -260,15 +260,29 @@ async def invoke_real_gemini_llm(
     selected_provider = (provider or "auto").lower()
     last_error = ""
 
-    # 1. Attempt Google Vertex AI Model Garden (ADC / Enterprise)
+    # Resolve GCP Project, Region & Endpoint for Vertex AI Model Garden
+    gcp_proj = os.getenv("GCP_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "synthetiq-dev"
+    gcp_loc = os.getenv("GOOGLE_CLOUD_LOCATION") or os.getenv("VERTEX_LOCATION") or os.getenv("GCP_REGION") or "asia-south1"
+    vertex_endpoint = os.getenv("VERTEX_ENDPOINT_ID", "").strip()
+
+    # Model candidates for Vertex AI Model Garden
+    candidate_models = []
+    if target_model:
+        candidate_models.append(target_model)
+    for fb in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+        if fb not in candidate_models:
+            candidate_models.append(fb)
+
+    # =========================================================================
+    # 1. ATTEMPT VERTEX AI MODEL GARDEN (ADC / Service Account / Cloud Project)
+    # =========================================================================
     if selected_provider != "ollama":
+        # 1A: Attempt via official google-genai SDK (Vertex AI mode)
         try:
             from google import genai
             from google.genai import types as genai_types
-            gcp_proj = os.getenv("GCP_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "synthetiq-dev"
-            gcp_loc = os.getenv("GOOGLE_CLOUD_LOCATION") or os.getenv("VERTEX_LOCATION") or "global"
+
             v_client = genai.Client(vertexai=True, project=gcp_proj, location=gcp_loc)
-            
             cfg = genai_types.GenerateContentConfig(
                 temperature=float(temperature),
                 max_output_tokens=1024,
@@ -276,104 +290,242 @@ async def invoke_real_gemini_llm(
             if system_instruction:
                 cfg.system_instruction = system_instruction
 
-            resp = await v_client.aio.models.generate_content(
-                model=live_model_target,
-                contents=prompt,
-                config=cfg,
-            )
-            res_text = (resp.text or "").strip()
-            prompt_tokens = max(140, len(prompt) // 4)
-            completion_tokens = max(160, len(res_text) // 4)
-            if hasattr(resp, "usage_metadata") and resp.usage_metadata:
-                prompt_tokens = getattr(resp.usage_metadata, "prompt_token_count", prompt_tokens) or prompt_tokens
-                completion_tokens = getattr(resp.usage_metadata, "candidates_token_count", completion_tokens) or completion_tokens
-            total_tokens = prompt_tokens + completion_tokens
-            latency_ms = round((time.perf_counter() - start_t) * 1000, 1)
-            cost_usd = round((prompt_tokens * 0.000075 + completion_tokens * 0.00030) / 1000.0, 6)
-            cost_inr = round(cost_usd * 86.5, 4)
+            for candidate in candidate_models:
+                try:
+                    resp = await v_client.aio.models.generate_content(
+                        model=candidate,
+                        contents=prompt,
+                        config=cfg,
+                    )
+                    res_text = (resp.text or "").strip()
+                    if res_text:
+                        prompt_tokens = max(140, len(prompt) // 4)
+                        completion_tokens = max(160, len(res_text) // 4)
+                        if hasattr(resp, "usage_metadata") and resp.usage_metadata:
+                            prompt_tokens = getattr(resp.usage_metadata, "prompt_token_count", prompt_tokens) or prompt_tokens
+                            completion_tokens = getattr(resp.usage_metadata, "candidates_token_count", completion_tokens) or completion_tokens
+                        total_tokens = prompt_tokens + completion_tokens
+                        latency_ms = round((time.perf_counter() - start_t) * 1000, 1)
+                        cost_usd = round((prompt_tokens * 0.000075 + completion_tokens * 0.00030) / 1000.0, 6)
+                        cost_inr = round(cost_usd * 86.5, 4)
 
-            return {
-                "success": True,
-                "live_api_success": True,
-                "text": res_text,
-                "prompt_sent": prompt,
-                "system_instruction": system_instruction,
-                "model_used": live_model_target,
-                "latency_ms": latency_ms,
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-                "cost_usd": cost_usd,
-                "cost_inr": cost_inr,
-                "provider": f"Google Cloud Vertex AI Model Garden ({live_model_target})",
-                "api_status": "LIVE_VERTEX_MODEL_GARDEN_CONNECTED",
-            }
+                        return {
+                            "success": True,
+                            "live_api_success": True,
+                            "text": res_text,
+                            "prompt_sent": prompt,
+                            "system_instruction": system_instruction,
+                            "model_used": candidate,
+                            "latency_ms": latency_ms,
+                            "prompt_tokens": prompt_tokens,
+                            "completion_tokens": completion_tokens,
+                            "total_tokens": total_tokens,
+                            "cost_usd": cost_usd,
+                            "cost_inr": cost_inr,
+                            "provider": f"Google Cloud Vertex AI Model Garden ({candidate})",
+                            "api_status": "LIVE_VERTEX_MODEL_GARDEN_CONNECTED",
+                        }
+                except Exception as cand_err:
+                    if "404" in str(cand_err) or "not found" in str(cand_err).lower():
+                        continue
+                    raise cand_err
         except Exception as v_exc:
-            last_error = f"Vertex AI Model Garden error: {str(v_exc)[:120]}"
+            last_error = f"Vertex AI SDK: {str(v_exc)[:100]}"
 
-    # 2. Fallback: Google Gemini Cloud REST API (via AI Studio if api_key exists)
-    if selected_provider != "ollama" and api_key and not last_error.startswith("Vertex"):
+        # 1B: Attempt via google-cloud-aiplatform (vertexai.generative_models)
         try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{live_model_target}:generateContent?key={api_key}"
-            payload: dict[str, Any] = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": float(temperature),
-                    "maxOutputTokens": 1024,
-                },
+            import vertexai
+            from vertexai.generative_models import GenerativeModel
+
+            vertexai.init(project=gcp_proj, location=gcp_loc)
+            for candidate in candidate_models:
+                try:
+                    v_model = GenerativeModel(
+                        model_name=candidate,
+                        system_instruction=[system_instruction] if system_instruction else None,
+                    )
+                    loop = asyncio.get_running_loop()
+                    resp = await loop.run_in_executor(None, lambda: v_model.generate_content(prompt))
+                    res_text = (resp.text or "").strip()
+                    if res_text:
+                        prompt_tokens = max(140, len(prompt) // 4)
+                        completion_tokens = max(160, len(res_text) // 4)
+                        if hasattr(resp, "usage_metadata") and resp.usage_metadata:
+                            prompt_tokens = getattr(resp.usage_metadata, "prompt_token_count", prompt_tokens) or prompt_tokens
+                            completion_tokens = getattr(resp.usage_metadata, "candidates_token_count", completion_tokens) or completion_tokens
+                        total_tokens = prompt_tokens + completion_tokens
+                        latency_ms = round((time.perf_counter() - start_t) * 1000, 1)
+                        cost_usd = round((prompt_tokens * 0.000075 + completion_tokens * 0.00030) / 1000.0, 6)
+                        cost_inr = round(cost_usd * 86.5, 4)
+
+                        return {
+                            "success": True,
+                            "live_api_success": True,
+                            "text": res_text,
+                            "prompt_sent": prompt,
+                            "system_instruction": system_instruction,
+                            "model_used": candidate,
+                            "latency_ms": latency_ms,
+                            "prompt_tokens": prompt_tokens,
+                            "completion_tokens": completion_tokens,
+                            "total_tokens": total_tokens,
+                            "cost_usd": cost_usd,
+                            "cost_inr": cost_inr,
+                            "provider": f"Google Cloud Vertex AI Model Garden ({candidate})",
+                            "api_status": "LIVE_VERTEX_MODEL_GARDEN_CONNECTED",
+                        }
+                except Exception as cand_err:
+                    if "404" in str(cand_err) or "not found" in str(cand_err).lower():
+                        continue
+                    raise cand_err
+        except Exception as vai_exc:
+            if not last_error:
+                last_error = f"Vertex AI Platform: {str(vai_exc)[:100]}"
+
+        # 1C: Direct Vertex AI REST API via Google Cloud Application Default Credentials (ADC)
+        try:
+            import google.auth
+            import google.auth.transport.requests
+
+            creds, auth_proj = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+            auth_req = google.auth.transport.requests.Request()
+            creds.refresh(auth_req)
+            token = creds.token
+            effective_proj = gcp_proj or auth_proj or "synthetiq-dev"
+
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
             }
-            if system_instruction:
-                payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
 
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                res = await client.post(url, json=payload)
-
-            if res.status_code == 200:
-                data = res.json()
-                candidates = data.get("candidates") or []
-                res_text = ""
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        res_text = parts[0].get("text", "").strip()
-
-                usage = data.get("usageMetadata", {})
-                prompt_tokens = usage.get("promptTokenCount", max(140, len(prompt) // 4))
-                completion_tokens = usage.get("candidatesTokenCount", max(160, len(res_text) // 4))
-                total_tokens = prompt_tokens + completion_tokens
-
-                latency_ms = round((time.perf_counter() - start_t) * 1000, 1)
-                cost_usd = round((prompt_tokens * 0.00010 + completion_tokens * 0.00040) / 1000.0, 6)
-                cost_inr = round(cost_usd * 86.5, 4)
-
-                return {
-                    "success": True,
-                    "live_api_success": True,
-                    "text": res_text,
-                    "prompt_sent": prompt,
-                    "system_instruction": system_instruction,
-                    "model_used": target_model,
-                    "latency_ms": latency_ms,
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": total_tokens,
-                    "cost_usd": cost_usd,
-                    "cost_inr": cost_inr,
-                    "provider": f"Google Cloud ({target_model} Live Inference)",
-                    "api_status": "LIVE_GEMINI_API_CONNECTED",
-                }
-            else:
-                err_body = res.text
-                if "429" in err_body or "quota" in err_body.lower():
-                    last_error = "Google AI Studio quota exceeded (HTTP 429: free limit 20 req/day)"
-                elif "402" in err_body or "prepayment" in err_body.lower():
-                    last_error = "Google AI Studio credits depleted (HTTP 402)"
-                elif "404" in err_body:
-                    last_error = f"Google model {live_model_target} retired / not found (HTTP 404)"
+            for candidate in candidate_models:
+                if vertex_endpoint:
+                    v_url = f"https://{gcp_loc}-aiplatform.googleapis.com/v1/projects/{effective_proj}/locations/{gcp_loc}/endpoints/{vertex_endpoint}:generateContent"
                 else:
-                    last_error = f"Google API error ({res.status_code}): {err_body[:120]}"
+                    host = f"{gcp_loc}-aiplatform.googleapis.com" if gcp_loc != "global" else "aiplatform.googleapis.com"
+                    v_url = f"https://{host}/v1/projects/{effective_proj}/locations/{gcp_loc}/publishers/google/models/{candidate}:generateContent"
+
+                v_payload: dict[str, Any] = {
+                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": float(temperature),
+                        "maxOutputTokens": 1024,
+                    },
+                }
+                if system_instruction:
+                    v_payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    v_res = await client.post(v_url, json=v_payload, headers=headers)
+
+                if v_res.status_code == 200:
+                    v_data = v_res.json()
+                    candidates_list = v_data.get("candidates") or []
+                    res_text = ""
+                    if candidates_list:
+                        parts = candidates_list[0].get("content", {}).get("parts", [])
+                        if parts:
+                            res_text = parts[0].get("text", "").strip()
+
+                    usage = v_data.get("usageMetadata", {})
+                    prompt_tokens = usage.get("promptTokenCount", max(140, len(prompt) // 4))
+                    completion_tokens = usage.get("candidatesTokenCount", max(160, len(res_text) // 4))
+                    total_tokens = prompt_tokens + completion_tokens
+
+                    latency_ms = round((time.perf_counter() - start_t) * 1000, 1)
+                    cost_usd = round((prompt_tokens * 0.000075 + completion_tokens * 0.00030) / 1000.0, 6)
+                    cost_inr = round(cost_usd * 86.5, 4)
+
+                    return {
+                        "success": True,
+                        "live_api_success": True,
+                        "text": res_text,
+                        "prompt_sent": prompt,
+                        "system_instruction": system_instruction,
+                        "model_used": candidate,
+                        "latency_ms": latency_ms,
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": total_tokens,
+                        "cost_usd": cost_usd,
+                        "cost_inr": cost_inr,
+                        "provider": f"Google Cloud Vertex AI Model Garden ({candidate})",
+                        "api_status": "LIVE_VERTEX_MODEL_GARDEN_CONNECTED",
+                    }
+                elif v_res.status_code == 404:
+                    continue
+                else:
+                    last_error = f"Vertex AI REST ({v_res.status_code}): {v_res.text[:100]}"
+        except Exception as adc_exc:
+            if not last_error:
+                last_error = f"Vertex AI ADC: {str(adc_exc)[:100]}"
+
+    # =========================================================================
+    # 2. FALLBACK: Google Gemini Cloud REST API (via AI Studio if api_key exists)
+    # =========================================================================
+    if selected_provider != "ollama" and api_key:
+        try:
+            for candidate in candidate_models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{candidate}:generateContent?key={api_key}"
+                payload: dict[str, Any] = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": float(temperature),
+                        "maxOutputTokens": 1024,
+                    },
+                }
+                if system_instruction:
+                    payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    res = await client.post(url, json=payload)
+
+                if res.status_code == 200:
+                    data = res.json()
+                    candidates = data.get("candidates") or []
+                    res_text = ""
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            res_text = parts[0].get("text", "").strip()
+
+                    usage = data.get("usageMetadata", {})
+                    prompt_tokens = usage.get("promptTokenCount", max(140, len(prompt) // 4))
+                    completion_tokens = usage.get("candidatesTokenCount", max(160, len(res_text) // 4))
+                    total_tokens = prompt_tokens + completion_tokens
+
+                    latency_ms = round((time.perf_counter() - start_t) * 1000, 1)
+                    cost_usd = round((prompt_tokens * 0.00010 + completion_tokens * 0.00040) / 1000.0, 6)
+                    cost_inr = round(cost_usd * 86.5, 4)
+
+                    return {
+                        "success": True,
+                        "live_api_success": True,
+                        "text": res_text,
+                        "prompt_sent": prompt,
+                        "system_instruction": system_instruction,
+                        "model_used": candidate,
+                        "latency_ms": latency_ms,
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": total_tokens,
+                        "cost_usd": cost_usd,
+                        "cost_inr": cost_inr,
+                        "provider": f"Google Cloud ({candidate} Live Inference)",
+                        "api_status": "LIVE_GEMINI_API_CONNECTED",
+                    }
+                elif res.status_code == 404:
+                    continue
+                else:
+                    err_body = res.text
+                    if "429" in err_body or "quota" in err_body.lower():
+                        last_error = "Google AI Studio quota exceeded (HTTP 429: free limit 20 req/day)"
+                    elif "402" in err_body or "prepayment" in err_body.lower():
+                        last_error = "Google AI Studio credits depleted (HTTP 402)"
+                    else:
+                        last_error = f"Google API error ({res.status_code}): {err_body[:100]}"
         except Exception as exc:
-            last_error = f"Google Gemini connection error: {str(exc)[:120]}"
+            last_error = f"Google Gemini connection error: {str(exc)[:100]}"
 
     # 2. Seamless Fallback / Direct Provider: Local Ollama on port 11434 (e.g. gpt-oss:20b-cloud)
     if selected_provider in ("auto", "ollama") or last_error:

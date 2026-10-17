@@ -20,6 +20,8 @@ config:
   gcpProjectId: "synthetiq-dev"
   gcpRegion: "asia-south1"
   geminiModel: "gemini-3.8-flash"
+  useVertexAi: "true"
+  vertexEndpointId: ""
   bigqueryDatasetId: "epr_compliance"
   bigquerySalesTable: "sales_data"
   bigqueryLocation: "asia-south1"

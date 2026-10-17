@@ -7,7 +7,14 @@ metadata:
 data:
   GCP_PROJECT_ID: {{ .Values.config.gcpProjectId | default "synthetiq-dev" | quote }}
   GCP_REGION: {{ .Values.config.gcpRegion | default "asia-south1" | quote }}
+  GOOGLE_CLOUD_PROJECT: {{ .Values.config.gcpProjectId | default "synthetiq-dev" | quote }}
+  GOOGLE_CLOUD_LOCATION: {{ .Values.config.gcpRegion | default "asia-south1" | quote }}
+  VERTEX_LOCATION: {{ .Values.config.gcpRegion | default "asia-south1" | quote }}
+  GOOGLE_GENAI_USE_VERTEXAI: {{ .Values.config.useVertexAi | default "true" | quote }}
+  USE_VERTEX_AI: {{ .Values.config.useVertexAi | default "true" | quote }}
   GEMINI_MODEL: {{ .Values.config.geminiModel | default "gemini-3.8-flash" | quote }}
+  VERTEX_ENDPOINT_ID: {{ .Values.config.vertexEndpointId | default "" | quote }}
+  VERTEX_MODEL_NAME: {{ .Values.config.geminiModel | default "gemini-3.8-flash" | quote }}
   BIGQUERY_DATASET_ID: {{ .Values.config.bigqueryDatasetId | default "epr_compliance" | quote }}
   BIGQUERY_SALES_TABLE: {{ .Values.config.bigquerySalesTable | default "sales_data" | quote }}
   BIGQUERY_LOCATION: {{ .Values.config.bigqueryLocation | default "asia-south1" | quote }}

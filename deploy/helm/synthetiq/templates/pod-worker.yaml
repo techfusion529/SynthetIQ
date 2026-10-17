@@ -52,6 +52,12 @@ spec:
                 secretKeyRef:
                   name: synthetiq-secrets
                   key: DATABASE_URL
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /etc/gcp/key.json
+          volumeMounts:
+            - name: gcp-sa-key
+              mountPath: /etc/gcp
+              readOnly: true
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}
           livenessProbe:
@@ -60,6 +66,11 @@ spec:
               port: metrics
             initialDelaySeconds: 15
             periodSeconds: 30
+      volumes:
+        - name: gcp-sa-key
+          secret:
+            secretName: synthetiq-gcp-key
+            optional: true
 ---
 apiVersion: v1
 kind: Service

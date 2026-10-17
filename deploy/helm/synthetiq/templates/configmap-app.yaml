@@ -8,8 +8,8 @@ data:
   GCP_PROJECT_ID: {{ .Values.config.gcpProjectId | default "synthetiq-dev" | quote }}
   GCP_REGION: {{ .Values.config.gcpRegion | default "asia-south1" | quote }}
   GOOGLE_CLOUD_PROJECT: {{ .Values.config.gcpProjectId | default "synthetiq-dev" | quote }}
-  GOOGLE_CLOUD_LOCATION: {{ .Values.config.gcpRegion | default "asia-south1" | quote }}
-  VERTEX_LOCATION: {{ .Values.config.gcpRegion | default "asia-south1" | quote }}
+  GOOGLE_CLOUD_LOCATION: {{ .Values.config.vertexLocation | default "global" | quote }}
+  VERTEX_LOCATION: {{ .Values.config.vertexLocation | default "global" | quote }}
   GOOGLE_GENAI_USE_VERTEXAI: {{ .Values.config.useVertexAi | default "true" | quote }}
   USE_VERTEX_AI: {{ .Values.config.useVertexAi | default "true" | quote }}
   GEMINI_MODEL: {{ .Values.config.geminiModel | default "gemini-3.8-flash" | quote }}

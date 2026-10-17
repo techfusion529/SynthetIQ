@@ -193,6 +193,21 @@ jobs:
             echo "SSL certificate secrets not configured, skipping TLS secret creation."
           fi
 
+      - name: Apply Google Cloud Service Account Secret
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY || secrets.GKE_SA_KEY }}
+        run: |
+          if [ -n "$GCP_SA_KEY" ]; then
+            echo "Applying GCP service account key secret for Vertex AI & BigQuery..."
+            printf "%s\n" "$GCP_SA_KEY" > /tmp/key.json
+            kubectl create secret generic synthetiq-gcp-key \
+              --from-file=key.json=/tmp/key.json \
+              -n synthetiq --dry-run=client -o yaml | kubectl apply -f -
+            rm -f /tmp/key.json
+          else
+            echo "GCP_SA_KEY not provided, skipping synthetiq-gcp-key update."
+          fi
+
       - name: Apply Helm Release & Cluster Resources
         run: |
           helm upgrade --install synthetiq ${{ env.HELM_CHART_PATH }} \
@@ -205,6 +220,7 @@ jobs:
             --set secrets.jwtSecret="${{ secrets.JWT_SECRET }}" \
             --set config.gcpProjectId="${{ vars.GCP_PROJECT_ID || 'synthetiq-dev' }}" \
             --set config.gcpRegion="${{ vars.GCP_REGION || 'asia-south1' }}" \
+            --set config.vertexLocation="${{ vars.VERTEX_LOCATION || 'global' }}" \
             --set config.geminiModel="${{ vars.GEMINI_MODEL || 'gemini-3.8-flash' }}" \
             --set config.useVertexAi="${{ vars.USE_VERTEX_AI || 'true' }}" \
             --set config.vertexEndpointId="${{ vars.VERTEX_ENDPOINT_ID || '' }}" \

@@ -19,6 +19,7 @@ secrets:
 config:
   gcpProjectId: "synthetiq-dev"
   gcpRegion: "asia-south1"
+  vertexLocation: "global"
   geminiModel: "gemini-3.8-flash"
   useVertexAi: "true"
   vertexEndpointId: ""

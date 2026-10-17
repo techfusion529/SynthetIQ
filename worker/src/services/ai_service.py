@@ -64,18 +64,44 @@ class GeminiAIService:
         self.using_vertex = False
         self.genai_client = None
 
-        # 1. Prioritize Vertex AI Model Garden using Google GenAI SDK (ADC credentials)
-        effective_project = gcp_project_id or os.getenv("GCP_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
-        effective_region = gcp_region or os.getenv("GOOGLE_CLOUD_LOCATION") or os.getenv("GCP_REGION") or "global"
-        
+        # 1. Prioritize Vertex AI Model Garden using Google GenAI SDK (SA credentials or ADC)
+        effective_project = gcp_project_id or os.getenv("GCP_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "synthetiq-dev"
+        effective_region = gcp_region or os.getenv("VERTEX_LOCATION") or os.getenv("GOOGLE_CLOUD_LOCATION") or "global"
+
+        # Check for GCP Service Account key
+        sa_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or "/etc/gcp/key.json"
+        if os.path.exists("/etc/gcp/key.json") and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/etc/gcp/key.json"
+            sa_path = "/etc/gcp/key.json"
+
+        gcp_creds = None
+        if os.path.exists(sa_path):
+            try:
+                from google.oauth2 import service_account
+                gcp_creds = service_account.Credentials.from_service_account_file(
+                    sa_path,
+                    scopes=["https://www.googleapis.com/auth/cloud-platform"]
+                )
+            except Exception as e:
+                logger.warning(f"Failed loading GCP SA key: {e}")
+
         if effective_project:
             try:
                 from google import genai
-                self.genai_client = genai.Client(
-                    vertexai=True,
-                    project=effective_project,
-                    location=effective_region,
-                )
+                from google.genai import types as genai_types
+                client_kwargs: dict[str, Any] = {
+                    "vertexai": True,
+                    "project": effective_project,
+                    "location": effective_region,
+                    "http_options": genai_types.HttpOptions(
+                        timeout=15000,
+                        retry_options=genai_types.HttpRetryOptions(attempts=2),
+                    ),
+                }
+                if gcp_creds:
+                    client_kwargs["credentials"] = gcp_creds
+
+                self.genai_client = genai.Client(**client_kwargs)
                 self.using_vertex = True
                 self.gcp_project_id = effective_project
                 self.gcp_region = effective_region
@@ -166,7 +192,9 @@ class GeminiAIService:
                         logger.debug(f"Gemini (Vertex AI Model Garden: {cand}) response: {result}")
                         return result
                     except Exception as ce:
-                        if "404" in str(ce) or "not found" in str(ce).lower():
+                        ce_str = str(ce).lower()
+                        if "404" in ce_str or "not found" in ce_str or "429" in ce_str or "resource exhausted" in ce_str or "quota" in ce_str:
+                            logger.info(f"Model Garden {cand} unavailable ({ce_str[:80]}), trying next candidate model...")
                             continue
                         raise ce
 

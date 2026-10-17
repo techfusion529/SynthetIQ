@@ -49,11 +49,31 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 os.environ["GOOGLE_CLOUD_PROJECT"] = _GCP_PROJECT_ID
 os.environ["GOOGLE_CLOUD_LOCATION"] = _GCP_REGION
 
+# Check for GCP Service Account key
+sa_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or "/etc/gcp/key.json"
+if os.path.exists("/etc/gcp/key.json") and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/etc/gcp/key.json"
+    sa_path = "/etc/gcp/key.json"
+
+gcp_creds = None
+if os.path.exists(sa_path):
+    try:
+        from google.oauth2 import service_account
+        gcp_creds = service_account.Credentials.from_service_account_file(
+            sa_path,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+    except Exception as e:
+        logger.warning(f"Failed loading GCP SA key for ADK: {e}")
+
 # Initialize Vertex AI if GCP project is configured (Agent Platform mode)
 if _GCP_PROJECT_ID:
     try:
         import vertexai
-        vertexai.init(project=_GCP_PROJECT_ID, location=_GCP_REGION)
+        init_kwargs = {"project": _GCP_PROJECT_ID, "location": _GCP_REGION}
+        if gcp_creds:
+            init_kwargs["credentials"] = gcp_creds
+        vertexai.init(**init_kwargs)
         logger.info(
             f"ADK Vertex AI Model Garden initialized: project={_GCP_PROJECT_ID}, "
             f"region={_GCP_REGION}, model={DEFAULT_MODEL}"

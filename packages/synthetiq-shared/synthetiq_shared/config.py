@@ -30,7 +30,7 @@ class GeminiConfig(BaseSettings):
     """Gemini AI model configuration."""
 
     api_key: str = Field(default="", alias="GEMINI_API_KEY")
-    model: str = Field(default="gemini-2.0-flash-exp", alias="GEMINI_MODEL")
+    model: str = Field(default="gemini-3.8-flash", alias="GEMINI_MODEL")
     temperature: float = Field(default=0.2, alias="GEMINI_TEMPERATURE")
     max_tokens: int = Field(default=8192, alias="GEMINI_MAX_TOKENS")
     safety_settings: str = Field(

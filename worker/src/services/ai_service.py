@@ -42,61 +42,63 @@ class GeminiAIService:
     def __init__(
         self,
         api_key: str,
-        model_name: str = "gemini-2.0-flash-exp",
+        model_name: str = "gemini-3.8-flash",
         temperature: float = 0.2,
         max_tokens: int = 8192,
         gcp_project_id: str | None = None,
-        gcp_region: str = "asia-south1",
+        gcp_region: str = "global",
     ) -> None:
         """Initialize Gemini service.
 
         Args:
             api_key: Google AI Studio API key (used if Vertex AI not available)
-            model_name: Gemini model identifier
+            model_name: Gemini model identifier (defaults to gemini-3.8-flash)
             temperature: Sampling temperature (0.0-1.0)
             max_tokens: Maximum output tokens
-            gcp_project_id: GCP project ID for Vertex AI mode
-            gcp_region: GCP region for Vertex AI endpoint
+            gcp_project_id: GCP project ID for Vertex AI Model Garden mode
+            gcp_region: GCP region for Vertex AI endpoint (defaults to global)
         """
-        self.model_name = model_name
+        self.model_name = model_name or "gemini-3.8-flash"
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.using_vertex = False
+        self.genai_client = None
 
-        # Try Vertex AI first (enterprise-grade, uses ADC credentials)
-        if gcp_project_id:
+        # 1. Prioritize Vertex AI Model Garden using Google GenAI SDK (ADC credentials)
+        effective_project = gcp_project_id or os.getenv("GCP_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+        effective_region = gcp_region or os.getenv("GOOGLE_CLOUD_LOCATION") or os.getenv("GCP_REGION") or "global"
+        
+        if effective_project:
             try:
-                import vertexai
-                from vertexai.generative_models import GenerativeModel as VertexModel
-
-                vertexai.init(project=gcp_project_id, location=gcp_region)
-                self.using_vertex = True
-                self.gcp_project_id = gcp_project_id
-                self.gcp_region = gcp_region
-                logger.info(
-                    f"Initialized Vertex AI Gemini: project={gcp_project_id}, "
-                    f"region={gcp_region}, model={model_name}"
+                from google import genai
+                self.genai_client = genai.Client(
+                    vertexai=True,
+                    project=effective_project,
+                    location=effective_region,
                 )
-            except ImportError:
-                logger.warning(
-                    "google-cloud-aiplatform not installed. "
-                    "Falling back to direct API key mode."
+                self.using_vertex = True
+                self.gcp_project_id = effective_project
+                self.gcp_region = effective_region
+                logger.info(
+                    f"Initialized Vertex AI Model Garden Gemini: project={effective_project}, "
+                    f"region={effective_region}, model={self.model_name}"
                 )
             except Exception as e:
                 logger.warning(
-                    f"Vertex AI init failed ({e}). Falling back to API key mode."
+                    f"Vertex AI Model Garden Client init failed ({e}). Attempting fallback."
                 )
 
-        # Fallback to direct API key mode
-        if not self.using_vertex:
+        # 2. Fallback to direct API key mode if Vertex AI Client not initialized
+        if not self.using_vertex or not self.genai_client:
             if not api_key or not api_key.strip():
-                logger.warning(
-                    "GEMINI_API_KEY is empty and Vertex AI is not configured. "
-                    "Using placeholder key so worker can start up."
-                )
+                api_key = os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")
+            if not api_key:
                 api_key = "placeholder-key"
-            genai.configure(api_key=api_key)
-            logger.info(f"Initialized Gemini (API key mode): model={model_name}")
+            try:
+                genai.configure(api_key=api_key)
+                logger.info(f"Initialized Gemini (API key mode): model={self.model_name}")
+            except Exception as exc:
+                logger.warning(f"Google GenAI configure warning: {exc}")
 
         # Configure safety settings (less restrictive for business data)
         self.safety_settings = {
@@ -106,14 +108,17 @@ class GeminiAIService:
             HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
         }
 
-        self.model = GenerativeModel(
-            model_name=self.model_name,
-            safety_settings=self.safety_settings,
-        )
+        try:
+            self.model = GenerativeModel(
+                model_name=self.model_name,
+                safety_settings=self.safety_settings,
+            )
+        except Exception:
+            self.model = None
 
         logger.info(
-            f"GeminiAIService ready: mode={'vertex_ai' if self.using_vertex else 'api_key'}, "
-            f"model={model_name}, temp={temperature}"
+            f"GeminiAIService ready: mode={'vertex_ai_model_garden' if self.using_vertex else 'api_key'}, "
+            f"model={self.model_name}, temp={temperature}"
         )
 
     @retry(
@@ -136,13 +141,31 @@ class GeminiAIService:
             Parsed JSON response as dictionary
         """
         try:
+            # 1. Use Vertex AI Model Garden Client if active
+            if self.genai_client:
+                from google.genai import types as genai_types
+                resp = await self.genai_client.aio.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=self.temperature,
+                        max_output_tokens=self.max_tokens,
+                        response_mime_type="application/json",
+                    ),
+                )
+                text_content = resp.text or "{}"
+                result = json.loads(text_content)
+                logger.debug(f"Gemini (Vertex AI Model Garden) response: {result}")
+                return result
+
+            # 2. Fallback to legacy GenerativeModel if api_key mode
             generation_config = GenerationConfig(
                 temperature=self.temperature,
                 max_output_tokens=self.max_tokens,
                 response_mime_type="application/json",
             )
 
-            # Create model with system instruction if provided
             if system_instruction:
                 model = GenerativeModel(
                     model_name=self.model_name,
@@ -157,7 +180,6 @@ class GeminiAIService:
                 generation_config=generation_config,
             )
 
-            # Parse JSON response
             result = json.loads(response.text)
             logger.debug(f"Gemini response: {result}")
             return result
@@ -380,12 +402,12 @@ gemini_service: GeminiAIService | None = None
 
 
 def initialize_gemini_service(
-    api_key: str,
-    model_name: str = "gemini-2.0-flash-exp",
+    api_key: str = "",
+    model_name: str = "gemini-3.8-flash",
     temperature: float = 0.2,
     max_tokens: int = 8192,
     gcp_project_id: str | None = None,
-    gcp_region: str = "asia-south1",
+    gcp_region: str = "global",
 ) -> GeminiAIService:
     """Initialize the global Gemini service instance.
 

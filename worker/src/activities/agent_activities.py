@@ -139,40 +139,31 @@ async def calculate_brand_liability_activity(
     """
     logger.info(f"[Activity] Brand liability  -  {company_id}, {fiscal_year}")
 
-    # AGT-01: deterministic pre-computation from obligation ledger
+    # AGT-01: compute advisory baseline from obligation ledger if available
+    gross_liability: float | None = None
+    total_obligation: float | None = None
     if run_config_dict:
-        from synthetiq_shared.models.dynamic_config import RunConfig as _RunConfig
-        _run_config = _RunConfig(**run_config_dict)
-        if not _run_config.obligations:
-            raise ApplicationError(
-                "No obligation entries found for org/fiscal_year",
-                non_retryable=False,
-            )
-        matching_obligations = [
-            e.obligation_tons
-            for e in _run_config.obligations
-            if e.fiscal_year == fiscal_year
-        ]
-        if not matching_obligations:
-            matching_obligations = [e.obligation_tons for e in _run_config.obligations]
-        total_obligation = sum(matching_obligations)
-        if total_obligation == 0.0:
-            raise ApplicationError(
-                "No obligation entries found for org/fiscal_year",
-                non_retryable=False,
-            )
-        target_pct = _run_config.pack.category_targets.get(category, 0.0)
-        gross_liability = round(total_obligation * (1.0 - target_pct), 4)
-        logger.info(
-            f"[Activity] Deterministic liability: total_obligation={total_obligation}, "
-            f"target_pct={target_pct}, gross_liability={gross_liability}"
-        )
-        # Return deterministic result without calling LLM
-        return LiabilityResult(
-            net_liability_tons=gross_liability,
-            gross_liability_tons=total_obligation,
-            category=category or None,
-        ).model_dump(mode="json")
+        try:
+            from synthetiq_shared.models.dynamic_config import RunConfig as _RunConfig
+            _run_config = _RunConfig(**run_config_dict)
+            if _run_config.obligations:
+                matching_obligations = [
+                    e.obligation_tons
+                    for e in _run_config.obligations
+                    if e.fiscal_year == fiscal_year
+                ]
+                if not matching_obligations:
+                    matching_obligations = [e.obligation_tons for e in _run_config.obligations]
+                total_obligation = sum(matching_obligations)
+                if total_obligation > 0.0:
+                    target_pct = _run_config.pack.category_targets.get(category, 0.0)
+                    gross_liability = round(total_obligation * (1.0 - target_pct), 4)
+                    logger.info(
+                        f"[Activity] Advisory obligation baseline: total={total_obligation}, "
+                        f"target_pct={target_pct}, gross_liability={gross_liability}"
+                    )
+        except Exception as _cfg_exc:
+            logger.debug(f"Config baseline calculation skipped: {_cfg_exc}")
 
     from agents.brand_liability_agent import run_brand_liability_agent
     from services.privacy_service import get_privacy_service
@@ -183,17 +174,20 @@ async def calculate_brand_liability_activity(
         clean = await privacy.scrub_dict({"sales": sales_data})
         sales_data = clean["sales"]
 
+    # Execute Google ADK Brand Liability Agent with Gemini 3.8 Flash
     result = await run_brand_liability_agent(
         company_id=company_id,
         fiscal_year=fiscal_year,
         org_id=org_id,
+        context_gross_liability=gross_liability,
+        context_total_obligation=total_obligation,
     )
 
     # AGT-12: log approximate LLM usage
     await _log_llm_usage(
         org_id=org_id,
         agent_name="brand_liability",
-        model="gemini-2.0-flash",
+        model="gemini-3.8-flash",
         prompt=f"{company_id} {fiscal_year}",
         response=str(result.get("raw_response", "")),
     )
@@ -465,7 +459,40 @@ async def audit_scada_telemetry_activity(
     """SCADA telemetry fraud audit via ADK Auditor Agent with physics v2 hash chain."""
     logger.info(f"[Activity] SCADA audit  -  {recycler_id}/{plant_id}, category={category}")
 
-    # Look up real or seeded SCADA telemetry batch from DB
+    # 1. Query live SCADA telemetry from Google BigQuery
+    try:
+        from google.cloud import bigquery
+        import os
+        bq_client = bigquery.Client(project=os.getenv("GCP_PROJECT_ID", "synthetiq-dev"))
+        dataset_id = os.getenv("BIGQUERY_DATASET_ID", "epr_compliance")
+        table_id = os.getenv("BIGQUERY_TELEMETRY_TABLE", "scada_telemetry")
+        bq_query = f"""
+            SELECT plant_id, torque_nm, power_factor, active_power_kw,
+                   vfd_frequency_hz, melt_rate_kg_h
+            FROM `{bq_client.project}.{dataset_id}.{table_id}`
+            WHERE (plant_id = @plant_id OR @plant_id = '')
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """
+        bq_job = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter("plant_id", "STRING", plant_id or ""),
+        ])
+        bq_rows = list(bq_client.query(bq_query, job_config=bq_job).result())
+        if bq_rows:
+            row = dict(bq_rows[0])
+            torque_nm = float(row.get("torque_nm", torque_nm))
+            power_factor = float(row.get("power_factor", power_factor))
+            active_power_kw = float(row.get("active_power_kw", active_power_kw))
+            vfd_frequency_hz = float(row.get("vfd_frequency_hz", vfd_frequency_hz))
+            melt_rate_kg_h = float(row.get("melt_rate_kg_h", melt_rate_kg_h))
+            logger.info(
+                f"[Activity] Retrieved live BigQuery SCADA telemetry for {plant_id}: "
+                f"torque={torque_nm}Nm, pf={power_factor}, kw={active_power_kw}"
+            )
+    except Exception as bq_exc:
+        logger.debug(f"[Activity] Live BigQuery telemetry lookup skipped ({bq_exc})")
+
+    # 2. Look up real or seeded SCADA telemetry batch from DB
     try:
         from synthetiq_shared.database import get_db_session
         from synthetiq_shared.models.facilities import TelemetryBatch
@@ -504,7 +531,7 @@ async def audit_scada_telemetry_activity(
     await _log_llm_usage(
         org_id=org_id,
         agent_name="auditor",
-        model="gemini-2.0-flash",
+        model="gemini-3.8-flash",
         prompt=f"{recycler_id} {plant_id} {reported_volume_tons}",
         response=str(result.get("raw_response", "")),
     )
@@ -697,7 +724,7 @@ async def create_escrow_split_po_activity(
     await _log_llm_usage(
         org_id=org_id,
         agent_name="erp",
-        model="gemini-2.0-flash",
+        model="gemini-3.8-flash",
         prompt=f"{company_id} {recycler_id} {audit_id}",
         response=str(result.get("raw_response", "")),
     )
@@ -830,7 +857,7 @@ async def generate_and_dispatch_form1_activity(
     await _log_llm_usage(
         org_id=org_id,
         agent_name="legal",
-        model="gemini-2.0-flash",
+        model="gemini-3.8-flash",
         prompt=f"{po_number} {audit_id}",
         response=str(result.get("raw_response", "")),
     )

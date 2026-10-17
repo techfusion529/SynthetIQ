@@ -1055,11 +1055,8 @@ export default function AgentConfigStudioPage() {
                       value={currentConfig.model_name || "gemini-3.8-flash"}
                       onChange={(e) => setCurrentConfig({ ...currentConfig, model_name: e.target.value })}
                     >
-                      <MenuItem value="gemini-3.8-flash">Gemini 3.8 Flash</MenuItem>
-                      <MenuItem value="gemini-4-argon">Gemini 4 Argon</MenuItem>
-                      <MenuItem value="gemini-2.5-flash">Gemini 2.5 Flash</MenuItem>
-                      <MenuItem value="gemini-1.5-pro">Gemini 1.5 Pro</MenuItem>
-                      <MenuItem value="gpt-oss:20b-cloud">gpt-oss:20b (Ollama)</MenuItem>
+                      <MenuItem value="gemini-3.8-flash">Gemini 3.8 Flash (Vertex AI Model Garden)</MenuItem>
+                      <MenuItem value="gpt-oss:20b-cloud">gpt-oss:20b (Ollama Local)</MenuItem>
                     </TextField>
 
                     <Box>

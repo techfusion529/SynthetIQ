@@ -20,11 +20,6 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_MODEL_IDS = frozenset([
     "gemini-3.8-flash",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-exp",
-    "gemini-1.5-pro-latest",
 ])
 FORBIDDEN_PROMPT_KEYWORDS = frozenset(["verdict=", "always_pass", "skip_gate"])
 
@@ -91,7 +86,7 @@ async def create_agent(agent_name: str, org_id: str, run_id: str) -> Any:
     from synthetiq_shared.database import get_db_session
     from synthetiq_shared.models import AgentConfiguration
 
-    model_id = "gemini-2.0-flash"
+    model_id = "gemini-3.8-flash"
     temperature = 0.2
     system_prompt: str | None = None
 
@@ -109,7 +104,7 @@ async def create_agent(agent_name: str, org_id: str, run_id: str) -> Any:
         if cfg.model_name not in ALLOWED_MODEL_IDS:
             logger.warning(
                 f"[AgentFactory] model_id {cfg.model_name!r} not in allowlist for "
-                f"org={org_id}, agent={agent_name}. Falling back to gemini-2.0-flash."
+                f"org={org_id}, agent={agent_name}. Falling back to gemini-3.8-flash."
             )
         else:
             model_id = cfg.model_name

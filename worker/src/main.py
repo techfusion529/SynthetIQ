@@ -57,47 +57,57 @@ async def initialize_services() -> None:
         for warning in validation["warnings"]:
             logger.warning(f"  - {warning}")
 
-    # Set GEMINI_API_KEY in env so google-adk's LlmAgent picks it up
     import os
-    if config.gemini.is_configured:
+    use_vertex = (
+        os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").lower() == "true"
+        or os.getenv("USE_VERTEX_AI", "").lower() == "true"
+        or bool(config.gcp.project_id)
+    )
+
+    if use_vertex:
+        effective_project = config.gcp.project_id or "synthetiq-dev"
+        effective_loc = os.getenv("GOOGLE_CLOUD_LOCATION") or os.getenv("VERTEX_LOCATION") or config.gcp.region or "global"
+        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+        os.environ["GOOGLE_CLOUD_PROJECT"] = effective_project
+        os.environ["GCP_PROJECT_ID"] = effective_project
+        os.environ["GOOGLE_CLOUD_LOCATION"] = effective_loc
+        os.environ["GCP_REGION"] = effective_loc
+        os.environ["GEMINI_MODEL"] = config.gemini.model or "gemini-3.8-flash"
+        logger.info(f" - Google ADK & Vertex AI Model Garden configured: model={os.environ['GEMINI_MODEL']}, location={effective_loc}")
+    elif config.gemini.is_configured:
         os.environ["GOOGLE_API_KEY"] = config.gemini.api_key
         os.environ["GEMINI_API_KEY"] = config.gemini.api_key
-        os.environ["GEMINI_MODEL"] = config.gemini.model
-        logger.info(f" -  Google ADK configured: model={config.gemini.model}")
+        os.environ["GEMINI_MODEL"] = config.gemini.model or "gemini-3.8-flash"
+        logger.info(f" - Google ADK configured: model={config.gemini.model}")
     else:
-        logger.warning("GEMINI_API_KEY not configured. Running worker in demo/mock agent mode.")
+        logger.warning("Neither Vertex AI nor GEMINI_API_KEY configured. Running worker in demo/mock agent mode.")
         os.environ.setdefault("GOOGLE_API_KEY", "mock-agent-key")
         os.environ.setdefault("GEMINI_API_KEY", "mock-agent-key")
-        os.environ.setdefault("GEMINI_MODEL", config.gemini.model)
+        os.environ.setdefault("GEMINI_MODEL", "gemini-3.8-flash")
 
     # Set GCP project context for BigQuery / Pub/Sub
     if config.gcp.project_id:
         os.environ["GCP_PROJECT_ID"] = config.gcp.project_id
-        os.environ["GCP_REGION"] = config.gcp.region
+        os.environ["GCP_REGION"] = config.gcp.region or "global"
         os.environ["GOOGLE_CLOUD_PROJECT"] = config.gcp.project_id
-        if os.getenv("USE_VERTEX_AI", "false").lower() == "true":
-            os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
-            os.environ["GOOGLE_CLOUD_LOCATION"] = os.getenv("VERTEX_LOCATION", "us-central1")
-        else:
-            os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
         logger.info(
-            f" -  GCP Platform configured: project={config.gcp.project_id}, "
+            f" - GCP Platform configured: project={config.gcp.project_id}, "
             f"region={config.gcp.region}"
         )
     else:
-        logger.warning("GCP_PROJECT_ID not set  -  Vertex AI / BigQuery / Pub/Sub disabled")
+        logger.warning("GCP_PROJECT_ID not set - Vertex AI / BigQuery / Pub/Sub disabled")
 
     # Initialize Gemini AI service (dual-mode: Vertex AI + API key fallback)
     from services.ai_service import initialize_gemini_service
     initialize_gemini_service(
         api_key=config.gemini.api_key,
-        model_name=config.gemini.model,
+        model_name=config.gemini.model or "gemini-3.8-flash",
         temperature=config.gemini.temperature,
         max_tokens=config.gemini.max_tokens,
         gcp_project_id=config.gcp.project_id if config.gcp.project_id else None,
-        gcp_region=config.gcp.region,
+        gcp_region=os.environ.get("GOOGLE_CLOUD_LOCATION", config.gcp.region or "global"),
     )
-    logger.info(" -  Gemini AI service initialized")
+    logger.info(" - Gemini AI service initialized (gemini-3.8-flash)")
 
     # Initialize ADK session service
     from agents.base_adk import get_session_service

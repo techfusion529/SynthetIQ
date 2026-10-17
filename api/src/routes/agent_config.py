@@ -254,15 +254,65 @@ async def invoke_real_gemini_llm(
     if target_model.startswith("models/"):
         target_model = target_model.replace("models/", "")
 
-    live_model_target = target_model
-    if target_model in ("gemini-2.0-flash", "gemini-2-flash", "gemini-1.5-flash", "gemini-flash", "gemini-2.5-flash"):
+    if target_model.startswith("gemini"):
         live_model_target = "gemini-3.8-flash"
 
     selected_provider = (provider or "auto").lower()
     last_error = ""
 
-    # 1. Attempt Google Gemini Cloud REST API (unless user explicitly selected Ollama)
-    if selected_provider != "ollama" and api_key:
+    # 1. Attempt Google Vertex AI Model Garden (ADC / Enterprise)
+    if selected_provider != "ollama":
+        try:
+            from google import genai
+            from google.genai import types as genai_types
+            gcp_proj = os.getenv("GCP_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "synthetiq-dev"
+            gcp_loc = os.getenv("GOOGLE_CLOUD_LOCATION") or os.getenv("VERTEX_LOCATION") or "global"
+            v_client = genai.Client(vertexai=True, project=gcp_proj, location=gcp_loc)
+            
+            cfg = genai_types.GenerateContentConfig(
+                temperature=float(temperature),
+                max_output_tokens=1024,
+            )
+            if system_instruction:
+                cfg.system_instruction = system_instruction
+
+            resp = await v_client.aio.models.generate_content(
+                model=live_model_target,
+                contents=prompt,
+                config=cfg,
+            )
+            res_text = (resp.text or "").strip()
+            prompt_tokens = max(140, len(prompt) // 4)
+            completion_tokens = max(160, len(res_text) // 4)
+            if hasattr(resp, "usage_metadata") and resp.usage_metadata:
+                prompt_tokens = getattr(resp.usage_metadata, "prompt_token_count", prompt_tokens) or prompt_tokens
+                completion_tokens = getattr(resp.usage_metadata, "candidates_token_count", completion_tokens) or completion_tokens
+            total_tokens = prompt_tokens + completion_tokens
+            latency_ms = round((time.perf_counter() - start_t) * 1000, 1)
+            cost_usd = round((prompt_tokens * 0.000075 + completion_tokens * 0.00030) / 1000.0, 6)
+            cost_inr = round(cost_usd * 86.5, 4)
+
+            return {
+                "success": True,
+                "live_api_success": True,
+                "text": res_text,
+                "prompt_sent": prompt,
+                "system_instruction": system_instruction,
+                "model_used": live_model_target,
+                "latency_ms": latency_ms,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+                "cost_usd": cost_usd,
+                "cost_inr": cost_inr,
+                "provider": f"Google Cloud Vertex AI Model Garden ({live_model_target})",
+                "api_status": "LIVE_VERTEX_MODEL_GARDEN_CONNECTED",
+            }
+        except Exception as v_exc:
+            last_error = f"Vertex AI Model Garden error: {str(v_exc)[:120]}"
+
+    # 2. Fallback: Google Gemini Cloud REST API (via AI Studio if api_key exists)
+    if selected_provider != "ollama" and api_key and not last_error.startswith("Vertex"):
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{live_model_target}:generateContent?key={api_key}"
             payload: dict[str, Any] = {

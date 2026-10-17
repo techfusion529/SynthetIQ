@@ -231,11 +231,10 @@ class ObservabilityService:
 class CostTracker:
     """Track and manage LLM API costs."""
 
-    # Pricing per 1M tokens (as of 2024)
     PRICING = {
-        "gemini-2.0-flash-exp": {
-            "input": 0.0,  # Free tier during preview
-            "output": 0.0,
+        "gemini-3.8-flash": {
+            "input": 0.075,
+            "output": 0.30,
         },
         "gemini-2.0-flash": {
             "input": 0.075,

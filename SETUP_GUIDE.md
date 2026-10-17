@@ -27,8 +27,10 @@ cp .env.example .env
 2. Add to `.env`:
 
 ```env
-GEMINI_API_KEY=AIzaSy...your_key_here
-GEMINI_MODEL=gemini-2.0-flash-exp
+GEMINI_MODEL=gemini-3.8-flash
+GOOGLE_GENAI_USE_VERTEXAI=true
+GCP_PROJECT_ID=synthetiq-dev
+GCP_REGION=global
 ```
 
 ### 1.3 Configure Google Cloud (Optional but Recommended)
@@ -198,7 +200,7 @@ python -m src.main
 
 Expected output:
 ```
-INFO: Initialized GeminiAIService with model=gemini-2.0-flash-exp
+INFO: Initialized GeminiAIService with model=gemini-3.8-flash
 INFO: Initialized JevSystem1Auditor in HYBRID_ENSEMBLE mode
 INFO: Initialized PrivacyService with Ollama
 INFO: Connected to Temporal
@@ -237,7 +239,7 @@ Should show:
 ```json
 {
   "gemini": {
-    "model": "gemini-2.0-flash-exp",
+    "model": "gemini-3.8-flash",
     "is_key_provided": true
   },
   "jev": {
@@ -371,7 +373,7 @@ docker compose ps temporal
 1. Reduce `GEMINI_MAX_TOKENS` in `.env` (default: 8192)
 2. Switch to cheaper model:
 ```env
-GEMINI_MODEL=gemini-2.0-flash-exp  # Free during preview
+GEMINI_MODEL=gemini-3.8-flash  # Vertex AI Model Garden high efficiency
 ```
 3. Enable caching (coming soon)
 

@@ -41,7 +41,7 @@ async def _fetch_sales(company_id: str, fiscal_year: str) -> list[dict[str, Any]
     return await connector.query_sales_data(company_id, fiscal_year)
 
 
-def query_erp_sales(company_id: str, fiscal_year: str) -> dict[str, Any]:
+async def query_erp_sales(company_id: str, fiscal_year: str) -> dict[str, Any]:
     """Query ERP sales data for a company and fiscal year via MCP or registered DataConnector.
 
     Args:
@@ -52,22 +52,7 @@ def query_erp_sales(company_id: str, fiscal_year: str) -> dict[str, Any]:
         Dict with sales_records list and plastic categories
     """
     try:
-        import asyncio
-        import concurrent.futures
-
-        # Check if already inside an active event loop
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, _fetch_sales(company_id, fiscal_year))
-                records = future.result(timeout=10.0)
-        else:
-            records = asyncio.run(_fetch_sales(company_id, fiscal_year))
-
+        records = await _fetch_sales(company_id, fiscal_year)
         if records:
             return {
                 "company_id": company_id,
@@ -77,15 +62,34 @@ def query_erp_sales(company_id: str, fiscal_year: str) -> dict[str, Any]:
                 "currency": "INR",
             }
     except Exception as exc:
-        from services.data_connector_shim import DataSourceNotConfigured
-        raise DataSourceNotConfigured(company_id) from exc
+        logger.warning(f"Error querying ERP sales ({exc}); querying BigQuery direct")
+    
+    try:
+        from services.data_connector import BigQueryConnector
+        bq = BigQueryConnector(org_id=company_id, config={})
+        records = await bq.query_sales_data(company_id, fiscal_year)
+        return {
+            "company_id": company_id,
+            "fiscal_year": fiscal_year,
+            "sales_records": records,
+            "source": "bigquery_direct",
+            "currency": "INR",
+        }
+    except Exception as bq_err:
+        logger.error(f"Fallback to BigQuery failed: {bq_err}")
+        return {
+            "company_id": company_id,
+            "fiscal_year": fiscal_year,
+            "sales_records": [],
+            "source": "error_empty",
+            "currency": "INR",
+        }
 
 
-
-def get_historic_debt(company_id: str) -> dict[str, Any]:
+async def get_historic_debt(company_id: str) -> dict[str, Any]:
     """Retrieve the organization's accumulated historic EPR debt.
 
-    AGT-01: Removed hardcoded values. Queries the obligation ledger DB when available.
+    Queries the obligation ledger DB when available.
     Falls back to zeros with a warning when DB is unavailable.
 
     Args:
@@ -94,33 +98,18 @@ def get_historic_debt(company_id: str) -> dict[str, Any]:
     Returns:
         Dict with historic_debt_tons and last_amortized_year
     """
-    # AGT-01: removed hardcoded values (3600.0 / 2500.0); query DB instead
     try:
-        import asyncio
-        import concurrent.futures
         from sqlalchemy import select, func as sa_func
         from synthetiq_shared.database import get_db_session
         from synthetiq_shared.models.dynamic_config import ObligationLedger
 
-        async def _query() -> float:
-            async with get_db_session() as session:
-                row = (await session.execute(
-                    select(
-                        sa_func.coalesce(sa_func.sum(ObligationLedger.obligation_tons), 0.0)
-                    ).where(ObligationLedger.org_id == company_id)
-                )).scalar_one()
-                return float(row)
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                historic_debt = pool.submit(asyncio.run, _query()).result(timeout=5.0)
-        else:
-            historic_debt = asyncio.run(_query())
+        async with get_db_session() as session:
+            row = (await session.execute(
+                select(
+                    sa_func.coalesce(sa_func.sum(ObligationLedger.obligation_tons), 0.0)
+                ).where(ObligationLedger.org_id == company_id)
+            )).scalar_one()
+            historic_debt = float(row)
     except Exception as exc:
         logger.warning(f"get_historic_debt DB query failed ({exc}); returning zeros")
         return {
@@ -134,7 +123,7 @@ def get_historic_debt(company_id: str) -> dict[str, Any]:
     return {
         "company_id": company_id,
         "historic_debt_tons": historic_debt,
-        "already_fulfilled_tons": 0.0,   # fulfilled credits tracked in obligation_ledger source
+        "already_fulfilled_tons": 0.0,
         "last_amortized_year": "unknown",
         "source": "obligation_ledger",
     }

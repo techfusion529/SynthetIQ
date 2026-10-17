@@ -40,9 +40,14 @@ def get_session_service() -> InMemorySessionService:
 # Agent Factory Helpers
 # ---------------------------------------------------------------------------
 
-DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-_GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
-_GCP_REGION = os.getenv("GCP_REGION", "asia-south1")
+DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+_GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "synthetiq-dev")
+_GCP_REGION = os.getenv("GCP_REGION", "global")
+
+# Ensure Vertex AI Model Garden mode is active for Google GenAI SDK and ADK
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+os.environ["GOOGLE_CLOUD_PROJECT"] = _GCP_PROJECT_ID
+os.environ["GOOGLE_CLOUD_LOCATION"] = _GCP_REGION
 
 # Initialize Vertex AI if GCP project is configured (Agent Platform mode)
 if _GCP_PROJECT_ID:
@@ -50,13 +55,13 @@ if _GCP_PROJECT_ID:
         import vertexai
         vertexai.init(project=_GCP_PROJECT_ID, location=_GCP_REGION)
         logger.info(
-            f"ADK Vertex AI initialized: project={_GCP_PROJECT_ID}, "
+            f"ADK Vertex AI Model Garden initialized: project={_GCP_PROJECT_ID}, "
             f"region={_GCP_REGION}, model={DEFAULT_MODEL}"
         )
     except ImportError:
-        logger.warning("google-cloud-aiplatform not installed. ADK using API key mode.")
+        logger.warning("google-cloud-aiplatform not installed. ADK using fallback mode.")
     except Exception as e:
-        logger.warning(f"Vertex AI ADK init failed ({e}). Using API key mode.")
+        logger.warning(f"Vertex AI ADK init failed ({e}).")
 
 
 def create_llm_agent(

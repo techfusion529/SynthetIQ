@@ -475,11 +475,8 @@ def initialize_jev_auditor(
 
 
 def get_jev_auditor() -> JevSystem1Auditor:
-    """Get the global Jev auditor instance.
-
-    Raises:
-        RuntimeError: If auditor not initialized
-    """
+    """Get or lazily initialize the global Jev auditor instance."""
+    global jev_auditor
     if jev_auditor is None:
-        raise RuntimeError("JevSystem1Auditor not initialized. Call initialize_jev_auditor first.")
+        jev_auditor = initialize_jev_auditor()
     return jev_auditor

@@ -81,12 +81,24 @@ class SimulatorHTTPHandler(BaseHTTPRequestHandler):
 
 
 def run_simulator(port: int = SIMULATOR_PORT) -> None:
+    # Start BigQuery real-time streaming pusher daemon
+    try:
+        from src.services.bigquery_pusher import bigquery_pusher
+        bigquery_pusher.start()
+        print("[Simulator] BigQuery real-time streaming worker started.")
+    except Exception as exc:
+        print(f"[Simulator] Warning: BigQuery streaming worker could not start: {exc}")
+
     server = HTTPServer(("0.0.0.0", port), SimulatorHTTPHandler)
     print(f"SynthetIQ SCADA Simulator running on port {port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         server.server_close()
+        try:
+            bigquery_pusher.stop()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

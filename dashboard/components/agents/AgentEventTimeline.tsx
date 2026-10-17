@@ -270,15 +270,14 @@ export default function AgentEventTimeline({
         overflow: "hidden",
         border: "1px solid",
         borderColor: isRunning ? "primary.main" : "divider",
-        boxShadow: isRunning ? "0 0 16px rgba(139, 92, 246, 0.15)" : "none",
-        transition: "all 0.3s ease",
+        transition: "all 0.25s ease",
       }}
     >
-      {/* ── Modern Executive Header ────────────────────────────────────────── */}
+      {/* ── Sleek Compact Header ────────────────────────────────────────── */}
       <Box
         sx={{
-          px: 2.5,
-          py: 1.5,
+          px: 2,
+          py: 1.25,
           borderBottom: 1,
           borderColor: "divider",
           display: "flex",
@@ -286,109 +285,126 @@ export default function AgentEventTimeline({
           alignItems: "center",
           flexWrap: "wrap",
           gap: 1.5,
-          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#FAFAFA"),
+          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#FAFAFB"),
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap" }}>
           <Box
             sx={{
-              width: 32,
-              height: 32,
-              borderRadius: 1.5,
+              width: 28,
+              height: 28,
+              borderRadius: 1.25,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.2)" : "rgba(124, 58, 237, 0.1)"),
-              color: "primary.main",
+              bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(66, 133, 244, 0.15)" : "rgba(66, 133, 244, 0.1)"),
+              color: "#1A73E8",
             }}
           >
-            {isRunning ? <CircularProgress size={18} color="primary" /> : <PlayCircleFilledIcon fontSize="small" />}
+            {isRunning ? <CircularProgress size={16} sx={{ color: "#1A73E8" }} /> : <ScheduleIcon sx={{ fontSize: 16 }} />}
           </Box>
-          <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography sx={{ fontWeight: 800, fontSize: "0.95rem", letterSpacing: "-0.01em" }}>
-                Multi-Agent Execution Timeline & Telemetry Stream
-              </Typography>
-              {isRunning && (
-                <Chip
-                  size="small"
-                  label="LIVE EXECUTION"
-                  color="primary"
-                  sx={{
-                    fontWeight: 800,
-                    height: 20,
-                    fontSize: "0.62rem",
-                    animation: "pulse 1.5s infinite",
-                    "@keyframes pulse": {
-                      "0%": { opacity: 0.6 },
-                      "50%": { opacity: 1 },
-                      "100%": { opacity: 0.6 },
-                    },
-                  }}
-                />
-              )}
-            </Box>
-            <Typography variant="caption" color="text.secondary">
-              Chronological deterministic state transitions across Temporal workflows and zero-trust proofs.
+          <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: "0.88rem", letterSpacing: "-0.01em" }}>
+              Execution Trace &amp; Timeline
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
+              7 stages across Temporal state machine
             </Typography>
           </Box>
+
+          {isRunning && (
+            <Chip
+              size="small"
+              label="Live"
+              color="primary"
+              sx={{
+                fontWeight: 700,
+                height: 18,
+                fontSize: "0.62rem",
+                bgcolor: "#1A73E8",
+                animation: "pulse 1.5s infinite",
+                "@keyframes pulse": {
+                  "0%": { opacity: 0.6 },
+                  "50%": { opacity: 1 },
+                  "100%": { opacity: 0.6 },
+                },
+              }}
+            />
+          )}
+
+          {selectedRun && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: 1 }}>
+              <Chip
+                size="small"
+                label={`${totalRuntime} ms`}
+                variant="outlined"
+                sx={{ height: 18, fontSize: "0.62rem", fontFamily: "var(--font-mono, monospace)", borderColor: "divider" }}
+              />
+              <Chip
+                size="small"
+                label={`${totalTokens.toLocaleString()} tok`}
+                variant="outlined"
+                sx={{ height: 18, fontSize: "0.62rem", fontFamily: "var(--font-mono, monospace)", borderColor: "divider" }}
+              />
+              <Chip
+                size="small"
+                label={`₹${totalCostInr.toFixed(2)}`}
+                variant="outlined"
+                sx={{ height: 18, fontSize: "0.62rem", fontFamily: "var(--font-mono, monospace)", borderColor: "divider" }}
+              />
+            </Box>
+          )}
         </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-          <Button
-            size="small"
-            variant="text"
-            startIcon={<UnfoldMoreIcon sx={{ fontSize: 14 }} />}
-            onClick={expandAll}
-            sx={{ fontSize: "0.72rem", textTransform: "none" }}
-          >
-            Expand All
-          </Button>
-          <Button
-            size="small"
-            variant="text"
-            startIcon={<UnfoldLessIcon sx={{ fontSize: 14 }} />}
-            onClick={collapseAll}
-            sx={{ fontSize: "0.72rem", textTransform: "none" }}
-          >
-            Collapse All
-          </Button>
+        {/* Header Actions: Icon-first with tooltips */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Tooltip title="Expand all stages">
+            <IconButton size="small" onClick={expandAll} sx={{ color: "text.secondary", width: 28, height: 28 }}>
+              <UnfoldMoreIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="Collapse all stages">
+            <IconButton size="small" onClick={collapseAll} sx={{ color: "text.secondary", width: 28, height: 28 }}>
+              <UnfoldLessIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+
           {selectedRun && (
-            <Button
-              size="small"
-              variant="outlined"
-              endIcon={<OpenInNewIcon sx={{ fontSize: 12 }} />}
-              href={`/temporal/namespaces/default/workflows/${encodeURIComponent(
-                selectedRun.temporal_workflow_id || selectedRun.run_id
-              )}`}
-              target="_blank"
-              sx={{ fontSize: "0.72rem", py: 0.3, px: 1.2, textTransform: "none", borderRadius: "8px" }}
-            >
-              Temporal Workflow
-            </Button>
+            <Tooltip title="View in Temporal Portal">
+              <IconButton
+                size="small"
+                component="a"
+                href={`/temporal/namespaces/default/workflows/${encodeURIComponent(
+                  selectedRun.temporal_workflow_id || selectedRun.run_id
+                )}`}
+                target="_blank"
+                sx={{ color: "text.secondary", width: 28, height: 28 }}
+              >
+                <OpenInNewIcon sx={{ fontSize: 15 }} />
+              </IconButton>
+            </Tooltip>
           )}
         </Box>
       </Box>
 
-      {/* ── Chronological Step Rail Container ───────────────────────────────── */}
+      {/* ── Compact Stage List ──────────────────────────────────────────────── */}
       <Box
         sx={{
-          p: { xs: 1.5, md: 2.5 },
-          maxHeight: maxHeight || 640,
+          p: 1.5,
+          maxHeight: maxHeight || 520,
           overflowY: "auto",
           display: "flex",
           flexDirection: "column",
-          gap: 2,
-          position: "relative",
-          "&::-webkit-scrollbar": { width: 6 },
+          gap: 0.75,
+          "&::-webkit-scrollbar": { width: 4 },
           "&::-webkit-scrollbar-thumb": {
-            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"),
-            borderRadius: 3,
+            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"),
+            borderRadius: 2,
           },
         }}
       >
-        {resolvedSteps.map((step, idx) => {
-          const isLast = idx === resolvedSteps.length - 1;
+        {resolvedSteps.map((step) => {
           const isSelected = activeNodeId === step.service;
           const isExpanded = !!expandedSteps[step.step];
           const currentTab = activeTabByStep[step.step] || 0;
@@ -399,355 +415,261 @@ export default function AgentEventTimeline({
           const isHalted = step.status.includes("HALT") || step.status.includes("FRAUD") || step.status.includes("FAIL");
           const isQueued = step.status === "QUEUED" || step.status === "SKIPPED";
 
-          // Semantic Theme Colors
-          let nodeBg = "#10B981";
-          let nodeBorder = "rgba(16, 185, 129, 0.4)";
-          let statusLabel = "COMPLETED ✓";
+          // Semantic Theme Colors matching Gemini
+          let statusText = "Completed";
+          let statusColor = "#34A853";
           let statusChipColor: "success" | "warning" | "error" | "info" | "default" = "success";
 
           if (isStepRunning) {
-            nodeBg = "#3B82F6";
-            nodeBorder = "#8B5CF6";
-            statusLabel = "EXECUTING ⚡";
+            statusText = "Running";
+            statusColor = "#1A73E8";
             statusChipColor = "info";
           } else if (isHitl) {
-            nodeBg = "#F59E0B";
-            nodeBorder = "rgba(245, 158, 11, 0.4)";
-            statusLabel = "HITL REVIEW ⚠️";
+            statusText = "Review";
+            statusColor = "#FBBC04";
             statusChipColor = "warning";
           } else if (isHalted) {
-            nodeBg = "#EF4444";
-            nodeBorder = "rgba(239, 68, 68, 0.4)";
-            statusLabel = "HALTED ⛔";
+            statusText = "Halted";
+            statusColor = "#EA4335";
             statusChipColor = "error";
           } else if (isQueued) {
-            nodeBg = "#64748B";
-            nodeBorder = "rgba(100, 116, 139, 0.3)";
-            statusLabel = "QUEUED ⏳";
+            statusText = "Queued";
+            statusColor = "#9AA0A6";
             statusChipColor = "default";
           }
 
           return (
-            <Box
+            <Card
               key={step.step}
+              variant="outlined"
               sx={{
-                display: "flex",
-                gap: { xs: 1.5, md: 2.5 },
-                position: "relative",
+                borderRadius: 1.5,
+                borderColor: isSelected
+                  ? "#1A73E8"
+                  : isStepRunning
+                  ? "rgba(66, 133, 244, 0.5)"
+                  : isHalted
+                  ? "rgba(234, 67, 53, 0.4)"
+                  : "divider",
+                borderWidth: isSelected || isStepRunning ? 1.5 : 1,
+                bgcolor: isSelected
+                  ? (t) => (t.palette.mode === "dark" ? "rgba(66, 133, 244, 0.08)" : "rgba(66, 133, 244, 0.04)")
+                  : "background.paper",
+                transition: "all 0.15s ease",
+                overflow: "hidden",
               }}
             >
-              {/* Vertical Connecting Rail */}
+              {/* Clickable Compact Row */}
               <Box
+                onClick={() => {
+                  onSelectNode(step.service);
+                  toggleExpand(step.step);
+                }}
                 sx={{
+                  px: 1.5,
+                  py: 0.85,
+                  cursor: "pointer",
                   display: "flex",
-                  flexDirection: "column",
                   alignItems: "center",
-                  width: 36,
-                  flexShrink: 0,
-                  position: "relative",
+                  justifyContent: "space-between",
+                  gap: 1.5,
+                  flexWrap: { xs: "wrap", md: "nowrap" },
+                  "&:hover": {
+                    bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.015)"),
+                  },
                 }}
               >
-                {/* Node Circular Disc */}
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    bgcolor: nodeBg,
-                    color: "#fff",
-                    boxShadow: isStepRunning
-                      ? "0 0 12px #3B82F6, 0 0 24px rgba(139, 92, 246, 0.6)"
-                      : isSelected
-                      ? `0 0 0 4px ${nodeBorder}`
-                      : "0 2px 4px rgba(0,0,0,0.15)",
-                    zIndex: 2,
-                    transition: "all 0.2s ease",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => {
-                    onSelectNode(step.service);
-                    toggleExpand(step.step);
-                  }}
-                >
-                  {isCompleted && <CheckIcon sx={{ fontSize: 18, fontWeight: 900 }} />}
-                  {isStepRunning && <CircularProgress size={16} sx={{ color: "#fff" }} />}
-                  {isHitl && <WarningAmberIcon sx={{ fontSize: 18 }} />}
-                  {isHalted && <ErrorIcon sx={{ fontSize: 18 }} />}
-                  {isQueued && (
-                    <Typography sx={{ fontSize: "0.75rem", fontWeight: 700 }}>
-                      {step.step}
-                    </Typography>
+                {/* Left: Indicator + Step Index + Title + System Tag */}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 260 }}>
+                  <Box
+                    sx={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: isCompleted ? "rgba(52, 168, 83, 0.12)" : isStepRunning ? "rgba(26, 115, 232, 0.12)" : isHalted ? "rgba(234, 67, 53, 0.12)" : "rgba(154, 160, 166, 0.12)",
+                      color: statusColor,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {isCompleted && <CheckIcon sx={{ fontSize: 13, fontWeight: 900 }} />}
+                    {isStepRunning && <CircularProgress size={12} sx={{ color: "#1A73E8" }} />}
+                    {isHitl && <WarningAmberIcon sx={{ fontSize: 13 }} />}
+                    {isHalted && <ErrorIcon sx={{ fontSize: 13 }} />}
+                    {isQueued && (
+                      <Typography sx={{ fontSize: "0.62rem", fontWeight: 700, color: "text.secondary" }}>
+                        {step.step}
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontFamily: "var(--font-mono, monospace)",
+                      fontWeight: 700,
+                      fontSize: "0.7rem",
+                      color: "text.secondary",
+                    }}
+                  >
+                    {step.step.toString().padStart(2, "0")}
+                  </Typography>
+
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: "0.8rem",
+                      color: "text.primary",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {step.name}
+                  </Typography>
+
+                  {step.system?.includes("Reflex") ? (
+                    <Chip
+                      size="small"
+                      label="SCADA Reflex"
+                      variant="outlined"
+                      sx={{
+                        height: 18,
+                        fontSize: "0.6rem",
+                        fontWeight: 600,
+                        borderColor: "rgba(52, 168, 83, 0.3)",
+                        color: "#34A853",
+                        py: 0,
+                        px: 0.25,
+                      }}
+                    />
+                  ) : (
+                    <Chip
+                      size="small"
+                      icon={<GeminiIcon size={10} />}
+                      label="gemini-3.8-flash"
+                      variant="outlined"
+                      sx={{
+                        height: 18,
+                        fontSize: "0.6rem",
+                        fontWeight: 600,
+                        borderColor: "rgba(66, 133, 244, 0.3)",
+                        color: "#1A73E8",
+                        py: 0,
+                        px: 0.25,
+                      }}
+                    />
                   )}
                 </Box>
 
-                {/* Continuous Vertical Connecting Line */}
-                {!isLast && (
-                  <Box
+                {/* Center: Inline Summary / Role */}
+                <Box sx={{ flex: 1, minWidth: 0, display: { xs: "none", sm: "block" } }}>
+                  <Typography
+                    variant="caption"
                     sx={{
-                      width: 2,
-                      flexGrow: 1,
-                      minHeight: 36,
-                      bgcolor: isCompleted
-                        ? "success.main"
-                        : isHalted
-                        ? "error.main"
-                        : (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"),
-                      mt: 0.5,
-                      borderRadius: 1,
-                    }}
-                  />
-                )}
-              </Box>
-
-              {/* Step Detail Card */}
-              <Card
-                variant="outlined"
-                sx={{
-                  flexGrow: 1,
-                  borderRadius: 2,
-                  borderColor: isSelected
-                    ? "primary.main"
-                    : isStepRunning
-                    ? "primary.light"
-                    : isHalted
-                    ? "error.main"
-                    : "divider",
-                  borderWidth: isSelected || isStepRunning ? 1.5 : 1,
-                  bgcolor: isSelected
-                    ? (t) => (t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.08)" : "rgba(124, 58, 237, 0.04)")
-                    : "background.paper",
-                  boxShadow: isSelected
-                    ? "0 4px 20px rgba(139, 92, 246, 0.12)"
-                    : isStepRunning
-                    ? "0 4px 16px rgba(59, 130, 246, 0.12)"
-                    : "none",
-                  transition: "all 0.2s ease",
-                  overflow: "hidden",
-                }}
-              >
-                {/* Clickable Card Header */}
-                <Box
-                  onClick={() => {
-                    onSelectNode(step.service);
-                    toggleExpand(step.step);
-                  }}
-                  sx={{
-                    p: { xs: 1.5, md: 2 },
-                    cursor: "pointer",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 1.5,
-                    bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.01)" : "rgba(0,0,0,0.005)"),
-                    "&:hover": {
-                      bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"),
-                    },
-                  }}
-                >
-                  <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap" }}>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          fontFamily: "var(--font-mono, monospace)",
-                          fontWeight: 800,
-                          color: "primary.main",
-                          px: 0.8,
-                          py: 0.2,
-                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.15)" : "rgba(124, 58, 237, 0.08)"),
-                          borderRadius: 1,
-                          fontSize: "0.72rem",
-                        }}
-                      >
-                        STEP {step.step.toString().padStart(2, "0")}
-                      </Typography>
-
-                      <Typography variant="subtitle2" fontWeight={800} color="text.primary">
-                        {step.name}
-                      </Typography>
-
-                      <Chip
-                        size="small"
-                        label={step.system || "System 2 Reasoning"}
-                        variant="outlined"
-                        sx={{
-                          height: 20,
-                          fontSize: "0.65rem",
-                          fontWeight: 600,
-                          borderColor: step.system?.includes("Reflex") ? "info.main" : "secondary.main",
-                          color: step.system?.includes("Reflex") ? "info.main" : "secondary.main",
-                        }}
-                      />
-
-                      {step.system?.includes("Reflex") ? (
-                        <Chip
-                          size="small"
-                          label="⚡ SCADA Reflex"
-                          variant="outlined"
-                          sx={{
-                            height: 20,
-                            fontSize: "0.62rem",
-                            fontWeight: 700,
-                            borderColor: "rgba(16, 185, 129, 0.4)",
-                            color: "#34D399",
-                          }}
-                        />
-                      ) : (
-                        <Chip
-                          size="small"
-                          icon={<GeminiIcon size={11} />}
-                          label="gemini-3.8-flash"
-                          variant="outlined"
-                          sx={{
-                            height: 20,
-                            fontSize: "0.62rem",
-                            fontWeight: 700,
-                            borderColor: "rgba(139, 92, 246, 0.4)",
-                            color: "#C4B5FD",
-                          }}
-                        />
-                      )}
-
-                      <Chip
-                        size="small"
-                        label={statusLabel}
-                        color={statusChipColor}
-                        sx={{ height: 20, fontSize: "0.65rem", fontWeight: 800, ml: "auto" }}
-                      />
-                    </Box>
-
-                    {/* Step Role & Subtitle */}
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mt: 0.5, flexWrap: "wrap" }}>
-                      <Typography variant="caption" color="text.secondary" fontWeight={500}>
-                        {step.role}
-                      </Typography>
-                      {step.timestamp && (
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            fontFamily: "var(--font-mono, monospace)",
-                            color: "text.disabled",
-                            fontSize: "0.68rem",
-                          }}
-                        >
-                          • {typeof step.timestamp === "number" ? new Date(step.timestamp).toLocaleTimeString() : String(step.timestamp).replace("T", " ").substring(0, 19)}
-                        </Typography>
-                      )}
-                    </Box>
-                  </Box>
-
-                  <IconButton size="small" sx={{ transform: isExpanded ? "rotate(180deg)" : "none", transition: "0.2s" }}>
-                    <ExpandMoreIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-
-                {/* Executive Callout Summary */}
-                {step.summary && (
-                  <Box
-                    sx={{
-                      px: { xs: 1.5, md: 2 },
-                      py: 1,
-                      bgcolor: isHalted
-                        ? (t) => (t.palette.mode === "dark" ? "rgba(239, 68, 68, 0.1)" : "#FEF2F2")
-                        : (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#F8FAFC"),
-                      borderTop: 1,
-                      borderBottom: 1,
-                      borderColor: "divider",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
+                      fontSize: "0.72rem",
+                      color: isHalted ? "error.main" : "text.secondary",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      display: "block",
                     }}
                   >
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        fontWeight: 600,
-                        color: isHalted ? "error.main" : isHitl ? "warning.main" : "text.secondary",
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      💡 {step.summary}
-                    </Typography>
-                  </Box>
-                )}
-
-                {/* Per-Agent Telemetry Strip: Latency · Tokens · Financial Cost */}
-                <Box
-                  sx={{
-                    px: { xs: 1.5, md: 2 },
-                    py: 0.8,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    flexWrap: "wrap",
-                    gap: 1.5,
-                    bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0,0,0,0.15)" : "rgba(0,0,0,0.01)"),
-                  }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <SpeedIcon sx={{ fontSize: 14, color: "text.secondary" }} />
-                      <Typography
-                        variant="caption"
-                        sx={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 700, color: "text.primary" }}
-                      >
-                        {isStepRunning ? "Measuring…" : `${step.runtime_ms ?? 0} ms`}
-                      </Typography>
-                    </Box>
-
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <TollIcon sx={{ fontSize: 14, color: "secondary.main" }} />
-                      <Typography
-                        variant="caption"
-                        sx={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 700, color: "secondary.main" }}
-                      >
-                        {step.system?.includes("Reflex") ? "0 tok (Reflex)" : `${(step.tokens ?? 0).toLocaleString()} tok`}
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <AttachMoneyIcon sx={{ fontSize: 14, color: "success.main" }} />
-                    <Typography
-                      variant="caption"
-                      sx={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 700, color: "success.main" }}
-                    >
-                      ${(step.cost_usd ?? 0).toFixed(4)} (₹{(step.cost_inr ?? 0).toFixed(2)})
-                    </Typography>
-                  </Box>
+                    {step.summary || step.role}
+                  </Typography>
                 </Box>
 
-                {/* Expandable Tabs Payload Inspector */}
-                <Collapse in={isExpanded}>
-                  <Box sx={{ p: { xs: 1.5, md: 2 }, pt: 1, borderTop: 1, borderColor: "divider" }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1, flexWrap: "wrap", gap: 1 }}>
-                      <Tabs
-                        value={currentTab}
-                        onChange={(_, v) => setActiveTabByStep((prev) => ({ ...prev, [step.step]: v }))}
+                {/* Right: Telemetry & Actions */}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexShrink: 0 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+                      <SpeedIcon sx={{ fontSize: 13, color: "text.secondary" }} />
+                      <Typography sx={{ fontFamily: "var(--font-mono, monospace)", fontSize: "0.7rem", fontWeight: 600, color: "text.primary" }}>
+                        {isStepRunning ? "..." : `${step.runtime_ms ?? 0}ms`}
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+                      <TollIcon sx={{ fontSize: 13, color: "text.secondary" }} />
+                      <Typography sx={{ fontFamily: "var(--font-mono, monospace)", fontSize: "0.7rem", fontWeight: 600, color: "text.secondary" }}>
+                        {step.system?.includes("Reflex") ? "0" : (step.tokens ?? 0)}
+                      </Typography>
+                    </Box>
+
+                    <Typography sx={{ fontFamily: "var(--font-mono, monospace)", fontSize: "0.7rem", fontWeight: 600, color: "text.secondary" }}>
+                      ₹{(step.cost_inr ?? 0).toFixed(2)}
+                    </Typography>
+                  </Box>
+
+                  <Chip
+                    size="small"
+                    label={statusText}
+                    color={statusChipColor}
+                    sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
+                  />
+
+                  {/* Icon Actions with Tooltips */}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+                    <Tooltip title={copiedStep === step.step ? "Copied" : "Copy step payload"}>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const dataToCopy = (step as any).output || step.response || step.data || {};
+                          copyPayload(step.step, dataToCopy);
+                        }}
+                        sx={{ width: 26, height: 26, color: "text.secondary" }}
+                      >
+                        {copiedStep === step.step ? <CheckIcon sx={{ fontSize: 13, color: "success.main" }} /> : <ContentCopyIcon sx={{ fontSize: 13 }} />}
+                      </IconButton>
+                    </Tooltip>
+
+                    <Tooltip title={isExpanded ? "Collapse payload" : "Expand payload"}>
+                      <IconButton
+                        size="small"
                         sx={{
-                          minHeight: 32,
-                          "& .MuiTab-root": {
-                            minHeight: 32,
-                            py: 0.5,
-                            px: 1.5,
-                            fontSize: "0.72rem",
-                            textTransform: "none",
-                            fontWeight: 700,
-                          },
+                          width: 26,
+                          height: 26,
+                          transform: isExpanded ? "rotate(180deg)" : "none",
+                          transition: "0.2s",
+                          color: "text.secondary",
                         }}
                       >
-                        <Tab label="Decision Output" />
-                        <Tab label="Input Arguments" />
-                        <Tab label="Full JSON Payload" />
-                      </Tabs>
+                        <ExpandMoreIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
+              </Box>
 
-                      <Button
+              {/* Expandable Payload Drawer */}
+              <Collapse in={isExpanded}>
+                <Box sx={{ px: 1.5, pb: 1.5, pt: 0.5, borderTop: 1, borderColor: "divider" }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.75 }}>
+                    <Tabs
+                      value={currentTab}
+                      onChange={(_, v) => setActiveTabByStep((prev) => ({ ...prev, [step.step]: v }))}
+                      sx={{
+                        minHeight: 28,
+                        "& .MuiTab-root": {
+                          minHeight: 28,
+                          py: 0.25,
+                          px: 1.25,
+                          fontSize: "0.68rem",
+                          textTransform: "none",
+                          fontWeight: 600,
+                        },
+                      }}
+                    >
+                      <Tab label="Decision Output" />
+                      <Tab label="Input Arguments" />
+                      <Tab label="Full JSON" />
+                    </Tabs>
+
+                    <Tooltip title="Copy view payload">
+                      <IconButton
                         size="small"
-                        variant="outlined"
-                        startIcon={copiedStep === step.step ? <CheckIcon sx={{ fontSize: 12 }} /> : <ContentCopyIcon sx={{ fontSize: 12 }} />}
                         onClick={(e) => {
                           e.stopPropagation();
                           const dataToCopy =
@@ -756,52 +678,52 @@ export default function AgentEventTimeline({
                               : (step as any).output || step.response || step.data || {};
                           copyPayload(step.step, dataToCopy);
                         }}
-                        sx={{ py: 0.2, px: 1, fontSize: "0.7rem", textTransform: "none" }}
+                        sx={{ width: 26, height: 26 }}
                       >
-                        {copiedStep === step.step ? "Copied ✓" : "Copy Payload"}
-                      </Button>
-                    </Box>
+                        {copiedStep === step.step ? <CheckIcon sx={{ fontSize: 13, color: "success.main" }} /> : <ContentCopyIcon sx={{ fontSize: 13 }} />}
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
 
-                    <Paper
-                      variant="outlined"
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.25,
+                      bgcolor: (t) => (t.palette.mode === "dark" ? "#0F131C" : "#F8FAFC"),
+                      borderRadius: 1,
+                      maxHeight: 180,
+                      overflowY: "auto",
+                      border: "1px solid",
+                      borderColor: "divider",
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      component="pre"
                       sx={{
-                        p: 1.5,
-                        bgcolor: (t) => (t.palette.mode === "dark" ? "#0A0E17" : "#F8FAFC"),
-                        borderRadius: 1.5,
-                        maxHeight: 220,
-                        overflowY: "auto",
-                        border: "1px solid",
-                        borderColor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"),
+                        m: 0,
+                        fontFamily: "var(--font-mono, monospace)",
+                        fontSize: "0.72rem",
+                        color: (t) => (t.palette.mode === "dark" ? "#8AB4F8" : "#1A73E8"),
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-all",
+                        lineHeight: 1.5,
                       }}
                     >
-                      <Typography
-                        variant="caption"
-                        component="pre"
-                        sx={{
-                          m: 0,
-                          fontFamily: "var(--font-mono, monospace)",
-                          fontSize: "0.75rem",
-                          color: (t) => (t.palette.mode === "dark" ? "#38BDF8" : "#0369A1"),
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-all",
-                          lineHeight: 1.6,
-                        }}
-                      >
-                        {JSON.stringify(
-                          currentTab === 1
-                            ? (step as any).input || { service: step.service, step: step.step, mode: "TEMPORAL_DISPATCH" }
-                            : currentTab === 0
-                            ? (step as any).output || step.response || step.data || { status: step.status }
-                            : step,
-                          null,
-                          2
-                        )}
-                      </Typography>
-                    </Paper>
-                  </Box>
-                </Collapse>
-              </Card>
-            </Box>
+                      {JSON.stringify(
+                        currentTab === 1
+                          ? (step as any).input || { service: step.service, step: step.step, mode: "TEMPORAL_DISPATCH" }
+                          : currentTab === 0
+                          ? (step as any).output || step.response || step.data || { status: step.status }
+                          : step,
+                        null,
+                        2
+                      )}
+                    </Typography>
+                  </Paper>
+                </Box>
+              </Collapse>
+            </Card>
           );
         })}
       </Box>

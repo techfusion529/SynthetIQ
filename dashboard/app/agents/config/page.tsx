@@ -844,25 +844,27 @@ export default function AgentConfigStudioPage() {
             <PoweredByGemini variant="pill" showCloud />
             <Button
               variant="contained"
-              color="success"
               size="small"
-              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon sx={{ fontSize: 16 }} />}
               onClick={handleSave}
               disabled={saving || !currentConfig}
               sx={{
-                fontWeight: 700,
+                fontWeight: 600,
+                fontSize: "0.82rem",
+                textTransform: "none",
                 px: 2,
-                py: 0.8,
-                borderRadius: 1.5,
-                background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
-                boxShadow: "0 4px 14px rgba(16, 185, 129, 0.35)",
+                py: 0.6,
+                borderRadius: 1.75,
+                bgcolor: "#1A73E8",
+                color: "#FFFFFF",
+                boxShadow: "none",
                 "&:hover": {
-                  background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
-                  boxShadow: "0 6px 18px rgba(16, 185, 129, 0.45)",
+                  bgcolor: "#1557B0",
+                  boxShadow: "0 2px 6px rgba(26, 115, 232, 0.35)",
                 },
               }}
             >
-              {saving ? "Saving Changes..." : "Save Configuration"}
+              {saving ? "Saving..." : "Save Configuration"}
             </Button>
           </Box>
         }
@@ -967,7 +969,7 @@ export default function AgentConfigStudioPage() {
                     {agentMeta?.label || currentConfig.agent_name}
                   </Typography>
                   <Chip
-                    label={agentMeta?.role?.includes("System 1") ? "⚡ System 1 Reflex" : "🧠 System 2 Reasoning"}
+                    label={agentMeta?.role?.includes("System 1") ? "System 1 Reflex" : "System 2 Reasoning"}
                     size="small"
                     color={agentMeta?.role?.includes("System 1") ? "warning" : "primary"}
                     sx={{ fontWeight: 700, height: 20, fontSize: "0.68rem" }}
@@ -1117,7 +1119,7 @@ export default function AgentConfigStudioPage() {
                       </Typography>
                       <Box sx={{ display: "flex", gap: 0.75 }}>
                         <Chip
-                          label="🎯 Strict (0.1)"
+                          label="Strict (0.1)"
                           size="small"
                           clickable
                           onClick={() => setCurrentConfig({ ...currentConfig, temperature: 0.1 })}
@@ -1126,7 +1128,7 @@ export default function AgentConfigStudioPage() {
                           sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
                         />
                         <Chip
-                          label="⚖️ Balanced (0.4)"
+                          label="Balanced (0.4)"
                           size="small"
                           clickable
                           onClick={() => setCurrentConfig({ ...currentConfig, temperature: 0.4 })}
@@ -1135,7 +1137,7 @@ export default function AgentConfigStudioPage() {
                           sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
                         />
                         <Chip
-                          label="💡 Exploratory (0.85)"
+                          label="Exploratory (0.85)"
                           size="small"
                           clickable
                           onClick={() => setCurrentConfig({ ...currentConfig, temperature: 0.85 })}
@@ -1413,25 +1415,42 @@ export default function AgentConfigStudioPage() {
                       </MenuItem>
                     </TextField>
 
-                    <Box sx={{ display: "flex", gap: 1 }}>
-                      <Button
-                        size="small"
-                        variant={showPayloadEditor ? "contained" : "outlined"}
-                        startIcon={<CodeIcon sx={{ fontSize: 14 }} />}
-                        onClick={() => setShowPayloadEditor(!showPayloadEditor)}
-                        sx={{ textTransform: "none", fontSize: "0.75rem", py: 0.8 }}
-                      >
-                        {showPayloadEditor ? "Hide JSON" : "Edit JSON"}
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<KeyIcon sx={{ fontSize: 14 }} />}
-                        onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-                        sx={{ textTransform: "none", fontSize: "0.75rem", py: 0.8 }}
-                      >
-                        API Key
-                      </Button>
+                    <Box sx={{ display: "flex", gap: 0.75, alignItems: "center" }}>
+                      <Tooltip title={showPayloadEditor ? "Hide payload JSON editor" : "Edit payload JSON"}>
+                        <IconButton
+                          size="small"
+                          onClick={() => setShowPayloadEditor(!showPayloadEditor)}
+                          sx={{
+                            border: "1px solid",
+                            borderColor: showPayloadEditor ? "primary.main" : "divider",
+                            borderRadius: 1.5,
+                            width: 32,
+                            height: 32,
+                            bgcolor: showPayloadEditor ? "rgba(66, 133, 244, 0.1)" : "transparent",
+                            color: showPayloadEditor ? "primary.main" : "text.secondary",
+                          }}
+                        >
+                          <CodeIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title={showApiKeyInput ? "Hide API key override" : "Personal Gemini API Key override"}>
+                        <IconButton
+                          size="small"
+                          onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+                          sx={{
+                            border: "1px solid",
+                            borderColor: showApiKeyInput ? "primary.main" : "divider",
+                            borderRadius: 1.5,
+                            width: 32,
+                            height: 32,
+                            bgcolor: showApiKeyInput ? "rgba(66, 133, 244, 0.1)" : "transparent",
+                            color: showApiKeyInput ? "primary.main" : "text.secondary",
+                          }}
+                        >
+                          <KeyIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   </Box>
 
@@ -1470,15 +1489,15 @@ export default function AgentConfigStudioPage() {
                         >
                           <CodeIcon sx={{ fontSize: 15 }} /> RAW SIMULATION PAYLOAD (JSON)
                         </Typography>
-                        <Button
-                          size="small"
-                          variant="text"
-                          startIcon={<RefreshIcon sx={{ fontSize: 13 }} />}
-                          onClick={handleResetPayload}
-                          sx={{ textTransform: "none", py: 0, fontSize: "0.72rem" }}
-                        >
-                          Reset to Preset
-                        </Button>
+                        <Tooltip title="Reset payload to scenario preset">
+                          <IconButton
+                            size="small"
+                            onClick={handleResetPayload}
+                            sx={{ width: 26, height: 26, color: "text.secondary" }}
+                          >
+                            <RefreshIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
                       <TextField
                         multiline
@@ -1500,7 +1519,7 @@ export default function AgentConfigStudioPage() {
                     </Box>
                   )}
 
-                  {/* Prominent Primary Run Action */}
+                  {/* Primary Run Action */}
                   <Button
                     variant="contained"
                     fullWidth
@@ -1509,16 +1528,17 @@ export default function AgentConfigStudioPage() {
                     onClick={handleRunPlayground}
                     disabled={testing}
                     sx={{
-                      fontWeight: 800,
-                      py: 1.25,
+                      fontWeight: 600,
+                      py: 1.1,
                       textTransform: "none",
-                      fontSize: "0.95rem",
+                      fontSize: "0.9rem",
                       borderRadius: 2,
-                      background: "linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)",
-                      boxShadow: "0 4px 18px rgba(124, 58, 237, 0.4)",
+                      bgcolor: "#1A73E8",
+                      color: "#FFFFFF",
+                      boxShadow: "none",
                       "&:hover": {
-                        background: "linear-gradient(135deg, #6D28D9 0%, #5B21B6 100%)",
-                        boxShadow: "0 6px 24px rgba(124, 58, 237, 0.55)",
+                        bgcolor: "#1557B0",
+                        boxShadow: "0 2px 8px rgba(26, 115, 232, 0.3)",
                       },
                     }}
                   >
@@ -1570,15 +1590,15 @@ export default function AgentConfigStudioPage() {
                     </Tabs>
 
                     {testResult && (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={copied ? <CheckIcon sx={{ fontSize: 14 }} /> : <ContentCopyIcon sx={{ fontSize: 14 }} />}
-                        onClick={handleCopyResult}
-                        sx={{ textTransform: "none", fontSize: "0.72rem", py: 0.25 }}
-                      >
-                        {copied ? "Copied" : "Copy Output"}
-                      </Button>
+                      <Tooltip title={copied ? "Copied" : "Copy output JSON"}>
+                        <IconButton
+                          size="small"
+                          onClick={handleCopyResult}
+                          sx={{ width: 28, height: 28, color: "text.secondary" }}
+                        >
+                          {copied ? <CheckIcon sx={{ fontSize: 15, color: "success.main" }} /> : <ContentCopyIcon sx={{ fontSize: 15 }} />}
+                        </IconButton>
+                      </Tooltip>
                     )}
                   </Box>
 
@@ -1838,21 +1858,28 @@ export default function AgentConfigStudioPage() {
                             />
                           </Box>
 
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<TerminalIcon sx={{ fontSize: 14 }} />}
-                            onClick={() => setShowPromptInspector(!showPromptInspector)}
-                            sx={{ textTransform: "none", fontSize: "0.75rem", py: 0.25 }}
-                          >
-                            {showPromptInspector ? "Hide Dispatched Prompt" : "Inspect Model Call & Dispatched Prompt"}
-                          </Button>
+                          <Tooltip title={showPromptInspector ? "Hide prompt inspector" : "Inspect dispatched prompt & parameters"}>
+                            <IconButton
+                              size="small"
+                              onClick={() => setShowPromptInspector(!showPromptInspector)}
+                              sx={{
+                                border: "1px solid",
+                                borderColor: showPromptInspector ? "primary.main" : "divider",
+                                borderRadius: 1.5,
+                                width: 28,
+                                height: 28,
+                                color: showPromptInspector ? "primary.main" : "text.secondary",
+                              }}
+                            >
+                              <TerminalIcon sx={{ fontSize: 15 }} />
+                            </IconButton>
+                          </Tooltip>
                         </Box>
 
                         {/* Model Diagnostic Context when running in fallback */}
                         {!testResult.live_inference && (
                           <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 1 }}>
-                            ℹ️ <b>Why Fallback Engine?</b> The default Google AI Studio project credits are depleted ({testResult.api_status || "HTTP 402/429 Quota Exhausted"}). Select <b>Local Ollama</b> in the inference backend dropdown to run free, unconstrained local neural reasoning.
+                            <b>Why Fallback Engine?</b> The default Google AI Studio project credits are depleted ({testResult.api_status || "HTTP 402/429 Quota Exhausted"}). Select <b>Local Ollama</b> in the inference backend dropdown to run free, unconstrained local neural reasoning.
                           </Typography>
                         )}
 

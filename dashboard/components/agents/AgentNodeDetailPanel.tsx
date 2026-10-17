@@ -428,7 +428,7 @@ export default function AgentNodeDetailPanel({
           {bp.system.includes("Reflex") ? (
             <Chip
               size="small"
-              label="⚡ SCADA Reflex"
+              label="SCADA Reflex"
               sx={{
                 height: 22,
                 fontSize: "0.68rem",
@@ -459,8 +459,8 @@ export default function AgentNodeDetailPanel({
             size="small"
             sx={{ height: 22, fontSize: "0.68rem", fontWeight: 800 }}
           />
-          <Tooltip title="Expand canvas back to full width">
-            <IconButton size="small" onClick={onClose} sx={{ color: "text.secondary" }}>
+          <Tooltip title="Close panel and expand canvas">
+            <IconButton size="small" onClick={onClose} sx={{ color: "text.secondary", width: 28, height: 28 }}>
               <CloseIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -483,26 +483,32 @@ export default function AgentNodeDetailPanel({
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Typography variant="caption" sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 600 }}>
-            ⚡ {runtimeMs} ms
-          </Typography>
-          <Typography variant="caption" sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 600, color: "secondary.main" }}>
-            ✦ {tokens.toLocaleString()} tok
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <SpeedIcon sx={{ fontSize: 13, color: "text.secondary" }} />
+            <Typography variant="caption" sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 600 }}>
+              {runtimeMs} ms
+            </Typography>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <TollIcon sx={{ fontSize: 13, color: "secondary.main" }} />
+            <Typography variant="caption" sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 600, color: "secondary.main" }}>
+              {tokens.toLocaleString()} tok
+            </Typography>
+          </Box>
           <Typography variant="caption" sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 600, color: "primary.main" }}>
             ₹{costInr.toFixed(2)}
           </Typography>
         </Box>
 
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
-          onClick={handleCopyJson}
-          sx={{ height: 24, fontSize: "0.68rem", py: 0, px: 1 }}
-        >
-          {copied ? "Copied" : "Copy JSON"}
-        </Button>
+        <Tooltip title={copied ? "Copied" : "Copy JSON"}>
+          <IconButton
+            size="small"
+            onClick={handleCopyJson}
+            sx={{ width: 26, height: 26, color: "text.secondary" }}
+          >
+            {copied ? <CheckIcon sx={{ fontSize: 14, color: "success.main" }} /> : <ContentCopyIcon sx={{ fontSize: 14 }} />}
+          </IconButton>
+        </Tooltip>
       </Box>
 
       {/* Tabs */}

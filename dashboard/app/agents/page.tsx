@@ -16,6 +16,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Paper from "@mui/material/Paper";
 import Divider from "@mui/material/Divider";
 import Tooltip from "@mui/material/Tooltip";
+import IconButton from "@mui/material/IconButton";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
@@ -285,34 +286,68 @@ export default function AgentsPage() {
         icon={<SmartToyIcon fontSize="medium" />}
         description="Zero-trust state machine coordinating System 2 LLM reasoning, TypeSafe Jev physics reflexes, and ERP transactions."
         actions={
-          <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
             <PoweredByGemini variant="pill" showCloud />
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<TuneIcon />}
-              onClick={() => router.push("/agents/config")}
-            >
-              Agent Studio & Playground
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={isSyncing ? <CircularProgress size={14} /> : <RefreshIcon />}
-              onClick={() => pollLatestRuns()}
-              disabled={loading}
-            >
-              Refresh
-            </Button>
+
+            <Tooltip title="Agent Studio & Hyperparameter Playground">
+              <IconButton
+                size="small"
+                onClick={() => router.push("/agents/config")}
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1.5,
+                  p: 0.75,
+                  color: "text.primary",
+                  bgcolor: (t: any) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.03)" : "#FAFAFB"),
+                  "&:hover": { bgcolor: (t: any) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.08)" : "#F1F3F4") },
+                }}
+              >
+                <TuneIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title="Refresh active runs & telemetry">
+              <IconButton
+                size="small"
+                onClick={() => pollLatestRuns()}
+                disabled={loading}
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1.5,
+                  p: 0.75,
+                  color: "text.primary",
+                  bgcolor: (t: any) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.03)" : "#FAFAFB"),
+                  "&:hover": { bgcolor: (t: any) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.08)" : "#F1F3F4") },
+                }}
+              >
+                {isSyncing ? <CircularProgress size={16} sx={{ color: "#1A73E8" }} /> : <RefreshIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+
             <Button
               variant="contained"
               size="small"
-              color="primary"
-              startIcon={<PlayArrowIcon />}
+              startIcon={<PlayArrowIcon sx={{ fontSize: 16 }} />}
               onClick={() => setTriggerOpen(true)}
-              sx={{ fontWeight: 700 }}
+              sx={{
+                fontWeight: 600,
+                fontSize: "0.82rem",
+                textTransform: "none",
+                bgcolor: "#1A73E8",
+                color: "#FFFFFF",
+                borderRadius: 1.75,
+                px: 1.75,
+                py: 0.6,
+                boxShadow: "none",
+                "&:hover": {
+                  bgcolor: "#1557B0",
+                  boxShadow: "0 2px 6px rgba(26, 115, 232, 0.35)",
+                },
+              }}
             >
-              Trigger Multi-Agent Run
+              New Run
             </Button>
           </Box>
         }
@@ -492,15 +527,21 @@ export default function AgentsPage() {
                 }}
               >
                 <Tooltip title="Total Runtime">
-                  <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.78rem" }}>
-                    ⚡ {totalRuntime} ms
-                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <SpeedIcon sx={{ fontSize: 13, color: "text.secondary" }} />
+                    <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.78rem" }}>
+                      {totalRuntime} ms
+                    </Typography>
+                  </Box>
                 </Tooltip>
                 <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
                 <Tooltip title="Total Tokens">
-                  <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.78rem", color: "secondary.main" }}>
-                    ✦ {totalTokens.toLocaleString()}
-                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <TollIcon sx={{ fontSize: 13, color: "secondary.main" }} />
+                    <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.78rem", color: "secondary.main" }}>
+                      {totalTokens.toLocaleString()}
+                    </Typography>
+                  </Box>
                 </Tooltip>
                 <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
                 <Tooltip title="Total Run Cost">

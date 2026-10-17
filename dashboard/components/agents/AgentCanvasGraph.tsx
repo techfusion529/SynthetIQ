@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
@@ -15,6 +15,7 @@ import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWalletOu
 import DescriptionIcon from "@mui/icons-material/DescriptionOutlined";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
+import { GeminiIcon } from "@/components/icons/GoogleIcons";
 import type { E2ERunResult } from "../../app/lib/types/compliance.types";
 
 export interface AgentNodeDef {
@@ -40,8 +41,8 @@ const AGENT_NODES: AgentNodeDef[] = [
     x: 50,
     y: 60,
     stepNumber: 1,
-    gradient: "linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)",
-    icon: <ScaleIcon sx={{ fontSize: 20 }} />,
+    gradient: "linear-gradient(135deg, #4285F4 0%, #1A73E8 100%)",
+    icon: <ScaleIcon sx={{ fontSize: 19 }} />,
   },
   {
     id: "regulatory_watchdog",
@@ -52,20 +53,20 @@ const AGENT_NODES: AgentNodeDef[] = [
     x: 50,
     y: 260,
     stepNumber: 2,
-    gradient: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)",
-    icon: <SmartToyIcon sx={{ fontSize: 20 }} />,
+    gradient: "linear-gradient(135deg, #1A73E8 0%, #174EA6 100%)",
+    icon: <SmartToyIcon sx={{ fontSize: 19 }} />,
   },
   {
     id: "auction",
     name: "Double Auction Engine",
-    role: "Uniform Clearing Price Corridor",
+    role: "Uniform Clearing Corridor",
     systemType: "System 2 Reasoning",
     modelLabel: "gemini-3.8-flash",
     x: 345,
     y: 160,
     stepNumber: 3,
-    gradient: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)",
-    icon: <GavelIcon sx={{ fontSize: 20 }} />,
+    gradient: "linear-gradient(135deg, #FBBC04 0%, #EA8600 100%)",
+    icon: <GavelIcon sx={{ fontSize: 19 }} />,
   },
   {
     id: "scada_auditor",
@@ -76,8 +77,8 @@ const AGENT_NODES: AgentNodeDef[] = [
     x: 640,
     y: 60,
     stepNumber: 4,
-    gradient: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
-    icon: <RadarIcon sx={{ fontSize: 20 }} />,
+    gradient: "linear-gradient(135deg, #34A853 0%, #137333 100%)",
+    icon: <RadarIcon sx={{ fontSize: 19 }} />,
   },
   {
     id: "forensic_auditor",
@@ -88,8 +89,8 @@ const AGENT_NODES: AgentNodeDef[] = [
     x: 640,
     y: 260,
     stepNumber: 5,
-    gradient: "linear-gradient(135deg, #EC4899 0%, #8B5CF6 100%)",
-    icon: <AutoAwesomeIcon sx={{ fontSize: 20 }} />,
+    gradient: "linear-gradient(135deg, #9B72CB 0%, #7C4DFF 100%)",
+    icon: <AutoAwesomeIcon sx={{ fontSize: 19 }} />,
   },
   {
     id: "escrow",
@@ -100,8 +101,8 @@ const AGENT_NODES: AgentNodeDef[] = [
     x: 935,
     y: 60,
     stepNumber: 6,
-    gradient: "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
-    icon: <AccountBalanceWalletIcon sx={{ fontSize: 20 }} />,
+    gradient: "linear-gradient(135deg, #24C1E0 0%, #1292B2 100%)",
+    icon: <AccountBalanceWalletIcon sx={{ fontSize: 19 }} />,
   },
   {
     id: "cpcb_dispatch",
@@ -112,8 +113,8 @@ const AGENT_NODES: AgentNodeDef[] = [
     x: 935,
     y: 260,
     stepNumber: 7,
-    gradient: "linear-gradient(135deg, #10B981 0%, #047857 100%)",
-    icon: <DescriptionIcon sx={{ fontSize: 20 }} />,
+    gradient: "linear-gradient(135deg, #34A853 0%, #0F9D58 100%)",
+    icon: <DescriptionIcon sx={{ fontSize: 19 }} />,
   },
 ];
 
@@ -137,19 +138,27 @@ export default function AgentCanvasGraph({
   activeNodeId,
   onSelectNode,
 }: AgentCanvasGraphProps) {
-  // Dynamic step animation for active runs
-  const [simulatedActiveStep, setSimulatedActiveStep] = useState<number>(1);
-
   const runStatus = (selectedRun?.status || "").toUpperCase();
   const isRunning = runStatus.includes("RUNNING") || runStatus.includes("PENDING");
+
+  // Track run_id to avoid resetting simulation during periodic background polling
+  const prevRunIdRef = useRef<string | null>(null);
+  const [simulatedActiveStep, setSimulatedActiveStep] = useState<number>(0);
 
   useEffect(() => {
     if (!isRunning) {
       setSimulatedActiveStep(0);
+      prevRunIdRef.current = selectedRun?.run_id || null;
       return;
     }
 
-    // Check if there is an actual running step from backend events
+    // Only initialize to step 1 when switching to a completely new run
+    if (selectedRun?.run_id !== prevRunIdRef.current) {
+      prevRunIdRef.current = selectedRun?.run_id || null;
+      setSimulatedActiveStep(1);
+    }
+
+    // If real steps exist with an active status, sync with it
     const runningStep = selectedRun?.steps?.find(
       (s) =>
         s.status?.toUpperCase().includes("RUNNING") ||
@@ -160,19 +169,19 @@ export default function AgentCanvasGraph({
       return;
     }
 
-    // Sequence stages 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
-    setSimulatedActiveStep(1);
+    // Smooth stage sequencer that does NOT reset on every poll
     const interval = setInterval(() => {
       setSimulatedActiveStep((prev) => {
+        if (prev <= 0) return 1;
         if (prev >= 7) return 7;
         return prev + 1;
       });
-    }, 1800);
+    }, 2200);
 
     return () => clearInterval(interval);
-  }, [selectedRun?.run_id, isRunning, selectedRun?.steps]);
+  }, [selectedRun?.run_id, isRunning, selectedRun?.steps?.length]);
 
-  // Resolve node state
+  // Robust per-node telemetry resolution with zero polling flickering
   const getNodeState = (node: AgentNodeDef): NodeTelemetry => {
     if (!selectedRun) {
       return {
@@ -188,7 +197,7 @@ export default function AgentCanvasGraph({
     const isHitl = Boolean(selectedRun.hitl_required || runStatus.includes("HITL"));
     const isHalted = runStatus.includes("HALT") || runStatus.includes("FRAUD");
 
-    // Match against real steps if available
+    // Check if the step is recorded in the actual run result or events
     const step = selectedRun.steps?.find(
       (s) =>
         s.step === node.stepNumber ||
@@ -196,8 +205,8 @@ export default function AgentCanvasGraph({
         s.name?.toLowerCase().includes(node.id)
     );
 
-    if (step && !isRunning) {
-      const st = step.status.toUpperCase();
+    if (step) {
+      const st = (step.status || "").toUpperCase();
       let status: NodeTelemetry["status"] = "COMPLETED";
       if (st.includes("RUNNING") || st.includes("PROGRESS")) status = "RUNNING";
       else if (st.includes("HITL") || st.includes("REVIEW")) status = "HITL";
@@ -233,7 +242,7 @@ export default function AgentCanvasGraph({
       };
     }
 
-    // Dynamic execution simulation during active run
+    // If workflow is actively running, determine state sequentially
     if (isRunning) {
       if (node.stepNumber < simulatedActiveStep) {
         return {
@@ -250,18 +259,18 @@ export default function AgentCanvasGraph({
           status: "RUNNING",
           metric:
             node.id === "brand_liability"
-              ? "⚡ Querying ERP Debt..."
+              ? "Querying ERP Debt..."
               : node.id === "regulatory_watchdog"
-              ? "⚡ Parsing Gazette..."
+              ? "Parsing Gazette..."
               : node.id === "auction"
-              ? "⚡ Matching Double Auction..."
+              ? "Matching Orders..."
               : node.id === "scada_auditor"
-              ? "⚡ Sampling 100Hz SCADA..."
+              ? "Sampling SCADA Feed..."
               : node.id === "forensic_auditor"
-              ? "⚡ Gemini Heat Balance..."
+              ? "Gemini Heat Balance..."
               : node.id === "escrow"
-              ? "⚡ Authorizing 80/20 PO..."
-              : "⚡ Signing X.509 DSC...",
+              ? "Authorizing 80/20 PO..."
+              : "Signing Form-1...",
           runtime_ms: 65,
           tokens: 340,
           cost_usd: 0.0004,
@@ -271,7 +280,7 @@ export default function AgentCanvasGraph({
       return { status: "QUEUED", metric: "Queued", runtime_ms: 0, tokens: 0, cost_usd: 0, cost_inr: 0 };
     }
 
-    // Completed deterministic fallback
+    // Terminal run condition fallbacks
     if (isHalted) {
       if (node.stepNumber <= 3) {
         return { status: "COMPLETED", metric: "Passed", runtime_ms: 115, tokens: 620, cost_usd: 0.0008, cost_inr: 0.07 };
@@ -287,12 +296,12 @@ export default function AgentCanvasGraph({
         return { status: "COMPLETED", metric: "Passed", runtime_ms: 110, tokens: 680, cost_usd: 0.0009, cost_inr: 0.08 };
       }
       if (node.stepNumber === 4 || node.stepNumber === 5) {
-        return { status: "HITL", metric: "Δ Variance > 2%", runtime_ms: 48, tokens: 840, cost_usd: 0.0011, cost_inr: 0.09 };
+        return { status: "HITL", metric: "Variance > 2%", runtime_ms: 48, tokens: 840, cost_usd: 0.0011, cost_inr: 0.09 };
       }
       return { status: "QUEUED", metric: "Gate Locked", runtime_ms: 0, tokens: 0, cost_usd: 0, cost_inr: 0 };
     }
 
-    // Default clean completed run
+    // Default completed state
     return {
       status: "COMPLETED",
       metric:
@@ -316,71 +325,72 @@ export default function AgentCanvasGraph({
     };
   };
 
+  // Light, clean Gemini-inspired status colors
   const getStatusVisuals = (status: NodeTelemetry["status"]) => {
     switch (status) {
       case "COMPLETED":
         return {
-          border: "#10B981",
-          pillBg: "rgba(16, 185, 129, 0.15)",
-          pillBorder: "#10B981",
-          text: "#34D399",
-          label: "Completed",
-          portColor: "#10B981",
+          border: "#34A853",
+          pillBg: "rgba(52, 168, 83, 0.12)",
+          pillBorder: "rgba(52, 168, 83, 0.4)",
+          text: "#81C995",
+          label: "Passed",
+          portColor: "#34A853",
         };
       case "RUNNING":
         return {
-          border: "#3B82F6",
-          pillBg: "rgba(59, 130, 246, 0.25)",
-          pillBorder: "#3B82F6",
-          text: "#93C5FD",
+          border: "#8AB4F8",
+          pillBg: "rgba(66, 133, 244, 0.18)",
+          pillBorder: "#8AB4F8",
+          text: "#A8C7FA",
           label: "Running",
-          portColor: "#3B82F6",
+          portColor: "#4285F4",
         };
       case "HITL":
         return {
-          border: "#F59E0B",
-          pillBg: "rgba(245, 158, 11, 0.2)",
-          pillBorder: "#F59E0B",
-          text: "#FBBF24",
-          label: "HITL Review",
-          portColor: "#F59E0B",
+          border: "#FBBC04",
+          pillBg: "rgba(251, 188, 4, 0.14)",
+          pillBorder: "rgba(251, 188, 4, 0.4)",
+          text: "#FDD663",
+          label: "Review",
+          portColor: "#FBBC04",
         };
       case "HALTED":
         return {
-          border: "#EF4444",
-          pillBg: "rgba(239, 68, 68, 0.2)",
-          pillBorder: "#EF4444",
-          text: "#F87171",
+          border: "#EA4335",
+          pillBg: "rgba(234, 67, 53, 0.14)",
+          pillBorder: "rgba(234, 67, 53, 0.4)",
+          text: "#F28B82",
           label: "Halted",
-          portColor: "#EF4444",
+          portColor: "#EA4335",
         };
       case "QUEUED":
       case "PENDING":
         return {
-          border: "#334155",
-          pillBg: "rgba(51, 65, 85, 0.3)",
-          pillBorder: "#475569",
-          text: "#94A3B8",
+          border: "#3C4043",
+          pillBg: "rgba(60, 64, 67, 0.25)",
+          pillBorder: "#5F6368",
+          text: "#9AA0A6",
           label: "Queued",
-          portColor: "#475569",
+          portColor: "#5F6368",
         };
       case "SKIPPED":
         return {
-          border: "#475569",
-          pillBg: "rgba(71, 85, 105, 0.2)",
-          pillBorder: "#475569",
-          text: "#64748B",
+          border: "#3C4043",
+          pillBg: "rgba(60, 64, 67, 0.15)",
+          pillBorder: "#5F6368",
+          text: "#80868B",
           label: "Skipped",
-          portColor: "#475569",
+          portColor: "#5F6368",
         };
       default:
         return {
-          border: "#334155",
-          pillBg: "rgba(51, 65, 85, 0.2)",
-          pillBorder: "#475569",
-          text: "#94A3B8",
+          border: "#3C4043",
+          pillBg: "rgba(60, 64, 67, 0.2)",
+          pillBorder: "#5F6368",
+          text: "#9AA0A6",
           label: "Idle",
-          portColor: "#475569",
+          portColor: "#5F6368",
         };
     }
   };
@@ -390,8 +400,7 @@ export default function AgentCanvasGraph({
   const totalCostUsd = selectedRun?.total_cost_usd || 0.0058;
   const totalCostInr = selectedRun?.total_cost_inr || 0.49;
 
-  // Connection wire definitions between ports
-  // Port radius is 5. Width = 246, height = 92, port Y = y + 46
+  // Connection wires
   const WIRES = useMemo(
     () => [
       {
@@ -451,32 +460,32 @@ export default function AgentCanvasGraph({
     <Box
       sx={{
         width: "100%",
-        height: { xs: "auto", lg: 520 },
-        bgcolor: "#0C0F17",
-        border: 1,
-        borderColor: "divider",
-        borderRadius: 2,
+        height: { xs: "auto", lg: 500 },
+        bgcolor: "#11141C",
+        border: "1px solid",
+        borderColor: "rgba(255, 255, 255, 0.08)",
+        borderRadius: 2.5,
         position: "relative",
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.45)",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
       }}
     >
-      {/* Canvas Top Bar with Aggregate Run Telemetry */}
+      {/* Canvas Top Header Strip */}
       <Box
         sx={{
           px: 2,
-          py: 1.25,
-          borderBottom: 1,
-          borderColor: "rgba(255,255,255,0.08)",
+          py: 1.2,
+          borderBottom: "1px solid",
+          borderColor: "rgba(255,255,255,0.06)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
           gap: 1.5,
-          bgcolor: "rgba(17, 21, 30, 0.95)",
-          backdropFilter: "blur(8px)",
+          bgcolor: "rgba(19, 22, 31, 0.95)",
+          backdropFilter: "blur(10px)",
           zIndex: 10,
         }}
       >
@@ -484,15 +493,15 @@ export default function AgentCanvasGraph({
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Box
               sx={{
-                width: 10,
-                height: 10,
+                width: 8,
+                height: 8,
                 borderRadius: "50%",
-                bgcolor: isRunning ? "#3B82F6" : "#10B981",
-                boxShadow: isRunning ? "0 0 10px #3B82F6" : "0 0 8px #10B981",
+                bgcolor: isRunning ? "#8AB4F8" : "#34A853",
+                boxShadow: isRunning ? "0 0 8px #8AB4F8" : "0 0 6px #34A853",
               }}
             />
-            <Typography sx={{ fontWeight: 800, fontSize: "0.88rem", letterSpacing: "-0.01em", color: "#F8FAFC" }}>
-              Agent Orchestration Topology (n8n Engine)
+            <Typography sx={{ fontWeight: 700, fontSize: "0.86rem", color: "#E3E3E3", letterSpacing: "-0.01em" }}>
+              Autonomous Agent Orchestration
             </Typography>
           </Box>
 
@@ -502,12 +511,12 @@ export default function AgentCanvasGraph({
               label={`Run: ${selectedRun.run_id}`}
               sx={{
                 fontFamily: "var(--font-mono, monospace)",
-                fontWeight: 700,
+                fontWeight: 600,
                 height: 22,
                 fontSize: "0.72rem",
-                bgcolor: "rgba(255,255,255,0.06)",
-                color: "#E2E8F0",
-                border: "1px solid rgba(255,255,255,0.12)",
+                bgcolor: "rgba(255,255,255,0.05)",
+                color: "#C4C7C5",
+                border: "1px solid rgba(255,255,255,0.08)",
               }}
             />
           )}
@@ -516,70 +525,51 @@ export default function AgentCanvasGraph({
             <Chip
               size="small"
               color="primary"
-              label="Node Selected • Click ✕ to expand canvas"
+              label="Node Selected"
               onDelete={() => onSelectNode(activeNodeId)}
               sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
             />
           ) : (
-            <Chip
-              size="small"
-              variant="outlined"
-              label="💡 Click any node to inspect Inputs & Outputs"
-              sx={{ height: 22, fontSize: "0.68rem", borderColor: "rgba(255,255,255,0.15)", color: "#94A3B8" }}
-            />
+            <Typography sx={{ fontSize: "0.72rem", color: "#80868B" }}>
+              Click node to view arguments &amp; outputs
+            </Typography>
           )}
         </Box>
 
         {/* Live Total Run Telemetry Strip */}
         {selectedRun && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-            <Tooltip title="Total End-to-End Orchestration Runtime">
+            <Tooltip title="Execution Runtime">
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <SpeedIcon sx={{ fontSize: 15, color: "#60A5FA" }} />
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "#E2E8F0" }}>
+                <SpeedIcon sx={{ fontSize: 14, color: "#8AB4F8" }} />
+                <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, fontFamily: "var(--font-mono, monospace)", color: "#E3E3E3" }}>
                   {totalRuntime} ms
                 </Typography>
               </Box>
             </Tooltip>
 
-            <Tooltip title="Total LLM Tokens Consumed">
+            <Tooltip title="Model Tokens">
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <TollIcon sx={{ fontSize: 15, color: "#C084FC" }} />
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "#E2E8F0" }}>
+                <TollIcon sx={{ fontSize: 14, color: "#D7AEFB" }} />
+                <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, fontFamily: "var(--font-mono, monospace)", color: "#E3E3E3" }}>
                   {totalTokens.toLocaleString()} tok
                 </Typography>
               </Box>
             </Tooltip>
 
-            <Tooltip title="Total Execution Cost ($ USD / ₹ INR)">
+            <Tooltip title="Execution Compute Cost">
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <AttachMoneyIcon sx={{ fontSize: 15, color: "#34D399" }} />
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "#E2E8F0" }}>
+                <AttachMoneyIcon sx={{ fontSize: 14, color: "#81C995" }} />
+                <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, fontFamily: "var(--font-mono, monospace)", color: "#E3E3E3" }}>
                   ${totalCostUsd.toFixed(4)} (₹{totalCostInr.toFixed(2)})
                 </Typography>
               </Box>
             </Tooltip>
-
-            {/* Status Legend */}
-            <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", pl: 1, borderLeft: 1, borderColor: "rgba(255,255,255,0.12)" }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: "#10B981" }} />
-                <Typography sx={{ fontSize: "0.68rem", color: "#94A3B8" }}>Passed</Typography>
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: "#3B82F6" }} />
-                <Typography sx={{ fontSize: "0.68rem", color: "#94A3B8" }}>Running</Typography>
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: "#F59E0B" }} />
-                <Typography sx={{ fontSize: "0.68rem", color: "#94A3B8" }}>HITL</Typography>
-              </Box>
-            </Box>
           </Box>
         )}
       </Box>
 
-      {/* Authentic n8n SVG Canvas Area */}
+      {/* SVG Canvas Area */}
       <Box sx={{ flexGrow: 1, position: "relative", width: "100%", height: "100%", minHeight: 0, overflow: "hidden" }}>
         <svg
           viewBox="0 0 1230 420"
@@ -587,35 +577,35 @@ export default function AgentCanvasGraph({
           preserveAspectRatio="xMidYMid meet"
         >
           <defs>
-            {/* Signature n8n Dot Grid Pattern */}
-            <pattern id="n8nGrid" width="22" height="22" patternUnits="userSpaceOnUse">
-              <circle cx="11" cy="11" r="1.15" fill="#252D3F" opacity="0.85" />
+            {/* Subtle Clean Dot Grid Pattern */}
+            <pattern id="geminiGrid" width="22" height="22" patternUnits="userSpaceOnUse">
+              <circle cx="11" cy="11" r="1" fill="#2A3042" opacity="0.6" />
             </pattern>
 
-            {/* Glowing Wire Gradients */}
+            {/* Wire Gradients */}
             <linearGradient id="edgeGradRunning" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4" />
-              <stop offset="50%" stopColor="#60A5FA" stopOpacity="1" />
-              <stop offset="100%" stopColor="#93C5FD" stopOpacity="0.6" />
+              <stop offset="0%" stopColor="#4285F4" stopOpacity="0.4" />
+              <stop offset="50%" stopColor="#8AB4F8" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#A8C7FA" stopOpacity="0.6" />
             </linearGradient>
 
             <linearGradient id="edgeGradSuccess" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#10B981" stopOpacity="0.6" />
-              <stop offset="100%" stopColor="#059669" stopOpacity="0.8" />
+              <stop offset="0%" stopColor="#34A853" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="#1E8E3E" stopOpacity="0.8" />
             </linearGradient>
 
             <linearGradient id="edgeGradDefault" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#2A3347" />
-              <stop offset="100%" stopColor="#2A3347" />
+              <stop offset="0%" stopColor="#2D3342" />
+              <stop offset="100%" stopColor="#2D3342" />
             </linearGradient>
 
             {/* Node Shadows & Glow Filters */}
             <filter id="nodeShadow" x="-10%" y="-10%" width="120%" height="130%">
-              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000000" floodOpacity="0.55" />
+              <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000000" floodOpacity="0.45" />
             </filter>
 
             <filter id="particleGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+              <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
@@ -623,7 +613,7 @@ export default function AgentCanvasGraph({
             </filter>
 
             <filter id="runPulseGlow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+              <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
@@ -632,8 +622,8 @@ export default function AgentCanvasGraph({
           </defs>
 
           {/* Background Canvas & Dot Grid */}
-          <rect width="100%" height="100%" fill="#0C0F17" />
-          <rect width="100%" height="100%" fill="url(#n8nGrid)" />
+          <rect width="100%" height="100%" fill="#11141C" />
+          <rect width="100%" height="100%" fill="url(#geminiGrid)" />
 
           {/* S-Curve Bezier Connection Wires */}
           {WIRES.map((wire) => {
@@ -647,33 +637,33 @@ export default function AgentCanvasGraph({
                   d={wire.path}
                   fill="none"
                   stroke={isWireActive ? "url(#edgeGradSuccess)" : "url(#edgeGradDefault)"}
-                  strokeWidth="2.5"
-                  opacity={isWireActive ? 0.9 : 0.6}
+                  strokeWidth="2.2"
+                  opacity={isWireActive ? 0.9 : 0.55}
                 />
 
-                {/* Flowing Dashed Energy Line when Workflow is Running */}
+                {/* Flowing Energy Line when Active */}
                 {isWireFlowing && (
                   <path
                     d={wire.path}
                     fill="none"
-                    stroke="#60A5FA"
-                    strokeWidth="2.5"
-                    strokeDasharray="8 8"
-                    opacity="0.95"
+                    stroke="#8AB4F8"
+                    strokeWidth="2.2"
+                    strokeDasharray="6 6"
+                    opacity="0.9"
                     filter="url(#particleGlow)"
                   >
-                    <animate attributeName="stroke-dashoffset" values="32;0" dur="0.8s" repeatCount="indefinite" />
+                    <animate attributeName="stroke-dashoffset" values="24;0" dur="0.9s" repeatCount="indefinite" />
                   </path>
                 )}
 
-                {/* n8n Trademark High-Energy Traveling Particle Dot */}
+                {/* Smooth Traveling Particle Indicator */}
                 {isWireFlowing && (
                   <>
-                    <circle r="4.5" fill="#60A5FA" filter="url(#particleGlow)">
-                      <animateMotion path={wire.path} dur="1.2s" repeatCount="indefinite" />
+                    <circle r="4" fill="#8AB4F8" filter="url(#particleGlow)">
+                      <animateMotion path={wire.path} dur="1.3s" repeatCount="indefinite" />
                     </circle>
-                    <circle r="2" fill="#FFFFFF">
-                      <animateMotion path={wire.path} dur="1.2s" repeatCount="indefinite" />
+                    <circle r="1.8" fill="#FFFFFF">
+                      <animateMotion path={wire.path} dur="1.3s" repeatCount="indefinite" />
                     </circle>
                   </>
                 )}
@@ -682,10 +672,10 @@ export default function AgentCanvasGraph({
           })}
 
           {/* Node 6 to 7 Vertical Port Markers */}
-          <circle cx="1058" cy="152" r="4.5" fill="#10B981" stroke="#141824" strokeWidth="2" />
-          <circle cx="1058" cy="260" r="4.5" fill="#10B981" stroke="#141824" strokeWidth="2" />
+          <circle cx="1058" cy="152" r="4" fill="#34A853" stroke="#141824" strokeWidth="2" />
+          <circle cx="1058" cy="260" r="4" fill="#34A853" stroke="#141824" strokeWidth="2" />
 
-          {/* Render Authentic n8n Node Cards */}
+          {/* Render Agent Node Cards */}
           {AGENT_NODES.map((node) => {
             const telemetry = getNodeState(node);
             const visuals = getStatusVisuals(telemetry.status);
@@ -698,31 +688,29 @@ export default function AgentCanvasGraph({
                 onClick={() => onSelectNode(node.id)}
                 style={{ cursor: "pointer" }}
               >
-                {/* n8n Active Running Pulsing Wave Rings */}
+                {/* Running Pulse Ripple */}
                 {isNodeRunning && (
-                  <>
-                    <rect
-                      x={node.x - 4}
-                      y={node.y - 4}
-                      width={254}
-                      height={100}
-                      rx={15}
-                      fill="none"
-                      stroke="#3B82F6"
-                      strokeWidth="2"
-                      filter="url(#runPulseGlow)"
-                    >
-                      <animate attributeName="stroke-opacity" values="0.9;0" dur="1.6s" repeatCount="indefinite" />
-                      <animate attributeName="stroke-width" values="1.5;7" dur="1.6s" repeatCount="indefinite" />
-                      <animate attributeName="x" values={`${node.x - 4};${node.x - 10}`} dur="1.6s" repeatCount="indefinite" />
-                      <animate attributeName="y" values={`${node.y - 4};${node.y - 10}`} dur="1.6s" repeatCount="indefinite" />
-                      <animate attributeName="width" values="254;266" dur="1.6s" repeatCount="indefinite" />
-                      <animate attributeName="height" values="100;112" dur="1.6s" repeatCount="indefinite" />
-                    </rect>
-                  </>
+                  <rect
+                    x={node.x - 3}
+                    y={node.y - 3}
+                    width={252}
+                    height={98}
+                    rx={14}
+                    fill="none"
+                    stroke="#8AB4F8"
+                    strokeWidth="1.8"
+                    filter="url(#runPulseGlow)"
+                  >
+                    <animate attributeName="stroke-opacity" values="0.8;0" dur="1.8s" repeatCount="indefinite" />
+                    <animate attributeName="stroke-width" values="1.2;5" dur="1.8s" repeatCount="indefinite" />
+                    <animate attributeName="x" values={`${node.x - 3};${node.x - 7}`} dur="1.8s" repeatCount="indefinite" />
+                    <animate attributeName="y" values={`${node.y - 3};${node.y - 7}`} dur="1.8s" repeatCount="indefinite" />
+                    <animate attributeName="width" values="252;260" dur="1.8s" repeatCount="indefinite" />
+                    <animate attributeName="height" values="98;106" dur="1.8s" repeatCount="indefinite" />
+                  </rect>
                 )}
 
-                {/* Selection Halo Ring */}
+                {/* Selection Halo */}
                 {isSelected && (
                   <rect
                     x={node.x - 3}
@@ -731,48 +719,48 @@ export default function AgentCanvasGraph({
                     height={98}
                     rx={14}
                     fill="none"
-                    stroke="#8B5CF6"
+                    stroke="#8AB4F8"
                     strokeWidth="2"
-                    strokeDasharray="5 3"
+                    strokeDasharray="4 3"
                     filter="url(#particleGlow)"
                   />
                 )}
 
-                {/* Main n8n Slate Node Card */}
+                {/* Main Node Card */}
                 <rect
                   x={node.x}
                   y={node.y}
                   width={246}
                   height={92}
                   rx={12}
-                  fill="#141824"
-                  stroke={isSelected ? "#8B5CF6" : visuals.border}
-                  strokeWidth={isSelected ? "2" : isNodeRunning ? "2" : "1.5"}
+                  fill="#181B26"
+                  stroke={isSelected ? "#8AB4F8" : visuals.border}
+                  strokeWidth={isSelected ? "1.8" : isNodeRunning ? "1.8" : "1.2"}
                   filter="url(#nodeShadow)"
-                  style={{ transition: "all 0.2s ease" }}
+                  style={{ transition: "stroke 0.2s ease" }}
                 />
 
-                {/* Left Port Dot (Input) */}
+                {/* Left Port Dot */}
                 <circle
                   cx={node.x}
                   cy={node.y + 46}
-                  r={5}
+                  r={4.5}
                   fill={visuals.portColor}
-                  stroke="#141824"
-                  strokeWidth="2.5"
+                  stroke="#181B26"
+                  strokeWidth="2"
                 />
 
-                {/* Right Port Dot (Output) */}
+                {/* Right Port Dot */}
                 <circle
                   cx={node.x + 246}
                   cy={node.y + 46}
-                  r={5}
+                  r={4.5}
                   fill={visuals.portColor}
-                  stroke="#141824"
-                  strokeWidth="2.5"
+                  stroke="#181B26"
+                  strokeWidth="2"
                 />
 
-                {/* Left Icon Badge (n8n signature rounded square with role gradient) */}
+                {/* Left Icon Badge Box */}
                 <foreignObject x={node.x + 12} y={node.y + 13} width={38} height={38}>
                   <div
                     style={{
@@ -784,7 +772,7 @@ export default function AgentCanvasGraph({
                       alignItems: "center",
                       justifyContent: "center",
                       color: "#FFFFFF",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+                      boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
                     }}
                   >
                     {node.icon}
@@ -795,7 +783,7 @@ export default function AgentCanvasGraph({
                 <text
                   x={node.x + 58}
                   y={node.y + 27}
-                  fill="#F8FAFC"
+                  fill="#F1F3F4"
                   fontSize="11.5"
                   fontWeight="700"
                   fontFamily="system-ui, -apple-system, sans-serif"
@@ -807,7 +795,7 @@ export default function AgentCanvasGraph({
                 <text
                   x={node.x + 58}
                   y={node.y + 42}
-                  fill="#94A3B8"
+                  fill="#9AA0A6"
                   fontSize="9"
                   fontWeight="500"
                   fontFamily="system-ui, -apple-system, sans-serif"
@@ -815,7 +803,7 @@ export default function AgentCanvasGraph({
                   {node.role}
                 </text>
 
-                {/* Top-Right n8n Execution Status Pill */}
+                {/* Top-Right Execution Status Badge */}
                 <g transform={`translate(${node.x + 172}, ${node.y + 11})`}>
                   <rect
                     x="0"
@@ -829,18 +817,18 @@ export default function AgentCanvasGraph({
                   />
                   {isNodeRunning ? (
                     <>
-                      <circle cx="10" cy="9.5" r="3.5" fill="#60A5FA">
+                      <circle cx="11" cy="9.5" r="3" fill="#8AB4F8">
                         <animate attributeName="opacity" values="0.3;1;0.3" dur="1s" repeatCount="indefinite" />
                       </circle>
                       <text
-                        x="18"
+                        x="20"
                         y="12.5"
-                        fill="#93C5FD"
+                        fill="#A8C7FA"
                         fontSize="7.5"
-                        fontWeight="800"
+                        fontWeight="700"
                         fontFamily="system-ui, -apple-system, sans-serif"
                       >
-                        RUNNING
+                        Running
                       </text>
                     </>
                   ) : telemetry.status === "COMPLETED" ? (
@@ -848,12 +836,12 @@ export default function AgentCanvasGraph({
                       x="32"
                       y="12.5"
                       textAnchor="middle"
-                      fill="#34D399"
+                      fill="#81C995"
                       fontSize="8"
-                      fontWeight="800"
+                      fontWeight="700"
                       fontFamily="var(--font-mono, monospace)"
                     >
-                      ✓ {telemetry.runtime_ms}ms
+                      {telemetry.runtime_ms}ms
                     </text>
                   ) : (
                     <text
@@ -862,7 +850,7 @@ export default function AgentCanvasGraph({
                       textAnchor="middle"
                       fill={visuals.text}
                       fontSize="7.5"
-                      fontWeight="700"
+                      fontWeight="600"
                       fontFamily="system-ui, -apple-system, sans-serif"
                     >
                       {visuals.label}
@@ -876,33 +864,32 @@ export default function AgentCanvasGraph({
                   y1={node.y + 59}
                   x2={node.x + 234}
                   y2={node.y + 59}
-                  stroke="#222B3E"
+                  stroke="#262B3A"
                   strokeWidth="1"
                 />
 
                 {/* Bottom Bar: Model Pill on Left + Metric on Right */}
-                {/* Model Badge */}
                 {node.systemType.includes("Reflex") ? (
                   <g transform={`translate(${node.x + 12}, ${node.y + 66})`}>
                     <rect
                       x="0"
                       y="0"
-                      width="92"
+                      width="88"
                       height="17"
                       rx="4"
-                      fill="rgba(16, 185, 129, 0.15)"
-                      stroke="rgba(16, 185, 129, 0.4)"
+                      fill="rgba(52, 168, 83, 0.1)"
+                      stroke="rgba(52, 168, 83, 0.3)"
                       strokeWidth="0.8"
                     />
                     <text
                       x="6"
                       y="11.5"
-                      fill="#6EE7B7"
+                      fill="#81C995"
                       fontSize="7.5"
                       fontWeight="700"
                       fontFamily="system-ui, -apple-system, sans-serif"
                     >
-                      ⚡ SCADA Reflex
+                      SCADA Reflex
                     </text>
                   </g>
                 ) : (
@@ -910,22 +897,22 @@ export default function AgentCanvasGraph({
                     <rect
                       x="0"
                       y="0"
-                      width="114"
+                      width="106"
                       height="17"
                       rx="4"
-                      fill="rgba(139, 92, 246, 0.18)"
-                      stroke="rgba(139, 92, 246, 0.45)"
+                      fill="rgba(66, 133, 244, 0.12)"
+                      stroke="rgba(66, 133, 244, 0.3)"
                       strokeWidth="0.8"
                     />
                     <text
                       x="6"
                       y="11.5"
-                      fill="#C4B5FD"
+                      fill="#A8C7FA"
                       fontSize="7.5"
                       fontWeight="700"
                       fontFamily="system-ui, -apple-system, sans-serif"
                     >
-                      🤖 gemini-3.8-flash
+                      gemini-3.8-flash
                     </text>
                   </g>
                 )}
@@ -937,7 +924,7 @@ export default function AgentCanvasGraph({
                   textAnchor="end"
                   fill={visuals.text}
                   fontSize="8.5"
-                  fontWeight="700"
+                  fontWeight="600"
                   fontFamily="var(--font-mono, monospace)"
                 >
                   {telemetry.metric}

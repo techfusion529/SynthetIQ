@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Box from "@mui/material/Box";
+import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
@@ -612,6 +613,28 @@ export default function AgentConfigStudioPage() {
 
   // Custom API key override
   const [customApiKey, setCustomApiKey] = useState<string>("");
+
+  // Toggle for raw JSON vs interactive form for hyperparameters
+  const [showRawJsonParams, setShowRawJsonParams] = useState<boolean>(false);
+
+  // Toggle for raw JSON vs interactive form for simulation payload
+  const [showRawJsonPayload, setShowRawJsonPayload] = useState<boolean>(false);
+
+  const updateParameter = (key: string, value: any) => {
+    if (!currentConfig) return;
+    const updated = { ...(currentConfig.parameters || {}), [key]: value };
+    setCurrentConfig({ ...currentConfig, parameters: updated });
+  };
+
+  const updatePayloadField = (key: string, value: any) => {
+    try {
+      const current = playgroundPayload.trim() ? JSON.parse(playgroundPayload) : {};
+      const updated = { ...current, [key]: value };
+      setPlaygroundPayload(JSON.stringify(updated, null, 2));
+    } catch {
+      // ignore
+    }
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -1283,42 +1306,240 @@ export default function AgentConfigStudioPage() {
                       </Box>
 
                       {/* Domain Hyperparameters */}
-                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
                         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <Typography variant="caption" sx={{ color: "#1A73E8", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.72rem" }}>
-                            <TuneIcon sx={{ fontSize: 13 }} /> DOMAIN HYPERPARAMETERS (JSON)
+                            <TuneIcon sx={{ fontSize: 13 }} /> DOMAIN HYPERPARAMETERS
                           </Typography>
-                          <Chip
-                            label="JSON Parameters"
+                          <Button
                             size="small"
-                            color="primary"
                             variant="outlined"
-                            sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
-                          />
+                            onClick={() => setShowRawJsonParams(!showRawJsonParams)}
+                            sx={{ height: 20, fontSize: "0.62rem", fontWeight: 700, textTransform: "none", px: 1, py: 0 }}
+                          >
+                            {showRawJsonParams ? "Form Controls" : "Edit as JSON"}
+                          </Button>
                         </Box>
-                        <TextField
-                          multiline
-                          rows={3}
-                          size="small"
-                          fullWidth
-                          value={JSON.stringify(currentConfig.parameters, null, 2)}
-                          onChange={(e) => {
-                            try {
-                              const parsed = JSON.parse(e.target.value);
-                              setCurrentConfig({ ...currentConfig, parameters: parsed });
-                            } catch {
-                              // Allow typing
-                            }
-                          }}
-                          sx={{
-                            "& textarea": {
-                              fontFamily: 'var(--font-mono, monospace)',
-                              fontSize: "0.78rem",
-                              lineHeight: 1.4,
-                            },
-                            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
-                          }}
-                        />
+
+                        {showRawJsonParams ? (
+                          <TextField
+                            multiline
+                            rows={3}
+                            size="small"
+                            fullWidth
+                            value={JSON.stringify(currentConfig.parameters, null, 2)}
+                            onChange={(e) => {
+                              try {
+                                const parsed = JSON.parse(e.target.value);
+                                setCurrentConfig({ ...currentConfig, parameters: parsed });
+                              } catch {
+                                // Allow typing
+                              }
+                            }}
+                            sx={{
+                              "& textarea": {
+                                fontFamily: 'var(--font-mono, monospace)',
+                                fontSize: "0.78rem",
+                                lineHeight: 1.4,
+                              },
+                              bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
+                            }}
+                          />
+                        ) : (
+                          <Box
+                            sx={{
+                              p: 1.5,
+                              borderRadius: 1.5,
+                              border: "1px solid",
+                              borderColor: "divider",
+                              bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.02)" : "#FAFAFB"),
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 1.5,
+                            }}
+                          >
+                            {currentConfig.agent_name === "brand_liability" && (
+                              <Grid container spacing={1.5}>
+                                <Grid item xs={12} sm={6}>
+                                  <TextField
+                                    select
+                                    fullWidth
+                                    size="small"
+                                    label="Historic Deficit Amortization"
+                                    value={currentConfig.parameters?.amortization_fraction ?? 0.333}
+                                    onChange={(e) => updateParameter("amortization_fraction", parseFloat(e.target.value))}
+                                    helperText="CPCB Rule 13(2) statutory amortization formula"
+                                  >
+                                    <MenuItem value={0.333}>Rule 13(2) — 1/3 Deficit (0.333)</MenuItem>
+                                    <MenuItem value={0.5}>50% Deficit Carry-Forward (0.500)</MenuItem>
+                                    <MenuItem value={1.0}>100% Immediate Settlement (1.000)</MenuItem>
+                                  </TextField>
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                  <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600, display: "block", mb: 0.5 }}>
+                                    Polymer Categories In Scope
+                                  </Typography>
+                                  <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+                                    {[
+                                      { id: "cat_i_rigid", label: "Cat I (Rigid)" },
+                                      { id: "cat_ii_flexible", label: "Cat II (Flexible)" },
+                                      { id: "cat_iii_mlp", label: "Cat III (MLP)" },
+                                      { id: "cat_iv_compostable", label: "Cat IV (Compostable)" },
+                                    ].map((cat) => {
+                                      const activeCats: string[] = currentConfig.parameters?.categories || [];
+                                      const isSelected = activeCats.includes(cat.id);
+                                      return (
+                                        <Chip
+                                          key={cat.id}
+                                          size="small"
+                                          label={cat.label}
+                                          color={isSelected ? "primary" : "default"}
+                                          variant={isSelected ? "filled" : "outlined"}
+                                          onClick={() => {
+                                            const updated = isSelected
+                                              ? activeCats.filter((c) => c !== cat.id)
+                                              : [...activeCats, cat.id];
+                                            updateParameter("categories", updated);
+                                          }}
+                                          sx={{ height: 22, fontSize: "0.68rem", fontWeight: 600, cursor: "pointer" }}
+                                        />
+                                      );
+                                    })}
+                                  </Box>
+                                </Grid>
+                              </Grid>
+                            )}
+
+                            {currentConfig.agent_name === "treasury" && (
+                              <Grid container spacing={1.5}>
+                                <Grid item xs={12} sm={4}>
+                                  <TextField
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                    label="Min Price Corridor (%)"
+                                    value={currentConfig.parameters?.price_corridor_min_pct ?? 30.0}
+                                    onChange={(e) => updateParameter("price_corridor_min_pct", parseFloat(e.target.value) || 0)}
+                                  />
+                                </Grid>
+                                <Grid item xs={12} sm={4}>
+                                  <TextField
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                    label="Max Price Corridor (%)"
+                                    value={currentConfig.parameters?.price_corridor_max_pct ?? 100.0}
+                                    onChange={(e) => updateParameter("price_corridor_max_pct", parseFloat(e.target.value) || 0)}
+                                  />
+                                </Grid>
+                                <Grid item xs={12} sm={4}>
+                                  <TextField
+                                    select
+                                    fullWidth
+                                    size="small"
+                                    label="Clearing Algorithm"
+                                    value={currentConfig.parameters?.clearing_algorithm || "uniform_price"}
+                                    onChange={(e) => updateParameter("clearing_algorithm", e.target.value)}
+                                  >
+                                    <MenuItem value="uniform_price">Uniform Price Corridor</MenuItem>
+                                    <MenuItem value="continuous_double_auction">Continuous Double Auction</MenuItem>
+                                    <MenuItem value="sealed_bid">Sealed Bid Discriminatory</MenuItem>
+                                  </TextField>
+                                </Grid>
+                              </Grid>
+                            )}
+
+                            {currentConfig.agent_name === "auditor" && (
+                              <Grid container spacing={1.5}>
+                                <Grid item xs={12} sm={4}>
+                                  <TextField
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                    label="Min Viscous Torque (Nm)"
+                                    value={currentConfig.parameters?.torque_threshold_nm ?? 8.0}
+                                    onChange={(e) => updateParameter("torque_threshold_nm", parseFloat(e.target.value) || 0)}
+                                    helperText="Threshold for polymer shear"
+                                  />
+                                </Grid>
+                                <Grid item xs={12} sm={4}>
+                                  <TextField
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                    label="Min Power Factor"
+                                    value={currentConfig.parameters?.power_factor_min ?? 0.78}
+                                    onChange={(e) => updateParameter("power_factor_min", parseFloat(e.target.value) || 0)}
+                                    helperText="Inductive motor threshold"
+                                  />
+                                </Grid>
+                                <Grid item xs={12} sm={4}>
+                                  <TextField
+                                    select
+                                    fullWidth
+                                    size="small"
+                                    label="Audit Evaluation Mode"
+                                    value={currentConfig.parameters?.audit_mode || "hybrid_ensemble"}
+                                    onChange={(e) => updateParameter("audit_mode", e.target.value)}
+                                  >
+                                    <MenuItem value="hybrid_ensemble">Hybrid Physics + Gemini</MenuItem>
+                                    <MenuItem value="strict_physics">Strict Nimble Reflex Only</MenuItem>
+                                  </TextField>
+                                </Grid>
+                              </Grid>
+                            )}
+
+                            {currentConfig.agent_name === "regulatory_watchdog" && (
+                              <Grid container spacing={1.5}>
+                                <Grid item xs={12} sm={4}>
+                                  <TextField
+                                    select
+                                    fullWidth
+                                    size="small"
+                                    label="Jurisdiction"
+                                    value={currentConfig.parameters?.jurisdiction || "IN"}
+                                    onChange={(e) => updateParameter("jurisdiction", e.target.value)}
+                                  >
+                                    <MenuItem value="IN">IN — India (CPCB)</MenuItem>
+                                    <MenuItem value="EU">EU — European Union</MenuItem>
+                                  </TextField>
+                                </Grid>
+                                <Grid item xs={12} sm={8}>
+                                  <TextField
+                                    fullWidth
+                                    size="small"
+                                    label="Statutory Framework"
+                                    value={currentConfig.parameters?.active_framework || "CPCB Plastic Waste Management Amendment Rules 2026"}
+                                    onChange={(e) => updateParameter("active_framework", e.target.value)}
+                                  />
+                                </Grid>
+                              </Grid>
+                            )}
+
+                            {currentConfig.agent_name !== "brand_liability" &&
+                             currentConfig.agent_name !== "treasury" &&
+                             currentConfig.agent_name !== "auditor" &&
+                             currentConfig.agent_name !== "regulatory_watchdog" && (
+                              <Grid container spacing={1.5}>
+                                {Object.entries(currentConfig.parameters || {}).map(([k, v]) => (
+                                  <Grid item xs={12} sm={6} key={k}>
+                                    <TextField
+                                      fullWidth
+                                      size="small"
+                                      label={k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                                      value={typeof v === "object" ? JSON.stringify(v) : v}
+                                      onChange={(e) => {
+                                        let val: any = e.target.value;
+                                        if (!isNaN(Number(val)) && val.trim() !== "") val = Number(val);
+                                        updateParameter(k, val);
+                                      }}
+                                    />
+                                  </Grid>
+                                ))}
+                              </Grid>
+                            )}
+                          </Box>
+                        )}
                       </Box>
                     </Box>
                   </Box>
@@ -1473,39 +1694,189 @@ export default function AgentConfigStudioPage() {
                       </Paper>
                     </Box>
 
-                    {/* Right Column: Raw Simulation Payload JSON & Overrides */}
+                    {/* Right Column: Structured Simulation Payload & Overrides */}
                     <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
                       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <Typography variant="caption" sx={{ fontWeight: 700, color: "#1A73E8", display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.72rem" }}>
-                          <CodeIcon sx={{ fontSize: 13 }} /> RAW SIMULATION PAYLOAD (JSON)
+                          <TuneIcon sx={{ fontSize: 13 }} /> SIMULATION PAYLOAD PARAMETERS
                         </Typography>
-                        <Tooltip title="Reset to preset">
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
                           <Button
                             size="small"
-                            onClick={handleResetPayload}
-                            startIcon={<RefreshIcon sx={{ fontSize: 13 }} />}
-                            sx={{ fontSize: "0.68rem", textTransform: "none", py: 0.1, px: 0.75 }}
+                            variant="text"
+                            onClick={() => setShowRawJsonPayload(!showRawJsonPayload)}
+                            sx={{ fontSize: "0.68rem", textTransform: "none", py: 0.1, px: 0.75, fontWeight: 600 }}
                           >
-                            Reset
+                            {showRawJsonPayload ? "Switch to Form Inputs" : "Edit Raw JSON"}
                           </Button>
-                        </Tooltip>
+                          <Tooltip title="Reset to preset">
+                            <Button
+                              size="small"
+                              onClick={handleResetPayload}
+                              startIcon={<RefreshIcon sx={{ fontSize: 13 }} />}
+                              sx={{ fontSize: "0.68rem", textTransform: "none", py: 0.1, px: 0.75 }}
+                            >
+                              Reset
+                            </Button>
+                          </Tooltip>
+                        </Box>
                       </Box>
-                      <TextField
-                        multiline
-                        rows={6}
-                        size="small"
-                        fullWidth
-                        value={playgroundPayload}
-                        onChange={(e) => setPlaygroundPayload(e.target.value)}
-                        sx={{
-                          "& textarea": {
-                            fontFamily: 'var(--font-mono, monospace)',
-                            fontSize: "0.76rem",
-                            lineHeight: 1.4,
-                          },
-                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
-                        }}
-                      />
+
+                      {!showRawJsonPayload ? (
+                        (() => {
+                          let parsed: Record<string, any> = {};
+                          let parseErr = false;
+                          try {
+                            parsed = playgroundPayload.trim() ? JSON.parse(playgroundPayload) : {};
+                          } catch {
+                            parseErr = true;
+                          }
+                          if (parseErr) {
+                            return (
+                              <Alert severity="warning" sx={{ fontSize: "0.78rem" }}>
+                                Invalid JSON detected. Switch to Raw JSON view to fix syntax.
+                              </Alert>
+                            );
+                          }
+                          const entries = Object.entries(parsed);
+                          if (entries.length === 0) {
+                            return (
+                              <Typography variant="caption" color="text.secondary">
+                                No payload parameters configured for this scenario.
+                              </Typography>
+                            );
+                          }
+                          return (
+                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, maxHeight: 260, overflowY: "auto", pr: 0.5 }}>
+                              <Grid container spacing={1.25}>
+                                {entries.map(([k, v]) => {
+                                  if (Array.isArray(v)) {
+                                    return (
+                                      <Grid item xs={12} key={k}>
+                                        <Paper variant="outlined" sx={{ p: 1, borderRadius: 1.5, bgcolor: (t) => t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.01)" }}>
+                                          <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "block", mb: 0.5 }}>
+                                            {k.replace(/_/g, " ").toUpperCase()} ({v.length} items)
+                                          </Typography>
+                                          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                                            {v.map((item, idx) => (
+                                              <Box key={idx} sx={{ display: "flex", alignItems: "center", gap: 1, p: 0.75, borderRadius: 1, border: "1px dashed", borderColor: "divider" }}>
+                                                {typeof item === "object" && item !== null ? (
+                                                  Object.entries(item).map(([subK, subV]) => (
+                                                    <TextField
+                                                      key={subK}
+                                                      size="small"
+                                                      label={subK.replace(/_/g, " ")}
+                                                      value={subV}
+                                                      onChange={(e) => {
+                                                        let newVal: any = e.target.value;
+                                                        if (!isNaN(Number(newVal)) && newVal.trim() !== "") newVal = Number(newVal);
+                                                        const updatedArray = [...v];
+                                                        updatedArray[idx] = { ...updatedArray[idx], [subK]: newVal };
+                                                        updatePayloadField(k, updatedArray);
+                                                      }}
+                                                      sx={{ flex: 1, "& input": { fontSize: "0.75rem", py: 0.5 } }}
+                                                    />
+                                                  ))
+                                                ) : (
+                                                  <TextField
+                                                    size="small"
+                                                    value={item}
+                                                    onChange={(e) => {
+                                                      const updatedArray = [...v];
+                                                      updatedArray[idx] = e.target.value;
+                                                      updatePayloadField(k, updatedArray);
+                                                    }}
+                                                    sx={{ flex: 1, "& input": { fontSize: "0.75rem", py: 0.5 } }}
+                                                  />
+                                                )}
+                                              </Box>
+                                            ))}
+                                          </Box>
+                                        </Paper>
+                                      </Grid>
+                                    );
+                                  }
+                                  if (k === "fiscal_year") {
+                                    return (
+                                      <Grid item xs={12} sm={6} key={k}>
+                                        <TextField
+                                          select
+                                          fullWidth
+                                          size="small"
+                                          label="Fiscal Year"
+                                          value={v}
+                                          onChange={(e) => updatePayloadField(k, e.target.value)}
+                                          sx={{ "& .MuiSelect-select": { fontSize: "0.78rem" } }}
+                                        >
+                                          <MenuItem value="FY2026-27">FY2026-27 (Current)</MenuItem>
+                                          <MenuItem value="FY2025-26">FY2025-26 (Past Year)</MenuItem>
+                                          <MenuItem value="FY2027-28">FY2027-28 (Forecast)</MenuItem>
+                                        </TextField>
+                                      </Grid>
+                                    );
+                                  }
+                                  if (k === "plant_id") {
+                                    return (
+                                      <Grid item xs={12} sm={6} key={k}>
+                                        <TextField
+                                          select
+                                          fullWidth
+                                          size="small"
+                                          label="Recycler Extruder Plant"
+                                          value={v}
+                                          onChange={(e) => updatePayloadField(k, e.target.value)}
+                                          sx={{ "& .MuiSelect-select": { fontSize: "0.78rem" } }}
+                                        >
+                                          <MenuItem value="PLANT-OKHLA-EXTRUDER-02">PLANT-OKHLA-EXTRUDER-02 (Delhi)</MenuItem>
+                                          <MenuItem value="PLANT-SHAMSHABAD-01">PLANT-SHAMSHABAD-01 (Hyderabad)</MenuItem>
+                                          <MenuItem value="PLANT-VAPI-04">PLANT-VAPI-04 (Gujarat)</MenuItem>
+                                          <MenuItem value="PLANT-MANESAR-01">PLANT-MANESAR-01 (Haryana)</MenuItem>
+                                        </TextField>
+                                      </Grid>
+                                    );
+                                  }
+                                  return (
+                                    <Grid item xs={12} sm={6} key={k}>
+                                      <TextField
+                                        fullWidth
+                                        size="small"
+                                        label={k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                                        value={v}
+                                        type={typeof v === "number" ? "number" : "text"}
+                                        onChange={(e) => {
+                                          let val: any = e.target.value;
+                                          if (typeof v === "number" && !isNaN(Number(val)) && val.trim() !== "") {
+                                            val = Number(val);
+                                          }
+                                          updatePayloadField(k, val);
+                                        }}
+                                        sx={{ "& input": { fontSize: "0.78rem" } }}
+                                      />
+                                    </Grid>
+                                  );
+                                })}
+                              </Grid>
+                            </Box>
+                          );
+                        })()
+                      ) : (
+                        <TextField
+                          multiline
+                          rows={6}
+                          size="small"
+                          fullWidth
+                          value={playgroundPayload}
+                          onChange={(e) => setPlaygroundPayload(e.target.value)}
+                          sx={{
+                            "& textarea": {
+                              fontFamily: 'var(--font-mono, monospace)',
+                              fontSize: "0.76rem",
+                              lineHeight: 1.4,
+                            },
+                            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
+                          }}
+                        />
+                      )}
 
                       {/* Optional API Key Override (Collapsed Accordion) */}
                       <Accordion
@@ -1634,19 +2005,54 @@ export default function AgentConfigStudioPage() {
 
                   <Divider sx={{ my: 0.25 }} />
 
-                  {/* State 1: In Progress Loading */}
+                  {/* State 1: In Progress Loading with Animated Gemini Icon */}
                   {testing && (
                     <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", py: 5, gap: 2 }}>
-                      <CircularProgress size={36} sx={{ color: "#1A73E8" }} />
-                      <Box sx={{ textAlign: "center" }}>
-                        <Typography variant="body1" fontWeight={700}>
+                      <Box
+                        sx={{
+                          position: "relative",
+                          width: 58,
+                          height: 58,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: "50%",
+                          background: (t) =>
+                            t.palette.mode === "dark"
+                              ? "radial-gradient(circle, rgba(66, 133, 244, 0.25) 0%, rgba(155, 114, 203, 0.12) 60%, transparent 100%)"
+                              : "radial-gradient(circle, rgba(66, 133, 244, 0.18) 0%, rgba(155, 114, 203, 0.08) 60%, transparent 100%)",
+                          animation: "geminiPulse 2s ease-in-out infinite",
+                          "@keyframes geminiPulse": {
+                            "0%": { transform: "scale(0.95)", boxShadow: "0 0 0 0 rgba(66, 133, 244, 0.35)" },
+                            "50%": { transform: "scale(1.08)", boxShadow: "0 0 18px 4px rgba(155, 114, 203, 0.3)" },
+                            "100%": { transform: "scale(0.95)", boxShadow: "0 0 0 0 rgba(66, 133, 244, 0)" },
+                          },
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            animation: "geminiIconRotate 6s ease-in-out infinite",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            "@keyframes geminiIconRotate": {
+                              "0%": { transform: "rotate(0deg) scale(1)" },
+                              "50%": { transform: "rotate(180deg) scale(1.1)" },
+                              "100%": { transform: "rotate(360deg) scale(1)" },
+                            },
+                          }}
+                        >
+                          <GeminiIcon size={36} />
+                        </Box>
+                      </Box>
+                      <Box sx={{ textAlign: "center", maxWidth: 440 }}>
+                        <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.9rem" }}>
                           Dispatched Neural Inference to Gemini 3.8 Flash...
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
                           Evaluating statutory rules, cross-referencing ledger tables &amp; telemetry streams
                         </Typography>
                       </Box>
-                      <LinearProgress sx={{ width: "40%", borderRadius: 1 }} />
                     </Box>
                   )}
 

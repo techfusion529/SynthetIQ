@@ -30,10 +30,11 @@ function NavList({ mini, onNavigate }: { mini: boolean; onNavigate?: () => void 
   const railMuted = isDark ? "#8B98A5" : "#64748B";
   const railLine = isDark ? "rgba(255,255,255,0.08)" : "#E2E8F0";
   const railText = isDark ? "#C9D1D9" : "#334155";
-  const hoverBg = isDark ? "rgba(255,255,255,0.08)" : "#F1F5F9";
-  const selectedBg = isDark ? "rgba(139, 92, 246, 0.12)" : "rgba(124, 58, 237, 0.08)";
-  const selectedColor = isDark ? "#FFFFFF" : theme.palette.primary.main;
-  const selectedBorder = isDark ? theme.palette.primary.light : theme.palette.primary.main;
+  const googleBlue = "#1A73E8";
+  const hoverBg = isDark ? "rgba(26, 115, 232, 0.12)" : "rgba(26, 115, 232, 0.08)";
+  const selectedBg = isDark ? "rgba(26, 115, 232, 0.18)" : "rgba(26, 115, 232, 0.12)";
+  const selectedColor = isDark ? "#8AB4F8" : "#1A73E8";
+  const selectedBorder = "#1A73E8";
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -63,19 +64,29 @@ function NavList({ mini, onNavigate }: { mini: boolean; onNavigate?: () => void 
                       selected={selected}
                       aria-current={selected ? "page" : undefined}
                       sx={{
+                        borderRadius: "0px !important",
                         minHeight: 40,
                         px: mini ? 0 : 2.25,
                         justifyContent: mini ? "center" : "flex-start",
                         borderLeft: "3px solid transparent",
                         color: railText,
-                        "&:hover": { bgcolor: hoverBg },
+                        transition: "all 0.15s ease",
+                        "&:hover": {
+                          bgcolor: hoverBg,
+                          color: isDark ? "#8AB4F8" : "#1A73E8",
+                          "& .MuiListItemIcon-root": { color: isDark ? "#8AB4F8" : "#1A73E8" },
+                        },
                         "&.Mui-selected": {
                           bgcolor: selectedBg,
                           borderLeftColor: selectedBorder,
                           color: selectedColor,
-                          fontWeight: 600,
+                          fontWeight: 700,
+                          "& .MuiListItemIcon-root": { color: selectedColor },
                         },
-                        "&.Mui-selected:hover": { bgcolor: selectedBg },
+                        "&.Mui-selected:hover": {
+                          bgcolor: selectedBg,
+                          color: selectedColor,
+                        },
                       }}
                     >
                       <ListItemIcon sx={{ minWidth: mini ? 0 : 36, color: selected ? selectedColor : "inherit" }}>

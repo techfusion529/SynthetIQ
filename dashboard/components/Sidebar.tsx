@@ -88,16 +88,16 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              className={`flex items-center justify-between px-3.5 py-2.5 rounded-none text-sm font-medium transition-all ${
                 isActive
-                  ? "bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 shadow-sm shadow-indigo-500/10"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                  ? "bg-[#1A73E8]/15 text-[#1A73E8] border-l-4 border-l-[#1A73E8] font-semibold"
+                  : "text-slate-400 hover:text-[#1A73E8] hover:bg-[#1A73E8]/10"
               }`}
             >
               <div className="flex items-center space-x-3">
                 <Icon
                   className={`w-4 h-4 ${
-                    isActive ? "text-indigo-400" : item.highlight ? "text-cyan-400" : "text-slate-400"
+                    isActive ? "text-[#1A73E8]" : item.highlight ? "text-cyan-400" : "text-slate-400"
                   }`}
                 />
                 <span>{item.name}</span>

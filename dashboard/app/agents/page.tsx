@@ -311,7 +311,6 @@ export default function AgentsPage() {
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.75, pb: 2 }}>
       <PageHeader
         title="Multi-Agent Orchestration & Telemetry"
-        icon={<SmartToyIcon fontSize="medium" />}
         description="Zero-trust state machine coordinating System 2 LLM reasoning, TypeSafe Jev physics reflexes, and ERP transactions."
         actions={
           <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
@@ -528,60 +527,6 @@ export default function AgentsPage() {
               />
             </Tooltip>
           </Box>
-
-          {/* Active Run Executive Summary Ribbon */}
-          {selectedRun && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
-              <Chip
-                label={selectedRun.status}
-                variant="outlined"
-                color={isCompliant ? "success" : isRunning ? "info" : isHitl ? "warning" : "error"}
-                sx={{ fontWeight: 800, height: 26, fontSize: "0.75rem" }}
-              />
-              <Chip
-                label={`${selectedRun.volume_tons || 250} MT • ${selectedRun.category || "cat_i_rigid"}`}
-                variant="outlined"
-                size="small"
-                sx={{ fontWeight: 600, height: 26, fontSize: "0.75rem" }}
-              />
-              <Paper
-                variant="outlined"
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                  px: 1.5,
-                  py: 0.5,
-                  bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)"),
-                  borderRadius: 1.5,
-                }}
-              >
-                <Tooltip title="Total Runtime">
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <SpeedIcon sx={{ fontSize: 13, color: "text.secondary" }} />
-                    <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.78rem" }}>
-                      {totalRuntime} ms
-                    </Typography>
-                  </Box>
-                </Tooltip>
-                <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
-                <Tooltip title="Total Tokens">
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <TollIcon sx={{ fontSize: 13, color: "secondary.main" }} />
-                    <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.78rem", color: "secondary.main" }}>
-                      {totalTokens.toLocaleString()}
-                    </Typography>
-                  </Box>
-                </Tooltip>
-                <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
-                <Tooltip title="Total Run Cost">
-                  <Typography sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, fontSize: "0.78rem", color: "primary.main" }}>
-                    ₹{totalCostInr.toFixed(2)}
-                  </Typography>
-                </Tooltip>
-              </Paper>
-            </Box>
-          )}
         </Box>
       </Card>
 

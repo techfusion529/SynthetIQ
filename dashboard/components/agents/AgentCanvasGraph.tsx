@@ -200,19 +200,31 @@ export default function AgentCanvasGraph({
     if (isRunning) {
       const runningStep = selectedRun.steps?.find(
         (s) =>
-          s.status?.toUpperCase().includes("RUNNING") ||
-          s.status?.toUpperCase().includes("PROGRESS")
+          (s.status?.toUpperCase().includes("RUNNING") ||
+          s.status?.toUpperCase().includes("PROGRESS")) &&
+          !((s as any).output?.status === "VERIFIED" || (s as any).response?.status === "VERIFIED")
       );
       const firstUnfinished = selectedRun.steps?.find(
-        (s) => (s.status || "").toUpperCase() !== "COMPLETED"
+        (s) => (s.status || "").toUpperCase() !== "COMPLETED" &&
+          !((s as any).output?.status === "VERIFIED" || (s as any).response?.status === "VERIFIED")
       );
       const currentActiveStep = runningStep
         ? runningStep.step
         : firstUnfinished
         ? firstUnfinished.step
-        : (simulatedActiveStep > 0 ? simulatedActiveStep : 1);
+        : (simulatedActiveStep > 0 ? simulatedActiveStep : 7);
 
-      if (node.stepNumber < currentActiveStep) {
+      const nodeStepObj = selectedRun.steps?.find(
+        (s) => s.step === node.stepNumber || s.service === node.id
+      );
+      const nodeHasOutput = Boolean(
+        nodeStepObj?.status === "COMPLETED" ||
+        (nodeStepObj as any)?.output?.status === "VERIFIED" ||
+        (nodeStepObj as any)?.response?.status === "VERIFIED" ||
+        (node.stepNumber === 1 && ((nodeStepObj as any)?.output?.net_liability_tons || (nodeStepObj as any)?.response?.net_liability_tons))
+      );
+
+      if (nodeHasOutput || node.stepNumber < currentActiveStep) {
         return {
           status: "COMPLETED",
           metric: node.stepNumber === 1 ? `${selectedRun.volume_tons || 250} MT Net` : "Passed",
@@ -604,6 +616,14 @@ export default function AgentCanvasGraph({
               <stop offset="100%" stopColor="#D96570" />
             </linearGradient>
 
+            {/* Google Gemini Flowing Edge Gradient */}
+            <linearGradient id="geminiEdgeFlow" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#4285F4" />
+              <stop offset="35%" stopColor="#9B72CB" />
+              <stop offset="70%" stopColor="#D96570" />
+              <stop offset="100%" stopColor="#4285F4" />
+            </linearGradient>
+
             {/* Wire Gradients */}
             <linearGradient id="edgeGradRunning" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#4285F4" stopOpacity="0.4" />
@@ -663,28 +683,28 @@ export default function AgentCanvasGraph({
                   opacity={isWireActive ? 0.9 : 0.55}
                 />
 
-                {/* Flowing Energy Line when Active */}
+                {/* Flowing Energy Line when Active with Gemini Colors */}
                 {isWireFlowing && (
                   <path
                     d={wire.path}
                     fill="none"
-                    stroke="#8AB4F8"
-                    strokeWidth="2.2"
-                    strokeDasharray="6 6"
-                    opacity="0.9"
+                    stroke="url(#geminiEdgeFlow)"
+                    strokeWidth="2.8"
+                    strokeDasharray="8 6"
+                    opacity="1"
                     filter="url(#particleGlow)"
                   >
-                    <animate attributeName="stroke-dashoffset" values="24;0" dur="0.9s" repeatCount="indefinite" />
+                    <animate attributeName="stroke-dashoffset" values="28;0" dur="0.9s" repeatCount="indefinite" />
                   </path>
                 )}
 
-                {/* Smooth Traveling Particle Indicator */}
+                {/* Smooth Traveling Particle Indicator in Gemini Sparkle Colors */}
                 {isWireFlowing && (
                   <>
-                    <circle r="4" fill="#8AB4F8" filter="url(#particleGlow)">
+                    <circle r="4.5" fill="url(#geminiSparkleGrad)" filter="url(#particleGlow)">
                       <animateMotion path={wire.path} dur="1.3s" repeatCount="indefinite" />
                     </circle>
-                    <circle r="1.8" fill="#FFFFFF">
+                    <circle r="2" fill="#FFFFFF">
                       <animateMotion path={wire.path} dur="1.3s" repeatCount="indefinite" />
                     </circle>
                   </>

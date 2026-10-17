@@ -157,17 +157,19 @@ export default function AgentEventTimeline({
       // If genuinely running, find the active step dynamically
       const explicitRunningStep = selectedRun.steps.find(
         (step) =>
-          step.status?.toUpperCase().includes("RUNNING") ||
-          step.status?.toUpperCase().includes("PROGRESS")
+          (step.status?.toUpperCase().includes("RUNNING") ||
+          step.status?.toUpperCase().includes("PROGRESS")) &&
+          !((step as any).output?.status === "VERIFIED" || (step as any).response?.status === "VERIFIED")
       );
       const firstUnfinished = selectedRun.steps.find(
-        (step) => (step.status || "").toUpperCase() !== "COMPLETED"
+        (step) => (step.status || "").toUpperCase() !== "COMPLETED" &&
+          !((step as any).output?.status === "VERIFIED" || (step as any).response?.status === "VERIFIED")
       );
       const activeStep = explicitRunningStep
         ? explicitRunningStep.step
         : firstUnfinished
         ? firstUnfinished.step
-        : 1;
+        : 7;
 
       return selectedRun.steps.map((s) => {
         const bp = DEFAULT_STAGE_BLUEPRINT.find((b) => b.step === s.step || b.service === s.service);
@@ -176,7 +178,12 @@ export default function AgentEventTimeline({
         let runtime_ms = s.runtime_ms ?? (s.service === "scada_auditor" ? 45 : 120);
 
         if (isRunning) {
-          if (s.step < activeStep) {
+          const hasOutput = Boolean(
+            (s as any).output?.status === "VERIFIED" ||
+            (s as any).response?.status === "VERIFIED" ||
+            (s.step === 1 && ((s as any).output?.net_liability_tons || (s as any).response?.net_liability_tons))
+          );
+          if (s.status === "COMPLETED" || hasOutput || s.step < activeStep) {
             stepStatus = "COMPLETED";
           } else if (s.step === activeStep) {
             stepStatus = isHitl ? "PENDING_HITL_REVIEW" : (s.status?.toUpperCase().includes("RUNNING") ? s.status : "RUNNING");
@@ -383,7 +390,7 @@ export default function AgentEventTimeline({
               color: "#1A73E8",
             }}
           >
-            {isRunning ? <CircularProgress size={16} sx={{ color: "#1A73E8" }} /> : <ScheduleIcon sx={{ fontSize: 16 }} />}
+            <ScheduleIcon sx={{ fontSize: 16 }} />
           </Box>
           <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
             <Typography sx={{ fontWeight: 700, fontSize: "0.88rem", letterSpacing: "-0.01em" }}>
@@ -594,7 +601,11 @@ export default function AgentEventTimeline({
                     }}
                   >
                     {isCompleted && <CheckIcon sx={{ fontSize: 13, fontWeight: 900 }} />}
-                    {isStepRunning && <CircularProgress size={12} sx={{ color: "#1A73E8" }} />}
+                    {isStepRunning && (
+                      <Typography sx={{ fontSize: "0.62rem", fontWeight: 800, color: "#1A73E8" }}>
+                        {step.step}
+                      </Typography>
+                    )}
                     {isHitl && <WarningAmberIcon sx={{ fontSize: 13 }} />}
                     {isHalted && <ErrorIcon sx={{ fontSize: 13 }} />}
                     {isQueued && (

@@ -42,6 +42,7 @@ import SyncIcon from "@mui/icons-material/Sync";
 import SearchIcon from "@mui/icons-material/Search";
 import TuneIcon from "@mui/icons-material/Tune";
 import CloseIcon from "@mui/icons-material/Close";
+import CodeIcon from "@mui/icons-material/Code";
 import PageHeader from "@/components/ui/PageHeader";
 import { GoogleCloudIcon } from "@/components/icons/GoogleIcons";
 
@@ -158,6 +159,93 @@ export default function DataSourcesPage() {
     '{\n  "project_id": "synthetiq-dev",\n  "dataset_id": "epr_compliance",\n  "table_name": "sales_data"\n}'
   );
   const [saving, setSaving] = useState(false);
+
+  // Structured form states for Connection Config
+  const [showRawJsonConfig, setShowRawJsonConfig] = useState(false);
+  const [bqProjectId, setBqProjectId] = useState("synthetiq-dev");
+  const [bqDatasetId, setBqDatasetId] = useState("epr_compliance");
+  const [bqTableName, setBqTableName] = useState("sales_data");
+
+  const [pgHost, setPgHost] = useState("localhost");
+  const [pgPort, setPgPort] = useState(5432);
+  const [pgDatabase, setPgDatabase] = useState("erp_production");
+  const [pgUser, setPgUser] = useState("erp_readonly");
+  const [pgSecretRef, setPgSecretRef] = useState("projects/my-project/secrets/erp-db-password/versions/latest");
+
+  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.sap.corp.internal/odata/v4");
+  const [apiEndpoint, setApiEndpoint] = useState("/SalesOrders");
+  const [apiAuthToken, setApiAuthToken] = useState("Bearer ***");
+
+  const [csvDelimiter, setCsvDelimiter] = useState(",");
+
+  // Automatically sync configJson whenever structured fields change (when not in raw mode)
+  useEffect(() => {
+    if (showRawJsonConfig) return;
+    if (sourceType === "bigquery") {
+      setConfigJson(
+        JSON.stringify(
+          {
+            project_id: bqProjectId,
+            dataset_id: bqDatasetId,
+            table_name: bqTableName,
+          },
+          null,
+          2
+        )
+      );
+    } else if (sourceType === "postgresql") {
+      setConfigJson(
+        JSON.stringify(
+          {
+            host: pgHost,
+            port: Number(pgPort) || 5432,
+            database: pgDatabase,
+            user: pgUser,
+            secret_ref: pgSecretRef,
+          },
+          null,
+          2
+        )
+      );
+    } else if (sourceType === "rest_api") {
+      setConfigJson(
+        JSON.stringify(
+          {
+            base_url: apiBaseUrl,
+            endpoint: apiEndpoint,
+            auth_token: apiAuthToken,
+          },
+          null,
+          2
+        )
+      );
+    } else if (sourceType === "csv") {
+      setConfigJson(
+        JSON.stringify(
+          {
+            delimiter: csvDelimiter,
+          },
+          null,
+          2
+        )
+      );
+    }
+  }, [
+    sourceType,
+    showRawJsonConfig,
+    bqProjectId,
+    bqDatasetId,
+    bqTableName,
+    pgHost,
+    pgPort,
+    pgDatabase,
+    pgUser,
+    pgSecretRef,
+    apiBaseUrl,
+    apiEndpoint,
+    apiAuthToken,
+    csvDelimiter,
+  ]);
 
   // Test & Preview states
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -1316,28 +1404,203 @@ export default function DataSourcesPage() {
             size="small"
           />
 
-          {/* CSV note — no file path input */}
-          {sourceType === "csv" && (
-            <Alert severity="info" sx={{ fontSize: "0.85rem" }}>
-              Use the Upload tab to attach a CSV file.
-            </Alert>
-          )}
+          {/* Connection Parameters Header with Mode Toggle */}
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 0.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: "0.04em" }}>
+              CONNECTION PARAMETERS
+            </Typography>
+            <Button
+              size="small"
+              variant="text"
+              onClick={() => setShowRawJsonConfig(!showRawJsonConfig)}
+              sx={{ textTransform: "none", fontSize: "0.74rem", fontWeight: 600 }}
+            >
+              {showRawJsonConfig ? "Switch to Form Inputs" : "Edit Raw JSON"}
+            </Button>
+          </Box>
 
-          <TextField
-            label="Connection Configuration (JSON)"
-            value={configJson}
-            onChange={(e) => setConfigJson(e.target.value)}
-            multiline
-            rows={5}
-            fullWidth
-            size="small"
-            helperText={
-              sourceType === "bigquery" || sourceType === "rest_api"
-                ? "Secret reference (managed in Secret Manager) — do not paste raw credentials here."
-                : "Encrypted at rest. Credentials will be masked on export."
-            }
-            sx={{ "& textarea": { fontFamily: "monospace", fontSize: "0.85rem" } }}
-          />
+          {!showRawJsonConfig ? (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+              {sourceType === "bigquery" && (
+                <>
+                  <Grid container spacing={1.5}>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        label="GCP Project ID"
+                        value={bqProjectId}
+                        onChange={(e) => setBqProjectId(e.target.value)}
+                        placeholder="e.g. synthetiq-dev"
+                        fullWidth
+                        size="small"
+                        required
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        label="BigQuery Dataset ID"
+                        value={bqDatasetId}
+                        onChange={(e) => setBqDatasetId(e.target.value)}
+                        placeholder="e.g. epr_compliance"
+                        fullWidth
+                        size="small"
+                        required
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        label="Table / View Name"
+                        value={bqTableName}
+                        onChange={(e) => setBqTableName(e.target.value)}
+                        placeholder="e.g. sales_data"
+                        fullWidth
+                        size="small"
+                        required
+                      />
+                    </Grid>
+                  </Grid>
+                  <Alert severity="info" sx={{ fontSize: "0.78rem", py: 0.5 }}>
+                    Uses Google Application Default Credentials (ADC) / Workload Identity.
+                  </Alert>
+                </>
+              )}
+
+              {sourceType === "postgresql" && (
+                <Grid container spacing={1.5}>
+                  <Grid item xs={12} sm={8}>
+                    <TextField
+                      label="Host / Endpoint"
+                      value={pgHost}
+                      onChange={(e) => setPgHost(e.target.value)}
+                      placeholder="localhost or 10.0.0.5"
+                      fullWidth
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      label="Port"
+                      type="number"
+                      value={pgPort}
+                      onChange={(e) => setPgPort(Number(e.target.value) || 5432)}
+                      placeholder="5432"
+                      fullWidth
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Database Name"
+                      value={pgDatabase}
+                      onChange={(e) => setPgDatabase(e.target.value)}
+                      placeholder="erp_production"
+                      fullWidth
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Database Username"
+                      value={pgUser}
+                      onChange={(e) => setPgUser(e.target.value)}
+                      placeholder="erp_readonly"
+                      fullWidth
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="GCP Secret Manager Reference (Password)"
+                      value={pgSecretRef}
+                      onChange={(e) => setPgSecretRef(e.target.value)}
+                      placeholder="projects/my-proj/secrets/erp-db-password/versions/latest"
+                      fullWidth
+                      size="small"
+                      helperText="Encrypted at rest. Fetched dynamically at query runtime."
+                    />
+                  </Grid>
+                </Grid>
+              )}
+
+              {sourceType === "rest_api" && (
+                <Grid container spacing={1.5}>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Base API URL"
+                      value={apiBaseUrl}
+                      onChange={(e) => setApiBaseUrl(e.target.value)}
+                      placeholder="https://api.sap.corp.internal/odata/v4"
+                      fullWidth
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Endpoint Path"
+                      value={apiEndpoint}
+                      onChange={(e) => setApiEndpoint(e.target.value)}
+                      placeholder="/SalesOrders"
+                      fullWidth
+                      size="small"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Auth Token / Bearer Key"
+                      value={apiAuthToken}
+                      onChange={(e) => setApiAuthToken(e.target.value)}
+                      placeholder="Bearer eyJhbGciOi..."
+                      type="password"
+                      fullWidth
+                      size="small"
+                    />
+                  </Grid>
+                </Grid>
+              )}
+
+              {sourceType === "csv" && (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  <TextField
+                    select
+                    label="CSV Delimiter"
+                    value={csvDelimiter}
+                    onChange={(e) => setCsvDelimiter(e.target.value)}
+                    size="small"
+                    fullWidth
+                  >
+                    <MenuItem value=",">Comma (,)</MenuItem>
+                    <MenuItem value=";">Semicolon (;)</MenuItem>
+                    <MenuItem value="\t">Tab (\t)</MenuItem>
+                    <MenuItem value="|">Pipe (|)</MenuItem>
+                  </TextField>
+                  <Alert severity="info" sx={{ fontSize: "0.82rem" }}>
+                    Once created, use the &quot;Upload CSV&quot; button in the table to upload files.
+                  </Alert>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <TextField
+              label="Connection Configuration (JSON)"
+              value={configJson}
+              onChange={(e) => setConfigJson(e.target.value)}
+              multiline
+              rows={5}
+              fullWidth
+              size="small"
+              helperText={
+                sourceType === "bigquery" || sourceType === "rest_api"
+                  ? "Secret reference (managed in Secret Manager) — do not paste raw credentials here."
+                  : "Encrypted at rest. Credentials will be masked on export."
+              }
+              sx={{ "& textarea": { fontFamily: "monospace", fontSize: "0.85rem" } }}
+            />
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setModalOpen(false)}>Cancel</Button>

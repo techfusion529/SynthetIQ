@@ -444,26 +444,40 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
         except Exception:
             pass
 
+        stage_reached: int | None = None
+        scheduled_id_to_name: dict[int, str] = {}
+        completed_activities: set[str] = set()
+        started_activities: set[str] = set()
         try:
             client = await temporal_service.get_client()
             handle = client.get_workflow_handle(row.temporal_workflow_id)
+
+            # Query real-time workflow status
+            try:
+                audit_query = await handle.query("get_audit_status")
+                if isinstance(audit_query, dict) and "stage_reached" in audit_query:
+                    stage_reached = int(audit_query.get("stage_reached") or 0)
+            except Exception:
+                pass
+
             async for ev in handle.fetch_history_events():
-                ev_type = getattr(ev, "event_type", None)
-                ev_str = str(ev_type) if ev_type else ""
-                if "ACTIVITY_TASK" in ev_str:
-                    attrs = (
-                        getattr(ev, "activity_task_scheduled_event_attributes", None)
-                        or getattr(ev, "activity_task_completed_event_attributes", None)
-                        or getattr(ev, "activity_task_started_event_attributes", None)
-                    )
-                    act_type = getattr(attrs, "activity_type", None)
-                    act_name = getattr(act_type, "name", "") if act_type else ""
-                    if act_name:
-                        t_dt = ev.event_time.ToDatetime() if hasattr(ev, "event_time") and hasattr(ev.event_time, "ToDatetime") else None
-                        temporal_events_map[act_name] = {
-                            "timestamp": t_dt.isoformat() if t_dt else None,
-                            "event_id": str(getattr(ev, "event_id", "")),
-                        }
+                ev_str = str(getattr(ev, "event_type", ""))
+                sched_attr = getattr(ev, "activity_task_scheduled_event_attributes", None)
+                if sched_attr and getattr(sched_attr, "activity_type", None) and sched_attr.activity_type.name:
+                    act_name = sched_attr.activity_type.name
+                    ev_id = getattr(ev, "event_id", 0)
+                    scheduled_id_to_name[ev_id] = act_name
+                    started_activities.add(act_name)
+                    t_dt = ev.event_time.ToDatetime() if hasattr(ev, "event_time") and hasattr(ev.event_time, "ToDatetime") else None
+                    temporal_events_map[act_name] = {
+                        "timestamp": t_dt.isoformat() if t_dt else None,
+                        "event_id": str(ev_id),
+                    }
+                comp_attr = getattr(ev, "activity_task_completed_event_attributes", None)
+                if comp_attr and getattr(comp_attr, "scheduled_event_id", None):
+                    sched_id = comp_attr.scheduled_event_id
+                    if sched_id in scheduled_id_to_name:
+                        completed_activities.add(scheduled_id_to_name[sched_id])
         except Exception as exc:
             logger.debug(f"Temporal history query skipped for {row.run_id}: {exc}")
 
@@ -476,19 +490,42 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
 
     is_fully_done = status in ("COMPLETED", "SUCCESS_FULLY_COMPLIANT")
     active_step = 7 if is_fully_done else 1
+
     if not is_fully_done and not is_hitl and not is_halted:
-        if "generate_and_dispatch_form1_activity" in temporal_events_map:
+        if "generate_and_dispatch_form1_activity" in completed_activities:
             active_step = 7
-        elif "create_escrow_split_po_activity" in temporal_events_map:
+            is_fully_done = True
+        elif "generate_and_dispatch_form1_activity" in started_activities or "create_escrow_split_po_activity" in completed_activities:
+            active_step = 7
+        elif "create_escrow_split_po_activity" in started_activities or "evaluate_gemini_forensics_activity" in completed_activities:
             active_step = 6
-        elif "audit_scada_telemetry_activity" in temporal_events_map:
+        elif "evaluate_gemini_forensics_activity" in started_activities or "audit_scada_telemetry_activity" in completed_activities:
             active_step = 5
-        elif "execute_double_auction_activity" in temporal_events_map:
+        elif "audit_scada_telemetry_activity" in started_activities or "execute_double_auction_activity" in completed_activities:
             active_step = 4
-        elif "parse_regulatory_rules_activity" in temporal_events_map:
+        elif "execute_double_auction_activity" in started_activities or "parse_regulatory_rules_activity" in completed_activities:
             active_step = 3
-        elif "calculate_brand_liability_activity" in temporal_events_map:
+        elif "parse_regulatory_rules_activity" in started_activities or "calculate_brand_liability_activity" in completed_activities:
             active_step = 2
+        elif "calculate_brand_liability_activity" in started_activities:
+            active_step = 1
+        elif stage_reached is not None:
+            active_step = min(7, max(1, stage_reached + 1))
+        elif run_result.get("liability"):
+            # Output for step 1 is verified; advance to step 2 or check further
+            if run_result.get("form1"):
+                active_step = 7
+                is_fully_done = True
+            elif run_result.get("po"):
+                active_step = 7
+            elif run_result.get("audit"):
+                active_step = 6
+            elif run_result.get("auction"):
+                active_step = 4
+            elif run_result.get("rules"):
+                active_step = 3
+            else:
+                active_step = 2
 
     def _get_step_status(step_num: int, default_done: str = "COMPLETED") -> str:
         if is_halted:

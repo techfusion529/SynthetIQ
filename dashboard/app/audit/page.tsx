@@ -44,10 +44,11 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DownloadIcon from "@mui/icons-material/Download";
 import CheckIcon from "@mui/icons-material/Check";
 import GavelIcon from "@mui/icons-material/Gavel";
+import { useTheme } from "@mui/material/styles";
 import PageHeader from "@/components/ui/PageHeader";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip as RTooltip,
-  ResponsiveContainer, ReferenceLine,
+  ResponsiveContainer, ReferenceLine, CartesianGrid,
 } from "recharts";
 
 import { useAuditService } from "../lib/hooks/useServices";
@@ -134,22 +135,32 @@ export default function AuditPage() {
     setDownloadingPdf(auditId);
     try {
       const targetId = auditId || auditHash || "";
-      const token = typeof window !== "undefined" ? localStorage.getItem("synthetiq_token") : null;
-      const res = await fetch(`${API_BASE}/api/v1/audit/report/${encodeURIComponent(targetId)}/pdf`, {
+      const token = typeof window !== "undefined"
+        ? (localStorage.getItem("synthetiq_auth_token") || localStorage.getItem("synthetiq_token"))
+        : null;
+      const downloadUrl = `${API_BASE}/api/v1/audit/report/${encodeURIComponent(targetId)}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+      const res = await fetch(downloadUrl, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error("PDF generation failed");
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
+      const pdfBlob = new Blob([blob], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(pdfBlob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `CPCB_Form1_Audit_${auditId || "Certificate"}.pdf`;
+      a.download = `CPCB_Form1_Audit_${targetId || "Certificate"}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     } catch {
-      window.open(`${API_BASE}/api/v1/audit/report/${encodeURIComponent(auditId)}/pdf`, "_blank");
+      const token = typeof window !== "undefined"
+        ? (localStorage.getItem("synthetiq_auth_token") || localStorage.getItem("synthetiq_token"))
+        : null;
+      window.open(
+        `${API_BASE}/api/v1/audit/report/${encodeURIComponent(auditId)}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`,
+        "_blank"
+      );
     } finally {
       setDownloadingPdf(null);
     }
@@ -245,6 +256,8 @@ export default function AuditPage() {
   const torqueGood = torqueNm != null ? torqueNm >= 8.0 : undefined;
   const isGenuine  = liveData ? !liveData.jev_evaluation.is_spoofed : mode === "GENUINE";
   const chartColor = isGenuine ? "#06b6d4" : "#f43f5e";
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
@@ -351,7 +364,16 @@ export default function AuditPage() {
             />
           </Box>
 
-          <Box sx={{ height: 220, bgcolor: "#030712", border: "1px solid rgba(148,163,184,0.15)", borderRadius: 2, p: 1 }}>
+          <Box
+            sx={{
+              height: 220,
+              bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(15, 23, 42, 0.65)" : "#F8FAFC"),
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              p: 1.5,
+            }}
+          >
             {streamPoints.length === 0 ? (
               <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <CircularProgress size={24} color="secondary" />
@@ -359,14 +381,28 @@ export default function AuditPage() {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={streamPoints}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "rgba(255,255,255,0.06)" : "#E2E8F0"} />
                   <XAxis dataKey="t" hide />
-                  <YAxis domain={[0, 100]} tick={{ fill: "#475569", fontSize: 10 }} width={32} />
+                  <YAxis domain={[0, 100]} tick={{ fill: isDark ? "#94A3B8" : "#64748B", fontSize: 10 }} width={32} />
                   <RTooltip
-                    contentStyle={{ background: "#0f172a", border: "1px solid rgba(148,163,184,0.12)", borderRadius: 6, fontSize: 11 }}
+                    contentStyle={{
+                      background: isDark ? "#1E293B" : "#FFFFFF",
+                      border: "1px solid",
+                      borderColor: isDark ? "rgba(255,255,255,0.12)" : "#E2E8F0",
+                      borderRadius: 8,
+                      fontSize: 11,
+                      color: isDark ? "#F8FAFC" : "#0F172A",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    }}
                     formatter={(v: any) => [`${v} Nm`, "Torque"]}
                     labelFormatter={() => ""}
                   />
-                  <ReferenceLine y={8} stroke="#f43f5e" strokeDasharray="3 3" label={{ value: "Min Threshold (8 Nm)", fill: "#f43f5e", fontSize: 10, position: "insideTopRight" }} />
+                  <ReferenceLine
+                    y={8}
+                    stroke="#f43f5e"
+                    strokeDasharray="3 3"
+                    label={{ value: "Min Threshold (8 Nm)", fill: "#f43f5e", fontSize: 10, position: "insideTopRight" }}
+                  />
                   <Line type="monotone" dataKey="nm" stroke={chartColor} strokeWidth={2.5} dot={false} isAnimationActive={false} />
                 </LineChart>
               </ResponsiveContainer>
@@ -491,6 +527,7 @@ export default function AuditPage() {
                               <Chip
                                 label={v.audit_verdict}
                                 size="small"
+                                variant="outlined"
                                 color={verdictColor}
                                 sx={{ height: 20, fontSize: "0.65rem", fontWeight: 800 }}
                               />
@@ -665,9 +702,18 @@ export default function AuditPage() {
               severity={isVerdictApproved(auditResult.audit_verdict) ? "success" : "error"}
               sx={{ mt: 1 }}
             >
-              <Typography variant="subtitle2" fontWeight={800}>
-                Audit Verdict: {auditResult.audit_verdict}
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography variant="subtitle2" fontWeight={800}>
+                  Audit Verdict:
+                </Typography>
+                <Chip
+                  label={auditResult.audit_verdict}
+                  size="small"
+                  variant="outlined"
+                  color={isVerdictApproved(auditResult.audit_verdict) ? "success" : "error"}
+                  sx={{ height: 20, fontSize: "0.68rem", fontWeight: 800 }}
+                />
+              </Box>
               <Typography variant="caption" display="block" color="text.secondary">
                 Audit ID: {auditResult.audit_id} • Confidence: {Math.round((auditResult.confidence_score ?? 0.98) * 100)}%
               </Typography>

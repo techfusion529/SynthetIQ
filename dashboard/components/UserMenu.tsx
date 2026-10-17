@@ -65,7 +65,8 @@ export default function UserMenu() {
           sx={{
             width: 34,
             height: 34,
-            bgcolor: "primary.main",
+            bgcolor: (t) => (t.palette.mode === "dark" ? "#3C4043" : "#5F6368"),
+            color: "#FFFFFF",
             fontSize: "0.85rem",
             fontWeight: 700,
             border: "1.5px solid",
@@ -112,6 +113,9 @@ export default function UserMenu() {
 
         {/* Theme mode toggle switch */}
         <Box
+          component="div"
+          role="button"
+          tabIndex={0}
           sx={{
             px: 2,
             py: 1.25,
@@ -120,8 +124,12 @@ export default function UserMenu() {
             justifyContent: "space-between",
             "&:hover": { bgcolor: "action.hover" },
             cursor: "pointer",
+            outline: "none",
           }}
-          onClick={toggleColorMode}
+          onClick={(e) => {
+            e.preventDefault();
+            toggleColorMode();
+          }}
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
             {mode === "dark" ? (
@@ -139,7 +147,7 @@ export default function UserMenu() {
           <Switch
             size="small"
             checked={mode === "dark"}
-            onChange={toggleColorMode}
+            sx={{ pointerEvents: "none" }}
             inputProps={{ "aria-label": "Toggle dark theme" }}
           />
         </Box>

@@ -60,6 +60,19 @@ PERMISSIONS: dict[str, set[str]] = {
         "audits:read", "audits:write",
         "config:read",
     },
+    "brand_owner": {
+        "orgs:read",
+        "workflows:read", "workflows:execute",
+        "audits:read",
+        "config:read",
+        "datasources:read",
+    },
+    "recycler": {
+        "orgs:read",
+        "workflows:read", "workflows:execute",
+        "audits:read",
+        "config:read",
+    },
     "viewer": {
         "orgs:read",
         "workflows:read",

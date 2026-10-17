@@ -41,6 +41,7 @@ import { PoweredByGemini, GeminiIcon } from "@/components/icons/GoogleIcons";
 import AgentCanvasGraph from "@/components/agents/AgentCanvasGraph";
 import AgentEventTimeline from "@/components/agents/AgentEventTimeline";
 import AgentNodeDetailPanel from "@/components/agents/AgentNodeDetailPanel";
+import HumanApprovalModal from "@/components/HumanApprovalModal";
 import { useComplianceService, useConfigService, useAuditService } from "../lib/hooks/useServices";
 import { useNotification } from "../lib/contexts/NotificationContext";
 import { useOrganization } from "../lib/contexts/OrganizationContext";
@@ -81,6 +82,9 @@ export default function AgentsPage() {
   const selectedRunRef = useRef<E2ERunResult | null>(null);
   selectedRunRef.current = selectedRun;
 
+  // ── HITL Modal State ───────────────────────────────────────────────────────
+  const [hitlModalOpen, setHitlModalOpen] = useState(false);
+
   // ── Trigger Autonomous Run Modal State ──────────────────────────────────────
   const [triggerOpen, setTriggerOpen] = useState(false);
   const [triggerCategory, setTriggerCategory] = useState("cat_i_rigid");
@@ -97,9 +101,21 @@ export default function AgentsPage() {
         complianceSvc.getRunEvents(runId).catch(() => null),
       ]);
       if (full) {
+        const rawSteps = (eventsData?.events && eventsData.events.length > 0 ? eventsData.events : ((full as any).events?.length ? (full as any).events : full.steps)) || [];
+        const allCompleted = rawSteps.length === 7 && rawSteps.every((s: any) => (s.status || "").toUpperCase() === "COMPLETED");
+
+        let resolvedStatus = eventsData?.status || full.status;
+        if (allCompleted && (resolvedStatus === "RUNNING" || resolvedStatus === "PENDING")) {
+          resolvedStatus = "SUCCESS_FULLY_COMPLIANT";
+        }
+
+        const isHitlRequired = Boolean((eventsData as any)?.hitl_required ?? full.hitl_required ?? resolvedStatus.includes("HITL"));
+
         return {
           ...full,
-          steps: eventsData?.events && eventsData.events.length > 0 ? eventsData.events : full.steps || [],
+          status: resolvedStatus,
+          hitl_required: isHitlRequired,
+          steps: rawSteps,
           total_runtime_ms: eventsData?.total_runtime_ms ?? full.total_runtime_ms,
           total_tokens: eventsData?.total_tokens ?? full.total_tokens,
           total_cost_usd: eventsData?.total_cost_usd ?? full.total_cost_usd,
@@ -158,6 +174,13 @@ export default function AgentsPage() {
         const detailed = await fetchRunDetails(targetId, found);
         if (detailed) {
           setSelectedRun(detailed);
+          setRuns((prev) =>
+            prev.map((r) =>
+              r.run_id === detailed.run_id
+                ? { ...r, status: detailed.status, hitl_required: detailed.hitl_required }
+                : r
+            )
+          );
         }
       }
     } catch {
@@ -275,9 +298,14 @@ export default function AgentsPage() {
   const totalRuntime = selectedRun?.total_runtime_ms || Math.round((selectedRun?.duration_seconds || 1.28) * 1000);
   const totalTokens = selectedRun?.total_tokens || 4240;
   const totalCostInr = selectedRun?.total_cost_inr || 0.49;
-  const isCompliant = selectedRun?.status === "SUCCESS_FULLY_COMPLIANT";
-  const isHitl = selectedRun?.hitl_required || (selectedRun?.status || "").includes("HITL");
-  const isRunning = (selectedRun?.status || "").toUpperCase() === "RUNNING" || (selectedRun?.status || "").toUpperCase() === "PENDING";
+  const isCompliant = selectedRun?.status === "SUCCESS_FULLY_COMPLIANT" || selectedRun?.status === "COMPLETED";
+  const isHitl = Boolean(selectedRun?.hitl_required || (selectedRun?.status || "").includes("HITL"));
+  const allStepsCompleted = Boolean(
+    selectedRun?.steps &&
+    selectedRun.steps.length === 7 &&
+    selectedRun.steps.every((s) => (s.status || "").toUpperCase() === "COMPLETED")
+  );
+  const isRunning = !allStepsCompleted && ((selectedRun?.status || "").toUpperCase() === "RUNNING" || (selectedRun?.status || "").toUpperCase() === "PENDING");
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.75, pb: 2 }}>
@@ -557,6 +585,45 @@ export default function AgentsPage() {
         </Box>
       </Card>
 
+      {/* ── Active HITL Exception Alert Banner ─────────────────────────────────── */}
+      {isHitl && (
+        <Alert
+          severity="warning"
+          icon={<WarningAmberIcon fontSize="medium" />}
+          sx={{
+            borderRadius: 2,
+            border: "1px solid",
+            borderColor: "warning.main",
+            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(245, 158, 11, 0.12)" : "#FFFBEB"),
+            py: 1.25,
+            px: 2,
+            alignItems: "center",
+            "& .MuiAlert-message": { width: "100%" },
+          }}
+          action={
+            <Button
+              variant="contained"
+              color="warning"
+              size="small"
+              onClick={() => setHitlModalOpen(true)}
+              sx={{ fontWeight: 700, textTransform: "none", whiteSpace: "nowrap" }}
+            >
+              Review & Authorize / Reject
+            </Button>
+          }
+        >
+          <Box>
+            <Typography variant="subtitle2" fontWeight={700} color="warning.main">
+              Action Required: Human-in-the-Loop Compliance Audit Exception ({selectedRun?.run_id})
+            </Typography>
+            <Typography variant="body2" sx={{ color: "text.primary", mt: 0.25, fontSize: "0.82rem" }}>
+              Extruder SCADA physics mass balance variance or sensor anomaly detected at Stage 4.
+              The zero-trust Temporal pipeline is paused awaiting authorized officer sign-off before Escrow settlement (80/20) and CPCB Form-1 filing.
+            </Typography>
+          </Box>
+        </Alert>
+      )}
+
       {/* Main Orchestration Workspace: Full Width Canvas or Shrunk Canvas + Right Detail Panel */}
       <Grid container spacing={1.5} alignItems="stretch">
         {/* Visual Interactive Agent Graph Canvas */}
@@ -649,9 +716,9 @@ export default function AgentsPage() {
               p: 1.5,
               borderRadius: 1.5,
               border: 1,
-              borderColor: triggerSimulateSpoof ? "error.main" : "divider",
+              borderColor: triggerSimulateSpoof ? "warning.main" : "divider",
               bgcolor: triggerSimulateSpoof
-                ? (t) => (t.palette.mode === "dark" ? "rgba(239, 68, 68, 0.12)" : "#FEF2F2")
+                ? (t) => (t.palette.mode === "dark" ? "rgba(245, 158, 11, 0.12)" : "#FFFBEB")
                 : (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#F8FAFC"),
               display: "flex",
               alignItems: "center",
@@ -659,17 +726,17 @@ export default function AgentsPage() {
             }}
           >
             <Box>
-              <Typography variant="body2" fontWeight={700} color={triggerSimulateSpoof ? "error.main" : "text.primary"}>
-                Simulate SCADA Sensor Fraud Injection
+              <Typography variant="body2" fontWeight={700} color={triggerSimulateSpoof ? "warning.main" : "text.primary"}>
+                Simulate Physics Anomaly / Fraud Exception (Triggers HITL Review Gate)
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Injects pure resistive space-heater load (PF 0.99, torque &lt; 2 Nm) to test instant halt reflex.
+                Injects pure resistive heater load and mass discrepancy (&gt;2%), pausing the Temporal state machine at Stage 4 for authorized compliance officer review.
               </Typography>
             </Box>
             <Switch
               checked={triggerSimulateSpoof}
               onChange={(e) => setTriggerSimulateSpoof(e.target.checked)}
-              color="error"
+              color="warning"
             />
           </Box>
         </DialogContent>
@@ -680,7 +747,7 @@ export default function AgentsPage() {
           </Button>
           <Button
             variant="contained"
-            color={triggerSimulateSpoof ? "error" : "primary"}
+            color={triggerSimulateSpoof ? "warning" : "primary"}
             startIcon={triggerLoading ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
             onClick={handleLaunchAgentRun}
             disabled={triggerLoading}
@@ -690,6 +757,14 @@ export default function AgentsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ── Human-in-the-Loop Approval Modal ─────────────────────────────────── */}
+      <HumanApprovalModal
+        open={hitlModalOpen}
+        runId={selectedRun?.run_id || null}
+        onClose={() => setHitlModalOpen(false)}
+        onResolved={pollLatestRuns}
+      />
     </Box>
   );
 }

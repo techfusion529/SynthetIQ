@@ -140,7 +140,14 @@ export default function AgentCanvasGraph({
   onSelectNode,
 }: AgentCanvasGraphProps) {
   const runStatus = (selectedRun?.status || "").toUpperCase();
-  const isRunning = runStatus.includes("RUNNING") || runStatus.includes("PENDING");
+  const allStepsCompleted = Boolean(
+    selectedRun?.steps &&
+    selectedRun.steps.length === 7 &&
+    selectedRun.steps.every((s) => (s.status || "").toUpperCase() === "COMPLETED")
+  );
+  const isRunning =
+    !allStepsCompleted &&
+    (runStatus.includes("RUNNING") || runStatus.includes("PENDING"));
   const theme = useTheme();
   const isLight = theme.palette.mode === "light";
 
@@ -158,7 +165,6 @@ export default function AgentCanvasGraph({
     // Only initialize to step 1 when switching to a completely new run
     if (selectedRun?.run_id !== prevRunIdRef.current) {
       prevRunIdRef.current = selectedRun?.run_id || null;
-      setSimulatedActiveStep(1);
     }
 
     // If real steps exist with an active status, sync with it
@@ -167,22 +173,12 @@ export default function AgentCanvasGraph({
         s.status?.toUpperCase().includes("RUNNING") ||
         s.status?.toUpperCase().includes("PROGRESS")
     );
-    if (runningStep) {
-      setSimulatedActiveStep(runningStep.step);
-      return;
-    }
-
-    // Smooth stage sequencer that does NOT reset on every poll
-    const interval = setInterval(() => {
-      setSimulatedActiveStep((prev) => {
-        if (prev <= 0) return 1;
-        if (prev >= 7) return 7;
-        return prev + 1;
-      });
-    }, 2200);
-
-    return () => clearInterval(interval);
-  }, [selectedRun?.run_id, isRunning, selectedRun?.steps?.length]);
+    const firstUnfinished = selectedRun?.steps?.find(
+      (s) => (s.status || "").toUpperCase() !== "COMPLETED"
+    );
+    const active = runningStep ? runningStep.step : (firstUnfinished ? firstUnfinished.step : 1);
+    setSimulatedActiveStep(active);
+  }, [selectedRun?.run_id, isRunning, selectedRun?.steps]);
 
   // Robust per-node telemetry resolution with zero polling flickering
   const getNodeState = (node: AgentNodeDef): NodeTelemetry => {
@@ -200,14 +196,21 @@ export default function AgentCanvasGraph({
     const isHitl = Boolean(selectedRun.hitl_required || runStatus.includes("HITL"));
     const isHalted = runStatus.includes("HALT") || runStatus.includes("FRAUD");
 
-    // If workflow is actively running, determine state sequentially so canvas never contradicts timeline
+    // If workflow is actively running, determine state sequentially in lockstep with timeline
     if (isRunning) {
       const runningStep = selectedRun.steps?.find(
         (s) =>
           s.status?.toUpperCase().includes("RUNNING") ||
           s.status?.toUpperCase().includes("PROGRESS")
       );
-      const currentActiveStep = runningStep ? runningStep.step : (simulatedActiveStep > 0 ? simulatedActiveStep : 3);
+      const firstUnfinished = selectedRun.steps?.find(
+        (s) => (s.status || "").toUpperCase() !== "COMPLETED"
+      );
+      const currentActiveStep = runningStep
+        ? runningStep.step
+        : firstUnfinished
+        ? firstUnfinished.step
+        : (simulatedActiveStep > 0 ? simulatedActiveStep : 1);
 
       if (node.stepNumber < currentActiveStep) {
         return {
@@ -221,9 +224,11 @@ export default function AgentCanvasGraph({
       }
       if (node.stepNumber === currentActiveStep) {
         return {
-          status: "RUNNING",
+          status: isHitl ? "HITL" : "RUNNING",
           metric:
-            node.id === "brand_liability"
+            isHitl
+              ? "Awaiting Human Sign-off..."
+              : node.id === "brand_liability"
               ? "Querying ERP Debt..."
               : node.id === "regulatory_watchdog"
               ? "Parsing Gazette..."

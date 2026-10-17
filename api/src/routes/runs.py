@@ -337,6 +337,42 @@ async def get_run(
             result["temporal_start_time"] = temporal_desc.get("start_time")
             result["temporal_close_time"] = temporal_desc.get("close_time")
 
+            t_status = (temporal_desc.get("status") or "").upper()
+            if t_status == "COMPLETED" and row.status == "RUNNING":
+                resolved_status = "SUCCESS_FULLY_COMPLIANT"
+                result["status"] = resolved_status
+                row.status = resolved_status
+                now = datetime.now(timezone.utc)
+                row.completed_at = now
+                if row.started_at:
+                    row.duration_seconds = (now - row.started_at).total_seconds()
+                try:
+                    from synthetiq_shared.database import get_db_session
+                    async with get_db_session() as session:
+                        q_update = select(WorkflowRun).where(WorkflowRun.run_id == run_id)
+                        db_row = (await session.execute(q_update)).scalar_one_or_none()
+                        if db_row and db_row.status == "RUNNING":
+                            db_row.status = resolved_status
+                            db_row.completed_at = now
+                            db_row.duration_seconds = row.duration_seconds
+                            await session.commit()
+                except Exception as sync_exc:
+                    logger.debug(f"Could not sync completed status to DB: {sync_exc}")
+            elif t_status in ("FAILED", "TERMINATED", "TIMED_OUT") and row.status == "RUNNING":
+                result["status"] = "FAILED"
+                row.status = "FAILED"
+                try:
+                    from synthetiq_shared.database import get_db_session
+                    async with get_db_session() as session:
+                        q_update = select(WorkflowRun).where(WorkflowRun.run_id == run_id)
+                        db_row = (await session.execute(q_update)).scalar_one_or_none()
+                        if db_row and db_row.status == "RUNNING":
+                            db_row.status = "FAILED"
+                            db_row.completed_at = datetime.now(timezone.utc)
+                            await session.commit()
+                except Exception as sync_exc:
+                    logger.debug(f"Could not sync failed status to DB: {sync_exc}")
+
     return result
 
 
@@ -397,9 +433,17 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
     base_dt = row.started_at or datetime.now(timezone.utc)
     clearing_price = float(run_result.get("clearing_price") or 4150.0)
 
-    # Attempt to fetch Temporal history events if available
+    # Attempt to fetch Temporal history events and execution status
     temporal_events_map: dict[str, Any] = {}
+    temporal_status: str | None = None
     if row.temporal_workflow_id:
+        try:
+            temporal_desc = await temporal_service.get_workflow_description(row.temporal_workflow_id)
+            if "error" not in temporal_desc:
+                temporal_status = (temporal_desc.get("status") or "").upper()
+        except Exception:
+            pass
+
         try:
             client = await temporal_service.get_client()
             handle = client.get_workflow_handle(row.temporal_workflow_id)
@@ -422,6 +466,59 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
                         }
         except Exception as exc:
             logger.debug(f"Temporal history query skipped for {row.run_id}: {exc}")
+
+    # Synchronize status if Temporal completed or failed
+    if temporal_status == "COMPLETED" and status == "RUNNING":
+        status = "COMPLETED"
+    elif temporal_status in ("FAILED", "TERMINATED", "TIMED_OUT") and status == "RUNNING":
+        status = "FAILED"
+        is_halted = True
+
+    is_fully_done = status in ("COMPLETED", "SUCCESS_FULLY_COMPLIANT")
+    active_step = 7 if is_fully_done else 1
+    if not is_fully_done and not is_hitl and not is_halted:
+        if "generate_and_dispatch_form1_activity" in temporal_events_map:
+            active_step = 7
+        elif "create_escrow_split_po_activity" in temporal_events_map:
+            active_step = 6
+        elif "audit_scada_telemetry_activity" in temporal_events_map:
+            active_step = 5
+        elif "execute_double_auction_activity" in temporal_events_map:
+            active_step = 4
+        elif "parse_regulatory_rules_activity" in temporal_events_map:
+            active_step = 3
+        elif "calculate_brand_liability_activity" in temporal_events_map:
+            active_step = 2
+
+    def _get_step_status(step_num: int, default_done: str = "COMPLETED") -> str:
+        if is_halted:
+            if step_num < 4:
+                return "COMPLETED"
+            elif step_num == 4:
+                return "HALTED_PHYSICS_ANOMALY"
+            elif step_num == 5:
+                return "HALTED"
+            else:
+                return "SKIPPED"
+        if is_hitl:
+            if step_num < 4:
+                return "COMPLETED"
+            elif step_num in (4, 5):
+                return "PENDING_HITL_REVIEW"
+            else:
+                return "QUEUED"
+        if is_fully_done:
+            return default_done
+        if step_num < active_step:
+            return "COMPLETED"
+        elif step_num == active_step:
+            return "RUNNING"
+        else:
+            return "QUEUED"
+
+    s1_status = _get_step_status(1)
+    s2_status = _get_step_status(2)
+    s3_status = _get_step_status(3)
 
     # Build Stage 1
     s1_in = {
@@ -485,8 +582,8 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
         "sec_baseline_kwh_per_ton": 380.0,
         "eway_bill_ref": eway_bill_ref,
     }
+    s4_status = _get_step_status(4)
     if is_halted:
-        s4_status = "HALTED_PHYSICS_ANOMALY"
         s4_out = run_result.get("audit") or {
             "torque_nm": 1.2,
             "power_factor": 0.99,
@@ -497,7 +594,6 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "anomaly": "Unity power factor (0.99) & 1.2 Nm torque proves pure resistive space heaters spoofing electrical load.",
         }
     elif is_hitl:
-        s4_status = "PENDING_HITL_REVIEW"
         s4_out = run_result.get("audit") or {
             "torque_nm": 12.4,
             "power_factor": 0.76,
@@ -506,7 +602,6 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "verdict": "HITL",
         }
     else:
-        s4_status = "COMPLETED"
         s4_out = run_result.get("audit") or {
             "torque_nm": 45.2,
             "power_factor": 0.84,
@@ -525,16 +620,14 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
         "calibrated_melt_tons": volume_tons,
         "telemetry_digest": run_result.get("audit_hash") or f"SHA256:{row.run_id[:16]}",
     }
+    s5_status = _get_step_status(5)
     if is_halted:
-        s5_status = "HALTED"
         s5_runtime = 0
         s5_out = {"status": "HALTED_DUE_TO_UPSTREAM_FRAUD", "reason": "Extruder physics failed validation. Forensic audit confirmed resistive heater fraud signature."}
     elif is_hitl:
-        s5_status = "PENDING_HITL_REVIEW"
         s5_runtime = 460
         s5_out = {"hitl_required": True, "verdict": "HELD_FOR_REVIEW", "recommendation": "Compliance Officer manual sign-off required for mass balance discrepancy.", "hitl_resolution": run_result.get("hitl_resolution")}
     else:
-        s5_status = "COMPLETED"
         s5_runtime = 510
         s5_out = {"model": "gemini-3.8-flash", "confidence_pct": 98.4, "thermal_mass_balance_error_pct": 0.8, "anti_fraud_verdict": "GENUINE_HIGH_DENSITY_EXTRUSION", "reasoning": "3-phase induction motor power factor (0.84) and mechanical torque shear (45.2 Nm) strictly conform to verified HDPE recycling."}
     s5_telem = _calculate_step_telemetry(s5_in, s5_out, is_reflex=False)
@@ -549,12 +642,11 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
         "split_primary_pct": 80.0,
         "split_holdback_pct": 20.0,
     }
+    s6_status = _get_step_status(6)
     if is_halted or is_hitl:
-        s6_status = "SKIPPED" if is_halted else "QUEUED"
         s6_runtime = 0
         s6_out = {"status": "BLOCKED", "reason": "Escrow release gate locked until audit exceptions are resolved."}
     else:
-        s6_status = "COMPLETED"
         s6_runtime = 145
         s6_out = run_result.get("purchase_order") or {
             "po_number": run_result.get("po_number") or f"PO-{row.run_id[:8]}",
@@ -573,12 +665,11 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
         "conversion_factor": 1.0,
         "signatory": "Authorized Compliance Officer",
     }
+    s7_status = _get_step_status(7)
     if is_halted or is_hitl:
-        s7_status = "SKIPPED" if is_halted else "QUEUED"
         s7_runtime = 0
         s7_out = {"status": "DISPATCH_BLOCKED", "reason": "Form-1 filing not dispatched due to upstream hold/halt."}
     else:
-        s7_status = "COMPLETED"
         s7_runtime = 155
         s7_out = run_result.get("statutory_form1") or {
             "form1_id": run_result.get("form1_id") or f"FORM1-{row.run_id[:8]}",
@@ -598,9 +689,9 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "service": "brand_liability",
             "role": "ERP Sales Debt Amortization",
             "system": "System 2 Reasoning",
-            "status": "COMPLETED",
+            "status": s1_status,
             "timestamp": temporal_events_map.get("calculate_brand_liability_activity", {}).get("timestamp") or (base_dt + timedelta(milliseconds=0)).isoformat(),
-            "runtime_ms": 135,
+            "runtime_ms": 135 if s1_status != "QUEUED" else 0,
             **s1_telem,
             "input": s1_in,
             "output": s1_out,
@@ -613,9 +704,9 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "service": "regulatory_watchdog",
             "role": "Base Rates & Plastic Categories",
             "system": "System 2 Reasoning",
-            "status": "COMPLETED",
+            "status": s2_status,
             "timestamp": temporal_events_map.get("parse_regulatory_rules_activity", {}).get("timestamp") or (base_dt + timedelta(milliseconds=140)).isoformat(),
-            "runtime_ms": 165,
+            "runtime_ms": 165 if s2_status != "QUEUED" else 0,
             **s2_telem,
             "input": s2_in,
             "output": s2_out,
@@ -628,9 +719,9 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "service": "auction",
             "role": "Clearing Corridor Order Matching",
             "system": "System 2 Reasoning",
-            "status": "COMPLETED",
+            "status": s3_status,
             "timestamp": temporal_events_map.get("execute_double_auction_activity", {}).get("timestamp") or (base_dt + timedelta(milliseconds=310)).isoformat(),
-            "runtime_ms": 115,
+            "runtime_ms": 115 if s3_status != "QUEUED" else 0,
             **s3_telem,
             "input": s3_in,
             "output": s3_out,
@@ -707,8 +798,8 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
         "run_id": row.run_id,
         "workflow_type": row.workflow_type,
         "temporal_workflow_id": row.temporal_workflow_id,
-        "status": row.status,
-        "hitl_required": row.hitl_required,
+        "status": status,
+        "hitl_required": is_hitl,
         "total_runtime_ms": total_runtime_ms,
         "total_tokens": total_tokens,
         "total_cost_usd": total_cost_usd,

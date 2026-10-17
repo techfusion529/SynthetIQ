@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
@@ -42,25 +42,34 @@ import { useNotification } from "../../app/lib/contexts/NotificationContext";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-const PORTAL_STATUS_COLOR: Record<string, "success" | "warning" | "secondary" | "error"> = {
-  READY_FOR_MANUAL_UPLOAD: "success",
+const PORTAL_STATUS_COLOR: Record<string, "success" | "warning" | "secondary" | "error" | "info"> = {
+  READY_FOR_MANUAL_UPLOAD: "warning",
   CPCB_PORTAL_FILED: "success",
-  SUBMITTED: "secondary",
+  SUBMITTED: "info",
   REJECTED: "error",
 };
 
 interface StatutoryRegistryTableProps {
   forms: Form1Payload[];
   onOpenDialogModal: (form: Form1Payload) => void;
+  onRefresh?: () => void;
+  onFormUpdated?: (updated: Form1Payload) => void;
 }
 
 export default function StatutoryRegistryTable({
   forms,
   onOpenDialogModal,
+  onRefresh,
+  onFormUpdated,
 }: StatutoryRegistryTableProps) {
   const { notify } = useNotification();
+  const [localForms, setLocalForms] = useState<Form1Payload[]>(forms);
   const [selectedForm, setSelectedForm] = useState<Form1Payload | null>(null);
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    setLocalForms(forms);
+  }, [forms]);
 
   // Registry main table pagination
   const [page, setPage] = useState(0);
@@ -81,7 +90,9 @@ export default function StatutoryRegistryTable({
   const handleDownloadPdf = async (identifier: string) => {
     setDownloadingPdfId(identifier);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("synthetiq_token") : null;
+      const token = typeof window !== "undefined"
+        ? (localStorage.getItem("synthetiq_auth_token") || localStorage.getItem("synthetiq_token"))
+        : null;
       const res = await fetch(`${API_BASE}/api/v1/audit/report/${encodeURIComponent(identifier)}/pdf`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -148,8 +159,10 @@ export default function StatutoryRegistryTable({
     setSubmittingManualAck(true);
     try {
       const ackVal = manualAckInput.trim() || selectedForm.portal_ack_number || `ACK-CPCB-2026-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      const token = typeof window !== "undefined" ? localStorage.getItem("synthetiq_token") : null;
-      await fetch(`${API_BASE}/api/v1/settlement/form1/${selectedForm.form_id}/manual-upload`, {
+      const token = typeof window !== "undefined"
+        ? (localStorage.getItem("synthetiq_auth_token") || localStorage.getItem("synthetiq_token"))
+        : null;
+      const res = await fetch(`${API_BASE}/api/v1/settlement/form1/${selectedForm.form_id}/manual-upload`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -157,18 +170,32 @@ export default function StatutoryRegistryTable({
         },
         body: JSON.stringify({ portal_ack_number: ackVal }),
       });
-      setSelectedForm((prev) => prev ? { ...prev, portal_ack_number: ackVal, portal_status: "CPCB_PORTAL_FILED" } : null);
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || `Server returned HTTP ${res.status}`);
+      }
+      const data = await res.json().catch(() => ({}));
+      const updatedForm: Form1Payload = {
+        ...selectedForm,
+        ...(data || {}),
+        portal_ack_number: ackVal,
+        portal_status: "CPCB_PORTAL_FILED",
+      };
+      setSelectedForm(updatedForm);
+      setLocalForms((prev) => prev.map((f) => (f.form_id === updatedForm.form_id ? { ...f, ...updatedForm } : f)));
+      onFormUpdated?.(updatedForm);
+      onRefresh?.();
       notify.success(`Form-1 ${selectedForm.form_id} recorded with ACK: ${ackVal}`, "CPCB Portal Filing Confirmed");
       setManualUploadOpen(false);
-    } catch {
-      notify.error("Failed to update portal acknowledgement", "Filing Error");
+    } catch (err: any) {
+      notify.error(err?.message || "Failed to update portal acknowledgement", "Filing Error");
     } finally {
       setSubmittingManualAck(false);
     }
   };
 
   // Filter forms by search query
-  const filteredForms = forms.filter((f) => {
+  const filteredForms = localForms.filter((f) => {
     const q = search.toLowerCase();
     return (
       f.form_id.toLowerCase().includes(q) ||
@@ -229,8 +256,8 @@ export default function StatutoryRegistryTable({
         {
           metric: "Portal Submission Status",
           verified: "CPCB Portal",
-          value: getCleanStatus(selectedForm),
-          highlight: "success" as const,
+          value: getCleanStatus(selectedForm) === "CPCB_PORTAL_FILED" ? "CPCB FILED ✓" : getCleanStatus(selectedForm),
+          highlight: getCleanStatus(selectedForm) === "CPCB_PORTAL_FILED" ? ("success" as const) : ("warning" as const),
         },
         {
           metric: "DSC X.509 Signature",
@@ -373,7 +400,7 @@ export default function StatutoryRegistryTable({
                           </TableCell>
                           <TableCell>
                             <Chip
-                              label={cleanStatus}
+                              label={cleanStatus === "CPCB_PORTAL_FILED" ? "CPCB FILED ✓" : cleanStatus}
                               size="small"
                               color={PORTAL_STATUS_COLOR[cleanStatus] ?? "secondary"}
                               sx={{ height: 20, fontSize: "0.62rem", fontWeight: 700 }}
@@ -592,7 +619,7 @@ export default function StatutoryRegistryTable({
                   }}
                   sx={{ height: 24, fontSize: "0.68rem", px: 1, py: 0 }}
                 >
-                  Upload to CPCB
+                  {getCleanStatus(selectedForm) === "CPCB_PORTAL_FILED" ? "Update CPCB ACK" : "Upload to CPCB"}
                 </Button>
                 <Button
                   size="small"

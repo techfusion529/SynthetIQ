@@ -23,6 +23,8 @@ import LinearProgress from "@mui/material/LinearProgress";
 import Stepper from "@mui/material/Stepper";
 import Step from "@mui/material/Step";
 import StepLabel from "@mui/material/StepLabel";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import LockIcon from "@mui/icons-material/Lock";
@@ -141,19 +143,75 @@ export default function SettlementPage() {
         <Alert severity="info">No escrow purchase orders found.</Alert>
       ) : (
         <>
-          {/* PO selector chips */}
-          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-            {pos.map((p) => (
-              <Chip
-                key={p.po_number}
-                label={`${p.po_number} · ${p.status}`}
-                onClick={async () => { const d = await settlementSvc.getPO(p.po_number); setActivePO(d); }}
-                color={activePO?.po_number === p.po_number ? "success" : "default"}
-                variant={activePO?.po_number === p.po_number ? "filled" : "outlined"}
-                size="small"
-              />
-            ))}
-          </Box>
+          {/* PO selector dropdown */}
+          <Card variant="outlined" sx={{ p: 2, bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#FAFAFA") }}>
+            <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2, flex: 1, minWidth: 280 }}>
+                <TextField
+                  select
+                  size="small"
+                  label="Select Escrow Purchase Order"
+                  value={activePO?.po_number ?? ""}
+                  onChange={async (e) => {
+                    const poNum = e.target.value;
+                    const d = await settlementSvc.getPO(poNum);
+                    setActivePO(d);
+                  }}
+                  sx={{ minWidth: 320, flex: { xs: "1 1 100%", sm: "0 1 400px" } }}
+                  SelectProps={{
+                    displayEmpty: true,
+                  }}
+                >
+                  {pos.map((p) => (
+                    <MenuItem key={p.po_number} value={p.po_number} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, py: 1 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Typography variant="body2" fontFamily="var(--font-mono, monospace)" fontWeight={700}>
+                          {p.po_number}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          · {p.recycler_name || p.recycler_id || "Recycler"} ({p.plastic_tons} T)
+                        </Typography>
+                      </Box>
+                      <Chip
+                        label={p.status}
+                        size="small"
+                        color={p.status === "fully_settled" ? "success" : p.status === "advance_released" ? "info" : "default"}
+                        sx={{ fontSize: "0.65rem", height: 20, fontWeight: 700 }}
+                      />
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+                {activePO && (
+                  <Box sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", gap: 1.5 }}>
+                    <Typography variant="body2" color="text.secondary">Status:</Typography>
+                    <Chip
+                      label={activePO.status}
+                      size="small"
+                      color={activePO.status === "fully_settled" ? "success" : activePO.status === "advance_released" ? "info" : "default"}
+                      sx={{ fontSize: "0.7rem", fontWeight: 700 }}
+                    />
+                    <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>Volume:</Typography>
+                    <Typography variant="body2" fontWeight={700} fontFamily="var(--font-mono, monospace)">
+                      {activePO.plastic_tons} Tons
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>Total Escrow:</Typography>
+                    <Typography variant="body2" fontWeight={700} fontFamily="var(--font-mono, monospace)" color="success.main">
+                      {fmt(activePO.total_amount_inr)}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+
+              {activePO && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Vendor: <strong style={{ color: "inherit" }}>{activePO.recycler_name || activePO.recycler_id}</strong>
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Card>
 
           {/* Settlement Stepper */}
           <Card>

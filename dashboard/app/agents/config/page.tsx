@@ -844,6 +844,18 @@ export default function AgentConfigStudioPage() {
             startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
             onClick={handleSave}
             disabled={saving || !currentConfig}
+            sx={{
+              fontWeight: 700,
+              px: 2,
+              py: 0.8,
+              borderRadius: 1.5,
+              background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+              boxShadow: "0 4px 14px rgba(16, 185, 129, 0.35)",
+              "&:hover": {
+                background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                boxShadow: "0 6px 18px rgba(16, 185, 129, 0.45)",
+              },
+            }}
           >
             {saving ? "Saving Changes..." : "Save Configuration"}
           </Button>
@@ -858,286 +870,453 @@ export default function AgentConfigStudioPage() {
 
       {error && <Alert severity="error">{error}</Alert>}
 
-      {/* Agent Selector Tabs */}
-      <Tabs
-        value={activeTab}
-        onChange={handleTabChange}
-        variant="scrollable"
-        scrollButtons="auto"
+      {/* Agent Selector Tabs Ribbon */}
+      <Box
         sx={{
-          borderBottom: 1,
+          p: 0.75,
+          borderRadius: 2,
+          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.025)" : "rgba(0, 0, 0, 0.025)"),
+          border: "1px solid",
           borderColor: "divider",
-          "& .MuiTab-root": { textTransform: "none", fontWeight: 600, fontSize: "0.9rem" },
         }}
       >
-        {configs.map((c) => (
-          <Tab key={c.agent_name} label={AGENT_LABELS[c.agent_name]?.label || c.agent_name} />
-        ))}
-      </Tabs>
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            minHeight: 42,
+            "& .MuiTabs-indicator": {
+              height: 3,
+              borderRadius: "3px 3px 0 0",
+              bgcolor: "primary.main",
+            },
+            "& .MuiTab-root": {
+              textTransform: "none",
+              fontWeight: 600,
+              fontSize: "0.86rem",
+              minHeight: 38,
+              py: 0.75,
+              px: 1.75,
+              borderRadius: 1.5,
+              mr: 0.5,
+              transition: "all 0.2s ease",
+              "&.Mui-selected": {
+                color: "primary.main",
+                fontWeight: 700,
+                bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.12)" : "rgba(124, 58, 237, 0.08)"),
+              },
+            },
+          }}
+        >
+          {configs.map((c) => (
+            <Tab
+              key={c.agent_name}
+              icon={<SmartToyIcon sx={{ fontSize: 16 }} />}
+              iconPosition="start"
+              label={AGENT_LABELS[c.agent_name]?.label || c.agent_name}
+            />
+          ))}
+        </Tabs>
+      </Box>
 
       {currentConfig && (
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "5fr 7fr" }, gap: 3, alignItems: "start" }}>
-          {/* ========================================================= */}
-          {/* LEFT COLUMN: Configuration + Simulation Controls (Inputs) */}
-          {/* ========================================================= */}
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {/* 1. Agent Architecture & Parameter Card */}
-            <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", borderRadius: 2 }}>
-              <CardContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <>
+          {/* Agent Identity & Health Banner */}
+          <Card
+            variant="outlined"
+            sx={{
+              p: 2.25,
+              borderRadius: 2,
+              background: (t) =>
+                t.palette.mode === "dark"
+                  ? "linear-gradient(135deg, rgba(139, 92, 246, 0.14) 0%, rgba(15, 23, 42, 0.7) 100%)"
+                  : "linear-gradient(135deg, rgba(124, 58, 237, 0.07) 0%, rgba(248, 250, 252, 0.95) 100%)",
+              borderColor: (t) => (t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.25)" : "rgba(124, 58, 237, 0.2)"),
+              boxShadow: (t) => (t.palette.mode === "dark" ? "0 4px 20px rgba(0,0,0,0.3)" : "0 4px 16px rgba(0,0,0,0.04)"),
+            }}
+          >
+            <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.75 }}>
+                <Box
+                  sx={{
+                    p: 1.25,
+                    borderRadius: 2,
+                    bgcolor: "primary.main",
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 4px 14px rgba(124, 58, 237, 0.4)",
+                  }}
+                >
+                  <SmartToyIcon sx={{ fontSize: 26 }} />
+                </Box>
                 <Box>
-                  <Typography variant="h6" fontWeight={700}>
-                    {agentMeta?.label}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                    <Typography variant="h6" fontWeight={800} sx={{ letterSpacing: "-0.01em" }}>
+                      {agentMeta?.label}
+                    </Typography>
+                    <Chip
+                      label={agentMeta?.role?.includes("System 1") ? "⚡ System 1 Reflex" : "🧠 System 2 Reasoning"}
+                      size="small"
+                      color={agentMeta?.role?.includes("System 1") ? "secondary" : "primary"}
+                      sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
+                    />
+                    <Chip
+                      label="Autonomous Agent Active"
+                      size="small"
+                      color="success"
+                      variant="outlined"
+                      sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
+                    />
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4 }}>
                     {agentMeta?.role}
                   </Typography>
                 </Box>
+              </Box>
 
-                <Divider />
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                <Chip
+                  icon={<StorageIcon sx={{ fontSize: 14 }} />}
+                  label={currentConfig.data_source_id ? `Source: ${currentConfig.data_source_id}` : "Default Engine Simulator"}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontSize: "0.72rem", height: 24 }}
+                />
+                <Chip
+                  icon={<AutoAwesomeIcon sx={{ fontSize: 14 }} />}
+                  label={currentConfig.model_name || "gemini-3.8-flash"}
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                  sx={{ fontSize: "0.72rem", fontWeight: 700, height: 24 }}
+                />
+                <Chip
+                  icon={<SpeedIcon sx={{ fontSize: 14 }} />}
+                  label={`Temp ${currentConfig.temperature}`}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontSize: "0.72rem", height: 24 }}
+                />
+              </Box>
+            </Box>
+          </Card>
 
-                {/* Data Source Binding */}
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                  <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.75 }}>
-                    <StorageIcon fontSize="small" /> BOUND DATA SOURCE
-                  </Typography>
-                  <TextField
-                    select
-                    size="small"
-                    value={currentConfig.data_source_id || ""}
-                    onChange={(e) => setCurrentConfig({ ...currentConfig, data_source_id: e.target.value || null })}
-                    fullWidth
-                  >
-                    <MenuItem value="">— Use Default Engine Simulator —</MenuItem>
-                    {dataSources.map((ds) => (
-                      <MenuItem key={ds.source_id} value={ds.source_id}>
-                        {ds.name} ({ds.source_type.toUpperCase()} • {ds.purpose})
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Box>
-
-                {/* LLM Model Selection & Temperature */}
-                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
-                  <TextField
-                    select
-                    label="Target LLM"
-                    size="small"
-                    value={currentConfig.model_name || "gemini-3.8-flash"}
-                    onChange={(e) => setCurrentConfig({ ...currentConfig, model_name: e.target.value })}
-                  >
-                    <MenuItem value="gemini-3.8-flash">Gemini 3.8 Flash</MenuItem>
-                    <MenuItem value="gemini-4-argon">Gemini 4 Argon</MenuItem>
-                    <MenuItem value="gemini-2.5-flash">Gemini 2.5 Flash</MenuItem>
-                    <MenuItem value="gemini-1.5-pro">Gemini 1.5 Pro</MenuItem>
-                    <MenuItem value="gpt-oss:20b-cloud">gpt-oss:20b (Ollama)</MenuItem>
-                  </TextField>
-
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.25 }}>
-                      Temperature: {currentConfig.temperature}
-                    </Typography>
-                    <Slider
-                      size="small"
-                      value={currentConfig.temperature}
-                      min={0.0}
-                      max={1.0}
-                      step={0.05}
-                      onChange={(_, val) => setCurrentConfig({ ...currentConfig, temperature: val as number })}
-                    />
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "5fr 7fr" }, gap: 3, alignItems: "start" }}>
+            {/* ========================================================= */}
+            {/* LEFT COLUMN: Configuration + Simulation Controls (Inputs) */}
+            {/* ========================================================= */}
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              {/* 1. Agent Architecture & Parameter Card */}
+              <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", borderRadius: 2 }}>
+                <CardContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <TuneIcon color="primary" fontSize="small" />
+                      <Typography variant="subtitle1" fontWeight={700}>
+                        Agent Architecture &amp; Hyperparameters
+                      </Typography>
+                    </Box>
+                    <Chip label="Config v2" size="small" variant="outlined" sx={{ fontSize: "0.68rem", height: 20 }} />
                   </Box>
-                </Box>
 
-                {/* Custom System Prompt */}
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                  <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 700 }}>
-                    SYSTEM INSTRUCTIONS / PROMPT
-                  </Typography>
-                  <TextField
-                    multiline
-                    rows={3}
-                    size="small"
-                    fullWidth
-                    value={currentConfig.system_prompt || ""}
-                    onChange={(e) => setCurrentConfig({ ...currentConfig, system_prompt: e.target.value })}
-                    placeholder="Enter custom instructions to tailor agent reasoning..."
-                  />
-                </Box>
+                  <Divider />
 
-                {/* Agent Hyperparameters */}
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                  <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.75 }}>
-                    <TuneIcon fontSize="small" /> DOMAIN HYPERPARAMETERS (JSON)
-                  </Typography>
-                  <TextField
-                    multiline
-                    rows={3}
-                    size="small"
-                    fullWidth
-                    value={JSON.stringify(currentConfig.parameters, null, 2)}
-                    onChange={(e) => {
-                      try {
-                        const parsed = JSON.parse(e.target.value);
-                        setCurrentConfig({ ...currentConfig, parameters: parsed });
-                      } catch {
-                        // Allow typing in JSON
-                      }
-                    }}
-                    sx={{ "& textarea": { fontFamily: 'var(--font-mono, monospace)', fontSize: "0.8rem" } }}
-                  />
-                </Box>
-              </CardContent>
-            </Card>
-
-            {/* 2. Simulation Input & Execution Engine Card */}
-            <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", borderRadius: 2 }}>
-              <CardContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <BoltIcon sx={{ color: "warning.main", fontSize: 20 }} />
-                    <Typography variant="subtitle1" fontWeight={700}>
-                      Playground Simulation Inputs
-                    </Typography>
-                  </Box>
-                  <Chip label="Live Engine" size="small" color="primary" sx={{ fontWeight: 700, height: 22, fontSize: "0.7rem" }} />
-                </Box>
-
-                {/* Preset Scenario Selector */}
-                {currentScenarios.length > 0 && (
+                  {/* Data Source Binding */}
                   <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary" }}>
-                      SELECT PRESET SCENARIO
+                    <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.75 }}>
+                      <StorageIcon fontSize="small" /> BOUND DATA SOURCE
                     </Typography>
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-                      {currentScenarios.map((sc) => {
-                        const isSelected = selectedScenarioId === sc.id;
-                        return (
-                          <Chip
-                            key={sc.id}
-                            label={`${sc.name}`}
-                            color={isSelected ? sc.badgeColor : "default"}
-                            variant={isSelected ? "filled" : "outlined"}
-                            onClick={() => handleSelectScenario(sc)}
-                            size="small"
-                            sx={{ fontWeight: isSelected ? 700 : 500, cursor: "pointer" }}
-                          />
-                        );
-                      })}
+                    <TextField
+                      select
+                      size="small"
+                      value={currentConfig.data_source_id || ""}
+                      onChange={(e) => setCurrentConfig({ ...currentConfig, data_source_id: e.target.value || null })}
+                      fullWidth
+                    >
+                      <MenuItem value="">— Use Default Engine Simulator —</MenuItem>
+                      {dataSources.map((ds) => (
+                        <MenuItem key={ds.source_id} value={ds.source_id}>
+                          {ds.name} ({ds.source_type.toUpperCase()} • {ds.purpose})
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Box>
+
+                  {/* LLM Model Selection & Temperature */}
+                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+                    <TextField
+                      select
+                      label="Target LLM"
+                      size="small"
+                      value={currentConfig.model_name || "gemini-3.8-flash"}
+                      onChange={(e) => setCurrentConfig({ ...currentConfig, model_name: e.target.value })}
+                    >
+                      <MenuItem value="gemini-3.8-flash">Gemini 3.8 Flash</MenuItem>
+                      <MenuItem value="gemini-4-argon">Gemini 4 Argon</MenuItem>
+                      <MenuItem value="gemini-2.5-flash">Gemini 2.5 Flash</MenuItem>
+                      <MenuItem value="gemini-1.5-pro">Gemini 1.5 Pro</MenuItem>
+                      <MenuItem value="gpt-oss:20b-cloud">gpt-oss:20b (Ollama)</MenuItem>
+                    </TextField>
+
+                    <Box>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.25 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          Temperature: <strong style={{ color: "inherit" }}>{currentConfig.temperature}</strong>
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontSize: "0.68rem", color: "primary.main", fontWeight: 700 }}>
+                          {currentConfig.temperature <= 0.2 ? "🎯 Deterministic" : currentConfig.temperature <= 0.6 ? "⚖️ Balanced" : "💡 Exploratory"}
+                        </Typography>
+                      </Box>
+                      <Slider
+                        size="small"
+                        value={currentConfig.temperature}
+                        min={0.0}
+                        max={1.0}
+                        step={0.05}
+                        onChange={(_, val) => setCurrentConfig({ ...currentConfig, temperature: val as number })}
+                      />
                     </Box>
                   </Box>
-                )}
 
-                {/* Editable Payload JSON */}
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                  {/* Custom System Prompt */}
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <TerminalIcon sx={{ fontSize: 14 }} /> SYSTEM INSTRUCTIONS / PROMPT
+                      </Typography>
+                      <Chip
+                        label={`${(currentConfig.system_prompt || "").length} chars`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ height: 18, fontSize: "0.62rem" }}
+                      />
+                    </Box>
+                    <TextField
+                      multiline
+                      rows={3}
+                      size="small"
+                      fullWidth
+                      value={currentConfig.system_prompt || ""}
+                      onChange={(e) => setCurrentConfig({ ...currentConfig, system_prompt: e.target.value })}
+                      placeholder="Enter custom instructions to tailor agent reasoning..."
+                      sx={{
+                        "& textarea": {
+                          fontFamily: 'var(--font-mono, monospace)',
+                          fontSize: "0.8rem",
+                          lineHeight: 1.4,
+                        },
+                        bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.2)" : "rgba(0, 0, 0, 0.02)"),
+                      }}
+                    />
+                  </Box>
+
+                  {/* Agent Hyperparameters */}
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.75 }}>
+                        <TuneIcon fontSize="small" /> DOMAIN HYPERPARAMETERS (JSON)
+                      </Typography>
+                      <Chip label="VALID JSON" size="small" color="success" variant="outlined" sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }} />
+                    </Box>
+                    <TextField
+                      multiline
+                      rows={3}
+                      size="small"
+                      fullWidth
+                      value={JSON.stringify(currentConfig.parameters, null, 2)}
+                      onChange={(e) => {
+                        try {
+                          const parsed = JSON.parse(e.target.value);
+                          setCurrentConfig({ ...currentConfig, parameters: parsed });
+                        } catch {
+                          // Allow typing in JSON
+                        }
+                      }}
+                      sx={{
+                        "& textarea": {
+                          fontFamily: 'var(--font-mono, monospace)',
+                          fontSize: "0.8rem",
+                          lineHeight: 1.4,
+                        },
+                        bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.2)" : "rgba(0, 0, 0, 0.02)"),
+                      }}
+                    />
+                  </Box>
+                </CardContent>
+              </Card>
+
+              {/* 2. Simulation Input & Execution Engine Card */}
+              <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", borderRadius: 2 }}>
+                <CardContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <CodeIcon sx={{ fontSize: 15 }} /> SIMULATION PAYLOAD (JSON)
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <BoltIcon sx={{ color: "warning.main", fontSize: 20 }} />
+                      <Typography variant="subtitle1" fontWeight={700}>
+                        Playground Simulation Inputs
+                      </Typography>
+                    </Box>
+                    <Chip label="Live Engine" size="small" color="primary" sx={{ fontWeight: 700, height: 22, fontSize: "0.7rem" }} />
+                  </Box>
+
+                  {/* Preset Scenario Selector */}
+                  {currentScenarios.length > 0 && (
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary" }}>
+                        SELECT PRESET SIMULATION SCENARIO
+                      </Typography>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                        {currentScenarios.map((sc) => {
+                          const isSelected = selectedScenarioId === sc.id;
+                          return (
+                            <Chip
+                              key={sc.id}
+                              label={`${sc.name}`}
+                              color={isSelected ? sc.badgeColor : "default"}
+                              variant={isSelected ? "filled" : "outlined"}
+                              onClick={() => handleSelectScenario(sc)}
+                              size="small"
+                              sx={{
+                                fontWeight: isSelected ? 700 : 500,
+                                cursor: "pointer",
+                                borderWidth: isSelected ? 2 : 1,
+                                px: 0.5,
+                                transition: "all 0.15s ease",
+                                "&:hover": { transform: "translateY(-1px)" },
+                              }}
+                            />
+                          );
+                        })}
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* Editable Payload JSON */}
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <CodeIcon sx={{ fontSize: 15 }} /> SIMULATION PAYLOAD (JSON)
+                      </Typography>
+                      <Button
+                        size="small"
+                        variant="text"
+                        startIcon={<RefreshIcon sx={{ fontSize: 13 }} />}
+                        onClick={handleResetPayload}
+                        sx={{ textTransform: "none", py: 0, fontSize: "0.72rem" }}
+                      >
+                        Reset Payload
+                      </Button>
+                    </Box>
+                    <TextField
+                      multiline
+                      rows={5}
+                      size="small"
+                      fullWidth
+                      value={playgroundPayload}
+                      onChange={(e) => setPlaygroundPayload(e.target.value)}
+                      placeholder="Enter JSON simulation payload..."
+                      sx={{
+                        "& textarea": {
+                          fontFamily: 'var(--font-mono, monospace)',
+                          fontSize: "0.8rem",
+                          lineHeight: 1.35,
+                        },
+                        bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
+                      }}
+                    />
+                  </Box>
+
+                  {/* Execution Provider Selector */}
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary" }}>
+                      INFERENCE BACKEND PROVIDER
                     </Typography>
+                    <TextField
+                      select
+                      size="small"
+                      value={provider}
+                      onChange={(e) => setProvider(e.target.value as any)}
+                      fullWidth
+                    >
+                      <MenuItem value="auto">
+                        ⚡ Auto (Google Gemini Cloud → Fallback to Local Ollama)
+                      </MenuItem>
+                      <MenuItem value="ollama">
+                        💻 Local Ollama (gpt-oss:20b-cloud - Free & Unlimited)
+                      </MenuItem>
+                      <MenuItem value="gemini">
+                        ☁️ Google Gemini Cloud (gemini-3.8-flash)
+                      </MenuItem>
+                    </TextField>
+                  </Box>
+
+                  {/* Custom Gemini API Key Override (Optional) */}
+                  <Box>
                     <Button
                       size="small"
                       variant="text"
-                      startIcon={<RefreshIcon sx={{ fontSize: 13 }} />}
-                      onClick={handleResetPayload}
-                      sx={{ textTransform: "none", py: 0, fontSize: "0.72rem" }}
+                      startIcon={<KeyIcon sx={{ fontSize: 14 }} />}
+                      onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+                      sx={{ textTransform: "none", fontSize: "0.72rem", p: 0.5, color: "text.secondary" }}
                     >
-                      Reset Payload
+                      {showApiKeyInput ? "Hide Custom API Key" : "Add Personal Gemini API Key (Optional)"}
                     </Button>
-                  </Box>
-                  <TextField
-                    multiline
-                    rows={5}
-                    size="small"
-                    fullWidth
-                    value={playgroundPayload}
-                    onChange={(e) => setPlaygroundPayload(e.target.value)}
-                    placeholder="Enter JSON simulation payload..."
-                    sx={{
-                      "& textarea": {
-                        fontFamily: 'var(--font-mono, monospace)',
-                        fontSize: "0.8rem",
-                        lineHeight: 1.35,
-                      },
-                      bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
-                    }}
-                  />
-                </Box>
-
-                {/* Execution Provider Selector */}
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary" }}>
-                    INFERENCE BACKEND PROVIDER
-                  </Typography>
-                  <TextField
-                    select
-                    size="small"
-                    value={provider}
-                    onChange={(e) => setProvider(e.target.value as any)}
-                    fullWidth
-                  >
-                    <MenuItem value="auto">
-                      ⚡ Auto (Google Gemini Cloud → Fallback to Local Ollama)
-                    </MenuItem>
-                    <MenuItem value="ollama">
-                      💻 Local Ollama (gpt-oss:20b-cloud - Free & Unlimited)
-                    </MenuItem>
-                    <MenuItem value="gemini">
-                      ☁️ Google Gemini Cloud (gemini-3.8-flash)
-                    </MenuItem>
-                  </TextField>
-                </Box>
-
-                {/* Custom Gemini API Key Override (Optional) */}
-                <Box>
-                  <Button
-                    size="small"
-                    variant="text"
-                    startIcon={<KeyIcon sx={{ fontSize: 14 }} />}
-                    onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-                    sx={{ textTransform: "none", fontSize: "0.72rem", p: 0.5, color: "text.secondary" }}
-                  >
-                    {showApiKeyInput ? "Hide Custom API Key" : "Add Personal Gemini API Key (Optional)"}
-                  </Button>
-                  {showApiKeyInput && (
-                    <Box
-                      sx={{
-                        mt: 0.75,
-                        p: 1.25,
-                        bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
-                        borderRadius: 1,
-                        border: "1px solid",
-                        borderColor: "divider",
-                      }}
-                    >
-                      <TextField
-                        size="small"
-                        fullWidth
-                        type="password"
-                        placeholder="Paste AIzaSy... API key"
-                        value={customApiKey}
-                        onChange={(e) => setCustomApiKey(e.target.value)}
-                        InputProps={{
-                          startAdornment: <KeyIcon sx={{ fontSize: 15, mr: 1, color: "text.secondary" }} />,
+                    {showApiKeyInput && (
+                      <Box
+                        sx={{
+                          mt: 0.75,
+                          p: 1.25,
+                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
+                          borderRadius: 1,
+                          border: "1px solid",
+                          borderColor: "divider",
                         }}
-                      />
-                    </Box>
-                  )}
-                </Box>
+                      >
+                        <TextField
+                          size="small"
+                          fullWidth
+                          type="password"
+                          placeholder="Paste AIzaSy... API key"
+                          value={customApiKey}
+                          onChange={(e) => setCustomApiKey(e.target.value)}
+                          InputProps={{
+                            startAdornment: <KeyIcon sx={{ fontSize: 15, mr: 1, color: "text.secondary" }} />,
+                          }}
+                        />
+                      </Box>
+                    )}
+                  </Box>
 
-                {/* Execution Run Trigger Button */}
-                <Button
-                  variant="contained"
-                  color="primary"
-                  fullWidth
-                  size="medium"
-                  startIcon={testing ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
-                  onClick={handleRunPlayground}
-                  disabled={testing}
-                  sx={{ fontWeight: 700, py: 1.2, textTransform: "none", fontSize: "0.92rem" }}
-                >
-                  {testing ? "Simulating Live Agent Reasoning..." : `Run ${agentMeta?.label || "Agent"} Simulation`}
-                </Button>
-              </CardContent>
-            </Card>
-          </Box>
+                  {/* Execution Run Trigger Button */}
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    size="large"
+                    startIcon={testing ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
+                    onClick={handleRunPlayground}
+                    disabled={testing}
+                    sx={{
+                      fontWeight: 800,
+                      py: 1.35,
+                      textTransform: "none",
+                      fontSize: "0.95rem",
+                      borderRadius: 2,
+                      background: "linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)",
+                      boxShadow: "0 4px 18px rgba(124, 58, 237, 0.4)",
+                      "&:hover": {
+                        background: "linear-gradient(135deg, #6D28D9 0%, #5B21B6 100%)",
+                        boxShadow: "0 6px 24px rgba(124, 58, 237, 0.55)",
+                      },
+                    }}
+                  >
+                    {testing ? "Simulating Live Agent Reasoning..." : `Run ${agentMeta?.label || "Agent"} Simulation`}
+                  </Button>
+                </CardContent>
+              </Card>
+            </Box>
 
           {/* ========================================================== */}
           {/* RIGHT COLUMN: Simulation Results & Telemetry Output        */}
@@ -1637,6 +1816,7 @@ export default function AgentConfigStudioPage() {
             </CardContent>
           </Card>
         </Box>
+        </>
       )}
     </Box>
   );

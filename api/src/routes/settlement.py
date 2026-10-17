@@ -313,7 +313,7 @@ async def record_manual_upload_acknowledgement(
     payload: dict[str, Any],
     user: CurrentUser,
     tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
-    _: Any = Depends(require_permission("workflows:execute")),
+    _: Any = Depends(require_permission("audits:write")),
 ) -> dict[str, Any]:
     """Record manual upload of CPCB Form-1 to the national portal with acknowledgment number."""
     import uuid
@@ -324,20 +324,35 @@ async def record_manual_upload_acknowledgement(
         from synthetiq_shared.database import get_db_session
         from synthetiq_shared.models import Form1Record
         async with get_db_session() as session:
+            clean_id = form_id.strip()
             row = (await session.execute(
-                select(Form1Record).where(Form1Record.form_id == form_id)
+                select(Form1Record).where(
+                    (Form1Record.form_id == clean_id) | (Form1Record.form_id == form_id)
+                )
             )).scalar_one_or_none()
             if row:
                 row.portal_ack_number = portal_ack
                 row.portal_status = "CPCB_PORTAL_FILED"
+                if row.full_payload and isinstance(row.full_payload, dict):
+                    fp = dict(row.full_payload)
+                    fp["portal_status"] = "CPCB_PORTAL_FILED"
+                    fp["portal_ack_number"] = portal_ack
+                    if "cpcb_portal_submission" in fp and isinstance(fp["cpcb_portal_submission"], dict):
+                        sub = dict(fp["cpcb_portal_submission"])
+                        sub["portal_status"] = "CPCB_PORTAL_FILED"
+                        sub["portal_acknowledgment_number"] = portal_ack
+                        fp["cpcb_portal_submission"] = sub
+                    row.full_payload = fp
                 await session.commit()
+                await session.refresh(row)
                 return row.to_dict()
     except Exception as exc:
         logger.warning(f"Failed to record manual upload ACK: {exc}")
+    user_email = user.get("email", "compliance@synthetiq.ai") if isinstance(user, dict) else getattr(user, "email", "compliance@synthetiq.ai")
     return {
         "form_id": form_id,
         "portal_ack_number": portal_ack,
         "portal_status": "CPCB_PORTAL_FILED",
         "notes": notes,
-        "recorded_by": user["email"],
+        "recorded_by": user_email,
     }

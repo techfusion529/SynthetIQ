@@ -309,46 +309,73 @@ export default function AuctionPage() {
         </CardContent>
       </Card>
 
-      {/* Auction selector */}
+      {/* Auction selector dropdown */}
       {!loadingAuctions && auctions.length === 0 ? (
         <Alert severity="info">No auctions found. Broadcast an RFP to create one.</Alert>
       ) : (
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-          {auctions.map((a) => (
-            <Chip
-              key={a.id}
-              label={`${a.auction_id} · ${a.category}`}
-              onClick={() => setActiveAuction(a)}
-              color={activeAuction?.id === a.id ? "primary" : "default"}
-              variant={activeAuction?.id === a.id ? "filled" : "outlined"}
-              size="small"
-            />
-          ))}
-          {activeAuction && (
-            <Chip
-              label={activeAuction.status}
-              size="small"
-              color={AUCTION_STATUS_COLOR[activeAuction.status] ?? "default"}
-              variant="outlined"
-              sx={{ fontWeight: 700, fontSize: "0.65rem", ml: 1 }}
-            />
-          )}
-        </Box>
-      )}
+        <Card variant="outlined" sx={{ p: 2, bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#FAFAFA") }}>
+          <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, flex: 1, minWidth: 280 }}>
+              <TextField
+                select
+                size="small"
+                label="Select Active Auction"
+                value={activeAuction?.id ?? ""}
+                onChange={(e) => {
+                  const found = auctions.find((a) => a.id === e.target.value);
+                  if (found) setActiveAuction(found);
+                }}
+                sx={{ minWidth: 320, flex: { xs: "1 1 100%", sm: "0 1 380px" } }}
+                SelectProps={{
+                  displayEmpty: true,
+                }}
+              >
+                {auctions.map((a) => (
+                  <MenuItem key={a.id} value={a.id} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, py: 1 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography variant="body2" fontFamily="var(--font-mono, monospace)" fontWeight={700}>
+                        {a.auction_id}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        · {a.category} ({a.target_tons ?? 0} T)
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={a.status}
+                      size="small"
+                      color={AUCTION_STATUS_COLOR[a.status] ?? "default"}
+                      sx={{ fontSize: "0.65rem", height: 20, fontWeight: 700 }}
+                    />
+                  </MenuItem>
+                ))}
+              </TextField>
 
-      {/* Active auction header with status chip */}
-      {activeAuction && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <Typography variant="subtitle2" fontWeight={700} color="text.secondary">
-            Active: {activeAuction.auction_id} · {activeAuction.category}
-          </Typography>
-          <Chip
-            label={activeAuction.status}
-            size="small"
-            color={AUCTION_STATUS_COLOR[activeAuction.status] ?? "default"}
-            sx={{ fontSize: "0.65rem", fontWeight: 700 }}
-          />
-        </Box>
+              {activeAuction && (
+                <Box sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", gap: 1.5 }}>
+                  <Typography variant="body2" color="text.secondary">Status:</Typography>
+                  <Chip
+                    label={activeAuction.status}
+                    size="small"
+                    color={AUCTION_STATUS_COLOR[activeAuction.status] ?? "default"}
+                    sx={{ fontSize: "0.7rem", fontWeight: 700 }}
+                  />
+                  <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>Target:</Typography>
+                  <Typography variant="body2" fontWeight={700} fontFamily="var(--font-mono, monospace)">
+                    {activeAuction.target_tons ?? "—"} Tons
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+
+            {activeAuction && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Statutory Base: <strong style={{ fontFamily: "var(--font-mono, monospace)" }}>₹{activeAuction.statutory_rate_per_kg ?? "—"}/kg</strong>
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </Card>
       )}
 
       {/* Cleared auction summary panel */}

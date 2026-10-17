@@ -59,10 +59,11 @@ const RUN_STATUS_COLOR: Record<string, "default" | "info" | "success" | "error" 
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
-/** Portal status → chip colour (never shows raw "CPCB_ACCEPTED") */
-const PORTAL_STATUS_COLOR: Record<string, "success" | "warning" | "secondary" | "error"> = {
-  READY_FOR_MANUAL_UPLOAD: "success",
-  SUBMITTED:               "secondary",
+const PORTAL_STATUS_COLOR: Record<string, "success" | "warning" | "secondary" | "error" | "info"> = {
+  READY_FOR_MANUAL_UPLOAD: "warning",
+  CPCB_PORTAL_FILED:       "success",
+  FILED:                   "success",
+  SUBMITTED:               "info",
   REJECTED:                "error",
 };
 
@@ -72,7 +73,7 @@ function FormCard({ f, onView }: { f: Form1Payload; onView: (f: Form1Payload) =>
   // Translate CPCB_ACCEPTED → READY_FOR_MANUAL_UPLOAD; never show the raw value
   const rawStatus = f.portal_status || f.cpcb_portal_submission?.portal_status || "SUBMITTED";
   const status = rawStatus === "CPCB_ACCEPTED" ? "READY_FOR_MANUAL_UPLOAD" : rawStatus;
-  const chipColor: "success" | "warning" | "secondary" | "error" = PORTAL_STATUS_COLOR[status] ?? "secondary";
+  const chipColor: "success" | "warning" | "secondary" | "error" | "info" = PORTAL_STATUS_COLOR[status] ?? "secondary";
 
   return (
     <Card variant="outlined" sx={{ "&:hover": { borderColor: "primary.light" } }}>
@@ -604,6 +605,10 @@ export default function DispatchPage() {
           onOpenDialogModal={(form) => {
             setSelectedForm(form);
             setViewOpen(true);
+          }}
+          onRefresh={loadData}
+          onFormUpdated={(updated) => {
+            setForms((prev) => prev.map((f) => (f.form_id === updated.form_id ? { ...f, ...updated } : f)));
           }}
         />
       )}

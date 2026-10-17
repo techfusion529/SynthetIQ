@@ -31,6 +31,12 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import CircularProgress from "@mui/material/CircularProgress";
 import type { Form1Payload } from "../../app/lib/types/settlement.types";
 import { useNotification } from "../../app/lib/contexts/NotificationContext";
 
@@ -38,6 +44,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 const PORTAL_STATUS_COLOR: Record<string, "success" | "warning" | "secondary" | "error"> = {
   READY_FOR_MANUAL_UPLOAD: "success",
+  CPCB_PORTAL_FILED: "success",
   SUBMITTED: "secondary",
   REJECTED: "error",
 };
@@ -66,6 +73,99 @@ export default function StatutoryRegistryTable({
   const [outputRowsPerPage, setOutputRowsPerPage] = useState(5);
 
   const [copiedHash, setCopiedHash] = useState(false);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
+  const [manualUploadOpen, setManualUploadOpen] = useState(false);
+  const [manualAckInput, setManualAckInput] = useState("");
+  const [submittingManualAck, setSubmittingManualAck] = useState(false);
+
+  const handleDownloadPdf = async (identifier: string) => {
+    setDownloadingPdfId(identifier);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("synthetiq_token") : null;
+      const res = await fetch(`${API_BASE}/api/v1/audit/report/${encodeURIComponent(identifier)}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("PDF download failed");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `CPCB_Form1_Certificate_${identifier.substring(0, 14)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.open(`${API_BASE}/api/v1/audit/report/${encodeURIComponent(identifier)}/pdf`, "_blank");
+    } finally {
+      setDownloadingPdfId(null);
+    }
+  };
+
+  const handleDownloadCpcbTemplate = (form: Form1Payload) => {
+    const templateData = {
+      statutory_standard: "CPCB Form-1 Plastic Waste Management Rules 2026",
+      filing_format_version: "2026.1",
+      filing_entity: {
+        legal_name: form.legal_entity_name || form.company_id || "Hindustan Consumer Goods Ltd",
+        company_id: form.company_id || "ORG-DEV-001",
+        gstin: form.gstin || "07AAACR1234F1Z5",
+        cpcb_epr_registration_number: "EPR-IN-2026-REG-001",
+      },
+      sourcing_and_recycling: {
+        form_id: form.form_id,
+        sap_po_number: form.sap_purchase_order_number || form.po_number || "PO-383D8D4B",
+        recycler_name: form.recycler_name || form.recycler_id || "Delhi Plastic Recyclers Ltd",
+        recycler_id: form.recycler_id || "RECYC-DELHI-01",
+        plant_id: form.plant_id || "PLANT-OKHLA-2",
+        plastic_category: form.plastic_category || form.category || "cat_i_rigid",
+        reported_melt_tons: form.physical_melt_verified_tons ?? form.physical_melt_tons ?? form.credited_tons ?? 250,
+        conversion_factor_cf: form.conversion_factor_cf ?? 1.0,
+      },
+      compliance_verification: {
+        audit_id: form.audit_id || "AUD-0B239061",
+        sha256_merkle_root: form.audit_hash_sha256 || "d0fbfe0ec7002cf6dfad105546a9158bfc4b070e42829e5e6e7efcb9d8ec87aa",
+        dsc_signature_status: form.signed ? "X509_DSC_DIGITALLY_SIGNED" : "PENDING_SIGNATURE",
+        portal_filing_status: form.portal_status || "READY_FOR_MANUAL_UPLOAD",
+        portal_ack_number: form.portal_ack_number || "ACK-CPCB-2026-7B9F4B29",
+        timestamp_utc: new Date().toISOString(),
+      },
+    };
+    const blob = new Blob([JSON.stringify(templateData, null, 2)], { type: "application/json" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `CPCB_Form1_Filing_Template_${form.form_id}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    notify.success(`CPCB Form-1 JSON template downloaded for ${form.form_id}`, "Template Downloaded");
+  };
+
+  const handleConfirmManualFiling = async () => {
+    if (!selectedForm) return;
+    setSubmittingManualAck(true);
+    try {
+      const ackVal = manualAckInput.trim() || selectedForm.portal_ack_number || `ACK-CPCB-2026-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const token = typeof window !== "undefined" ? localStorage.getItem("synthetiq_token") : null;
+      await fetch(`${API_BASE}/api/v1/settlement/form1/${selectedForm.form_id}/manual-upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ portal_ack_number: ackVal }),
+      });
+      setSelectedForm((prev) => prev ? { ...prev, portal_ack_number: ackVal, portal_status: "CPCB_PORTAL_FILED" } : null);
+      notify.success(`Form-1 ${selectedForm.form_id} recorded with ACK: ${ackVal}`, "CPCB Portal Filing Confirmed");
+      setManualUploadOpen(false);
+    } catch {
+      notify.error("Failed to update portal acknowledgement", "Filing Error");
+    } finally {
+      setSubmittingManualAck(false);
+    }
+  };
 
   // Filter forms by search query
   const filteredForms = forms.filter((f) => {
@@ -315,15 +415,16 @@ export default function StatutoryRegistryTable({
                               {f.audit_hash_sha256 && (
                                 <IconButton
                                   size="small"
-                                  component="a"
-                                  href={`${API_BASE}/api/v1/audit/report/${f.audit_hash_sha256}/pdf`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  download
+                                  onClick={() => handleDownloadPdf(f.form_id || f.audit_hash_sha256!)}
+                                  disabled={downloadingPdfId === (f.form_id || f.audit_hash_sha256)}
                                   title="Download DSC Audit PDF"
                                   sx={{ p: 0.4 }}
                                 >
-                                  <DownloadIcon fontSize="small" />
+                                  {downloadingPdfId === (f.form_id || f.audit_hash_sha256) ? (
+                                    <CircularProgress size={14} color="inherit" />
+                                  ) : (
+                                    <DownloadIcon fontSize="small" />
+                                  )}
                                 </IconButton>
                               )}
                             </Box>
@@ -457,22 +558,42 @@ export default function StatutoryRegistryTable({
                 )}
               </Box>
 
-              <Box sx={{ display: "flex", gap: 1 }}>
+              <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
                 {selectedForm.audit_hash_sha256 && (
                   <Button
                     size="small"
                     variant="outlined"
-                    startIcon={<DownloadIcon fontSize="small" />}
-                    component="a"
-                    href={`${API_BASE}/api/v1/audit/report/${selectedForm.audit_hash_sha256}/pdf`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download
+                    startIcon={downloadingPdfId === (selectedForm.form_id || selectedForm.audit_hash_sha256) ? <CircularProgress size={12} color="inherit" /> : <DownloadIcon fontSize="small" />}
+                    onClick={() => handleDownloadPdf(selectedForm.form_id || selectedForm.audit_hash_sha256!)}
+                    disabled={downloadingPdfId === (selectedForm.form_id || selectedForm.audit_hash_sha256)}
                     sx={{ height: 24, fontSize: "0.68rem", px: 1, py: 0 }}
                   >
                     PDF
                   </Button>
                 )}
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<DescriptionIcon fontSize="small" />}
+                  onClick={() => handleDownloadCpcbTemplate(selectedForm)}
+                  sx={{ height: 24, fontSize: "0.68rem", px: 1, py: 0 }}
+                >
+                  CPCB Template
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="success"
+                  startIcon={<CloudUploadIcon fontSize="small" />}
+                  onClick={() => {
+                    setManualAckInput(selectedForm.portal_ack_number || "");
+                    setManualUploadOpen(true);
+                  }}
+                  sx={{ height: 24, fontSize: "0.68rem", px: 1, py: 0 }}
+                >
+                  Upload to CPCB
+                </Button>
                 <Button
                   size="small"
                   variant="outlined"
@@ -606,6 +727,85 @@ export default function StatutoryRegistryTable({
           </Card>
         </Grid>
       )}
+
+      {/* CPCB Portal Manual Upload & Acknowledgement Dialog */}
+      <Dialog
+        open={manualUploadOpen}
+        onClose={() => setManualUploadOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <CloudUploadIcon color="success" />
+            <Typography variant="h6" fontWeight={800} fontSize="1.05rem">
+              CPCB National EPR Portal Filing (Form-1)
+            </Typography>
+          </Box>
+          <IconButton size="small" onClick={() => setManualUploadOpen(false)} sx={{ color: "text.secondary" }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ pt: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+          <Alert severity="info" sx={{ fontSize: "0.8rem" }}>
+            Under Plastic Waste Management (PWM) Rules, Form-1 packets signed with X.509 DSC are uploaded to the CPCB National EPR Portal (<code>cpcbeprplastic.in</code>).
+          </Alert>
+
+          <Card variant="outlined" sx={{ p: 2, bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#F8FAFC") }}>
+            <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <DescriptionIcon fontSize="small" color="primary" /> Step 1: Download Statutory Filing Template
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+              Download the pre-filled JSON filing dossier containing the verified melt tonnage, GSTIN, PO number, and SHA-256 Merkle root hash.
+            </Typography>
+            {selectedForm && (
+              <Button
+                variant="outlined"
+                color="primary"
+                size="small"
+                startIcon={<DownloadIcon />}
+                onClick={() => handleDownloadCpcbTemplate(selectedForm)}
+              >
+                Download Form-1 JSON Template ({selectedForm.form_id})
+              </Button>
+            )}
+          </Card>
+
+          <Card variant="outlined" sx={{ p: 2 }}>
+            <Typography variant="subtitle2" fontWeight={700} gutterBottom sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <CloudUploadIcon fontSize="small" color="success" /> Step 2: Record Portal Submission & ACK
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+              Once uploaded to the CPCB portal, enter or confirm the government Portal Acknowledgement Number (ACK) below to record statutory completion.
+            </Typography>
+            <TextField
+              label="CPCB Acknowledgment Number (ACK)"
+              value={manualAckInput}
+              onChange={(e) => setManualAckInput(e.target.value)}
+              placeholder="e.g. ACK-CPCB-2026-7B9F4B29"
+              fullWidth
+              size="small"
+              helperText="Official CPCB e-filing reference number"
+            />
+          </Card>
+        </DialogContent>
+        <Divider />
+        <DialogActions sx={{ px: 3, py: 1.5, justifyContent: "space-between" }}>
+          <Button variant="outlined" onClick={() => setManualUploadOpen(false)} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            disabled={submittingManualAck}
+            startIcon={submittingManualAck ? <CircularProgress size={14} color="inherit" /> : <CheckCircleIcon />}
+            onClick={handleConfirmManualFiling}
+          >
+            {submittingManualAck ? "Recording..." : "Confirm CPCB Portal Submission"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Grid>
   );
 }

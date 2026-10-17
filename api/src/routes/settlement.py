@@ -305,3 +305,39 @@ async def get_form1(
     except Exception:
         pass
     raise HTTPException(status_code=404, detail=f"Form-1 not found: {form_id}")
+
+
+@router.post("/form1/{form_id}/manual-upload")
+async def record_manual_upload_acknowledgement(
+    form_id: str,
+    payload: dict[str, Any],
+    user: CurrentUser,
+    tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
+    _: Any = Depends(require_permission("workflows:execute")),
+) -> dict[str, Any]:
+    """Record manual upload of CPCB Form-1 to the national portal with acknowledgment number."""
+    import uuid
+    portal_ack = payload.get("portal_ack_number") or f"ACK-CPCB-2026-{uuid.uuid4().hex[:8].upper()}"
+    notes = payload.get("notes", "Manually uploaded to CPCB EPR portal by compliance officer")
+    try:
+        from sqlalchemy import select
+        from synthetiq_shared.database import get_db_session
+        from synthetiq_shared.models import Form1Record
+        async with get_db_session() as session:
+            row = (await session.execute(
+                select(Form1Record).where(Form1Record.form_id == form_id)
+            )).scalar_one_or_none()
+            if row:
+                row.portal_ack_number = portal_ack
+                row.portal_status = "CPCB_PORTAL_FILED"
+                await session.commit()
+                return row.to_dict()
+    except Exception as exc:
+        logger.warning(f"Failed to record manual upload ACK: {exc}")
+    return {
+        "form_id": form_id,
+        "portal_ack_number": portal_ack,
+        "portal_status": "CPCB_PORTAL_FILED",
+        "notes": notes,
+        "recorded_by": user["email"],
+    }

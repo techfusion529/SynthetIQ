@@ -49,3 +49,14 @@ export interface TriggerAuditParams {
   volume_tons?: number;
   simulate_spoof?: boolean;
 }
+
+export interface FacilityPlant {
+  plant_id: string;
+  plant_name: string;
+}
+
+export interface Facility {
+  recycler_id: string;
+  recycler_name: string;
+  plants: FacilityPlant[];
+}

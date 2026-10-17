@@ -12,9 +12,11 @@ export interface EscrowPO {
   retention_amount_inr: number;
   status: string;
   escrow_account?: string;
+  escrow_status?: string;
   audit_id?: string;
   sap_purchase_order_number?: string;
   sap_sync_status?: string;
+  [key: string]: any;
 }
 
 export interface ScadaVfdVerification {
@@ -58,6 +60,11 @@ export interface Form1Payload {
   credited_compliance_tons?: number;
   sap_purchase_order_number?: string;
   audit_hash_sha256?: string;
+  audit_id?: string;
+  created_at?: string;
+  company_gstin?: string;
+  recycler_vendor?: string;
+  recycler_cpcb_reg_no?: string;
   scada_vfd_verification?: ScadaVfdVerification;
   statutory_declaration?: string;
   digital_signature?: DigitalSignature;
@@ -66,6 +73,7 @@ export interface Form1Payload {
   portal_ack_number?: string;
   dsc_signature?: string;
   signed?: boolean;
+  [key: string]: any;
 }
 
 export interface ApproveEscrowParams {

@@ -138,7 +138,7 @@ def generate_cpcb_form1_pdf(audit_data: dict[str, Any]) -> bytes:
 
     # Verification Badge
     verdict = str(audit_data.get("audit_verdict") or audit_data.get("verdict", "APPROVED")).upper()
-    is_approved = "APPROV" in verdict
+    is_approved = ("APPROV" in verdict) or ("PASS" in verdict) or (verdict == "CLEARED")
     badge_color = (0.12, 0.65, 0.35) if is_approved else (0.85, 0.20, 0.20)
     canvas.draw_rect(440, 730, 130, 32, fill=badge_color)
     canvas.draw_text(f"VERDICT: {verdict[:14]}", 450, 742, font="F2", size=9, color=(1, 1, 1))

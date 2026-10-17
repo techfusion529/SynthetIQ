@@ -35,4 +35,9 @@ export class AuditService extends BaseService {
   async getVerdict(auditId: string): Promise<AuditVerdict> {
     return this.request<AuditVerdict>("GET", `/api/v1/audit/verdict/${encodeURIComponent(auditId)}`);
   }
+
+  /** Lists registered recycler facilities and their extrusion plants from the DB. */
+  async listFacilities(): Promise<import("../types/audit.types").Facility[]> {
+    return this.request<import("../types/audit.types").Facility[]>("GET", "/api/v1/audit/facilities");
+  }
 }

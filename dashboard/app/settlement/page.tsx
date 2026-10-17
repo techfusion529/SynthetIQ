@@ -53,15 +53,16 @@ export default function SettlementPage() {
   const [approveError, setApproveError]   = useState<string | null>(null);
 
   // ── fetch PO list ────────────────────────────────────────────────────────
-  const fetchPOs = useCallback(async () => {
+  const fetchPOs = useCallback(async (preservePoNumber?: string) => {
     setLoading(true);
     setError(null);
     try {
       const list = await settlementSvc.listPOs();
       setPos(list);
       if (list.length > 0) {
-        // Fetch full PO detail for the first item
-        const detail = await settlementSvc.getPO(list[0].po_number);
+        const targetNumber = preservePoNumber || activePO?.po_number || list[0].po_number;
+        const matching = list.find((p) => p.po_number === targetNumber) || list[0];
+        const detail = await settlementSvc.getPO(matching.po_number);
         setActivePO(detail);
       }
     } catch (e) {
@@ -69,7 +70,7 @@ export default function SettlementPage() {
     } finally {
       setLoading(false);
     }
-  }, [settlementSvc]);
+  }, [settlementSvc, activePO?.po_number]);
 
   useEffect(() => { fetchPOs(); }, [fetchPOs]);
 
@@ -90,7 +91,8 @@ export default function SettlementPage() {
       });
       setApproveResult(`Approved by ${res.approved_by}. 80% advance released in ERP.`);
       setApproveOpen(false);
-      fetchPOs();
+      setActivePO((prev) => prev ? { ...prev, status: "advance_released", escrow_status: "advance_released" } : null);
+      await fetchPOs(activePO.po_number);
     } catch (e) {
       setApproveError(e instanceof ApiError ? e.message : "Approval failed");
     } finally {
@@ -104,6 +106,7 @@ export default function SettlementPage() {
   const retention = activePO?.retention_amount_inr || (total > 0 ? total * 0.2 : 0);
   const advancePct  = total > 0 && advance   ? Math.round((advance / total) * 100) : 80;
   const retentionPct = total > 0 && retention ? Math.round((retention / total) * 100) : 20;
+  const isAdvanceReleased = activePO?.status === "advance_released" || activePO?.escrow_status === "advance_released";
 
   const STEPS = ["Jev Melt Proof", "80% Advance Released", "Form-1 Dispatched", "20% Retention Released"];
 
@@ -247,15 +250,41 @@ export default function SettlementPage() {
                 <Box sx={{ mt: 2.5, pt: 2, borderTop: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <HowToRegIcon color="primary" fontSize="small" />
-                    <Typography variant="caption" color="text.secondary">Human-in-the-Loop review enforced for high-value tranches (&gt;₹10L)</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {isAdvanceReleased
+                        ? "80% advance payment authorized and released to recycler via ERP."
+                        : "Human-in-the-Loop review enforced for high-value tranches (>₹10L)"}
+                    </Typography>
                   </Box>
-                  <Button
-                    variant="contained" color="primary"
-                    startIcon={<ShieldIcon />}
-                    onClick={() => setApproveOpen(true)}
-                  >
-                    Authorize Escrow Release (HITL)
-                  </Button>
+                  {isAdvanceReleased ? (
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+                      <Chip
+                        icon={<CheckCircleIcon />}
+                        label="80% Advance Released ✓"
+                        color="success"
+                        variant="filled"
+                        sx={{ fontWeight: 700 }}
+                      />
+                      <Button
+                        variant="contained"
+                        color="success"
+                        size="small"
+                        endIcon={<ArrowForwardIcon />}
+                        onClick={() => router.push("/dispatch")}
+                      >
+                        Proceed to Form-1 Vault
+                      </Button>
+                    </Box>
+                  ) : (
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<ShieldIcon />}
+                      onClick={() => setApproveOpen(true)}
+                    >
+                      Authorize Escrow Release (HITL)
+                    </Button>
+                  )}
                 </Box>
               </CardContent>
             </Card>

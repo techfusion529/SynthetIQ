@@ -103,6 +103,8 @@ export default function AuditPage() {
   const [auditResult, setAuditResult]   = useState<AuditVerdict | null>(null);
   const [auditError, setAuditError]     = useState<string | null>(null);
   const [verdicts, setVerdicts]         = useState<AuditVerdict[]>([]);
+  const [facilities, setFacilities]     = useState<import("../lib/types/audit.types").Facility[]>([]);
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null);
   const [auditPage, setAuditPage]       = useState(0);
   const [auditRowsPerPage, setAuditRowsPerPage] = useState(5);
   const [triggerModalOpen, setTriggerModalOpen] = useState(false);
@@ -110,10 +112,47 @@ export default function AuditPage() {
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+  const isVerdictApproved = (verd?: string | null) => {
+    if (!verd) return false;
+    const u = verd.toUpperCase();
+    return u.includes("PASS") || u.includes("APPROV") || u === "CLEARED";
+  };
+
+  const isVerdictPending = (verd?: string | null) => {
+    if (!verd) return false;
+    const u = verd.toUpperCase();
+    return u.includes("PENDING") || u.includes("HITL") || u.includes("ESCALAT");
+  };
+
   const handleCopyHash = (hash: string) => {
     navigator.clipboard.writeText(hash);
     setCopiedHash(hash);
     setTimeout(() => setCopiedHash(null), 2000);
+  };
+
+  const handleDownloadPdf = async (auditId: string, auditHash?: string) => {
+    setDownloadingPdf(auditId);
+    try {
+      const targetId = auditId || auditHash || "";
+      const token = typeof window !== "undefined" ? localStorage.getItem("synthetiq_token") : null;
+      const res = await fetch(`${API_BASE}/api/v1/audit/report/${encodeURIComponent(targetId)}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("PDF generation failed");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `CPCB_Form1_Audit_${auditId || "Certificate"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.open(`${API_BASE}/api/v1/audit/report/${encodeURIComponent(auditId)}/pdf`, "_blank");
+    } finally {
+      setDownloadingPdf(null);
+    }
   };
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -125,6 +164,21 @@ export default function AuditPage() {
       setVerdicts(v);
     } catch {
       // non-critical
+    }
+  }, [auditSvc]);
+
+  const fetchFacilities = useCallback(async () => {
+    try {
+      const facs = await auditSvc.listFacilities();
+      setFacilities(facs);
+      if (facs.length > 0) {
+        setRecyclerId((prev) => prev || facs[0].recycler_id);
+        if (facs[0].plants.length > 0) {
+          setPlantId((prev) => prev || facs[0].plants[0].plant_id);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load facilities", e);
     }
   }, [auditSvc]);
 
@@ -156,9 +210,10 @@ export default function AuditPage() {
 
     pollScada();
     fetchVerdicts();
+    fetchFacilities();
     pollRef.current = setInterval(pollScada, 1200);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [mode, pollScada, fetchVerdicts]);
+  }, [mode, pollScada, fetchVerdicts, fetchFacilities]);
 
   const handleAudit = async () => {
     setAuditing(true);
@@ -399,14 +454,19 @@ export default function AuditPage() {
                     {verdicts
                       .slice(auditPage * auditRowsPerPage, auditPage * auditRowsPerPage + auditRowsPerPage)
                       .map((v) => {
-                        const approved = v.audit_verdict === "APPROVED";
+                        const approved = isVerdictApproved(v.audit_verdict);
+                        const pending = isVerdictPending(v.audit_verdict);
+                        const verdictColor = approved ? "success" : pending ? "warning" : "error";
                         const isCopied = copiedHash === v.audit_hash;
+                        const isDownloading = downloadingPdf === v.audit_id;
                         return (
                           <TableRow key={v.audit_id} hover sx={{ "& td": { py: 1.1, fontSize: "0.75rem" } }}>
                             <TableCell sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, color: "primary.main" }}>
                               <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
                                 {approved ? (
                                   <CheckCircleIcon color="success" sx={{ fontSize: 16 }} />
+                                ) : pending ? (
+                                  <WarningAmberIcon color="warning" sx={{ fontSize: 16 }} />
                                 ) : (
                                   <ErrorIcon color="error" sx={{ fontSize: 16 }} />
                                 )}
@@ -431,7 +491,7 @@ export default function AuditPage() {
                               <Chip
                                 label={v.audit_verdict}
                                 size="small"
-                                color={approved ? "success" : "error"}
+                                color={verdictColor}
                                 sx={{ height: 20, fontSize: "0.65rem", fontWeight: 800 }}
                               />
                             </TableCell>
@@ -453,23 +513,16 @@ export default function AuditPage() {
                               </Box>
                             </TableCell>
                             <TableCell align="center">
-                              {v.audit_hash ? (
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  startIcon={<DownloadIcon fontSize="small" />}
-                                  component="a"
-                                  href={`${API_BASE}/api/v1/audit/report/${v.audit_hash}/pdf`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  download
-                                  sx={{ height: 24, fontSize: "0.68rem", px: 1, py: 0 }}
-                                >
-                                  PDF
-                                </Button>
-                              ) : (
-                                "—"
-                              )}
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={isDownloading ? <CircularProgress size={12} color="inherit" /> : <DownloadIcon fontSize="small" />}
+                                onClick={() => handleDownloadPdf(v.audit_id, v.audit_hash)}
+                                disabled={isDownloading}
+                                sx={{ height: 24, fontSize: "0.68rem", px: 1, py: 0 }}
+                              >
+                                {isDownloading ? "..." : "PDF"}
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );
@@ -534,22 +587,53 @@ export default function AuditPage() {
           )}
 
           <TextField
-            label="Recycler ID"
+            select
+            label="Recycler Facility (from DB)"
             value={recyclerId}
-            onChange={(e) => setRecyclerId(e.target.value)}
-            placeholder="e.g. RECYC-DELHI-01"
+            onChange={(e) => {
+              const sel = e.target.value;
+              setRecyclerId(sel);
+              const fac = facilities.find((f) => f.recycler_id === sel);
+              if (fac && fac.plants.length > 0) {
+                setPlantId(fac.plants[0].plant_id);
+              }
+            }}
             fullWidth
             size="small"
-          />
+            helperText="Licensed recycling facilities registered in database"
+          >
+            {facilities.length > 0 ? (
+              facilities.map((f) => (
+                <MenuItem key={f.recycler_id} value={f.recycler_id}>
+                  {f.recycler_name} ({f.recycler_id})
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem value="RECYC-DELHI-01">Delhi EcoRecycle Facilities Ltd (RECYC-DELHI-01)</MenuItem>
+            )}
+          </TextField>
 
           <TextField
-            label="Plant ID / Extrusion Line"
+            select
+            label="Plant / Extrusion Line (from DB)"
             value={plantId}
             onChange={(e) => setPlantId(e.target.value)}
-            placeholder="e.g. PLANT-OKHLA-2"
             fullWidth
             size="small"
-          />
+            helperText="Calibrated SCADA extrusion lines from DB calibrations"
+          >
+            {(() => {
+              const currentFac = facilities.find((f) => f.recycler_id === recyclerId) || facilities[0];
+              const plants = currentFac?.plants || [
+                { plant_id: "PLANT-OKHLA-2", plant_name: "Okhla Extrusion Line 2 (Delhi)" },
+              ];
+              return plants.map((p) => (
+                <MenuItem key={p.plant_id} value={p.plant_id}>
+                  {p.plant_name} ({p.plant_id})
+                </MenuItem>
+              ));
+            })()}
+          </TextField>
 
           <TextField
             select
@@ -578,7 +662,7 @@ export default function AuditPage() {
 
           {auditResult && (
             <Alert
-              severity={auditResult.audit_verdict === "APPROVED" ? "success" : "error"}
+              severity={isVerdictApproved(auditResult.audit_verdict) ? "success" : "error"}
               sx={{ mt: 1 }}
             >
               <Typography variant="subtitle2" fontWeight={800}>

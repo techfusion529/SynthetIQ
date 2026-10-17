@@ -58,6 +58,8 @@ import TerminalIcon from "@mui/icons-material/Terminal";
 
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
+import MarkdownRenderer from "@/components/ui/MarkdownRenderer";
+
 import { PoweredByGemini, GeminiIcon, GoogleCloudIcon } from "@/components/icons/GoogleIcons";
 import { useSession } from "../../lib/contexts/SessionContext";
 import { useNotification } from "../../lib/contexts/NotificationContext";
@@ -844,56 +846,70 @@ export default function AgentConfigStudioPage() {
   const activeScenario = currentScenarios.find((s) => s.id === selectedScenarioId) || currentScenarios[0];
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, pb: 2 }}>
       <PageHeader
         title="Agent Studio & Real-Time Playground"
         icon={<SmartToyIcon fontSize="medium" />}
-        description="Tune Gemini prompts & domain hyperparameters on the left, then run dynamic physics simulations and reverse auctions in the real-time playground on the right."
+        description="Tune Gemini prompts & domain hyperparameters, then execute dynamic simulations and reverse auctions in the real-time playground."
         actions={
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap" }}>
             <PoweredByGemini variant="pill" showCloud />
             <Button
               variant="contained"
               size="small"
-              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon sx={{ fontSize: 16 }} />}
+              startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: 15 }} />}
               onClick={handleSave}
               disabled={saving || !currentConfig}
               sx={{
                 fontWeight: 600,
-                fontSize: "0.82rem",
+                fontSize: "0.8rem",
                 textTransform: "none",
-                px: 2,
-                py: 0.6,
-                borderRadius: 1.75,
+                px: 1.75,
+                py: 0.5,
+                borderRadius: 1.5,
                 bgcolor: "#1A73E8",
                 color: "#FFFFFF",
                 boxShadow: "none",
                 "&:hover": {
                   bgcolor: "#1557B0",
-                  boxShadow: "0 2px 6px rgba(26, 115, 232, 0.35)",
                 },
               }}
             >
-              {saving ? "Saving..." : "Save Configuration"}
+              {saving ? "Saving..." : "Save Config"}
             </Button>
           </Box>
         }
       />
 
       {saveSuccess && (
-        <Alert severity="success" icon={<CheckCircleOutlineIcon />}>
+        <Alert
+          severity="success"
+          variant="outlined"
+          icon={<CheckCircleOutlineIcon fontSize="small" />}
+          sx={{
+            py: 0.25,
+            px: 1.5,
+            fontSize: "0.8rem",
+            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(16, 185, 129, 0.08)" : "rgba(16, 185, 129, 0.04)"),
+            borderColor: (t) => (t.palette.mode === "dark" ? "rgba(16, 185, 129, 0.3)" : "rgba(16, 185, 129, 0.25)"),
+          }}
+        >
           Agent configuration saved successfully for tenant {orgId}.
         </Alert>
       )}
 
-      {error && <Alert severity="error">{error}</Alert>}
+      {error && (
+        <Alert severity="error" variant="outlined" sx={{ py: 0.25, px: 1.5, fontSize: "0.8rem" }}>
+          {error}
+        </Alert>
+      )}
 
       {/* Agent Selector Tabs Ribbon */}
       <Box
         sx={{
-          p: 0.75,
-          borderRadius: 2,
-          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.025)" : "rgba(0, 0, 0, 0.025)"),
+          p: 0.5,
+          borderRadius: 1.75,
+          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.02)"),
           border: "1px solid",
           borderColor: "divider",
         }}
@@ -904,22 +920,22 @@ export default function AgentConfigStudioPage() {
           variant="scrollable"
           scrollButtons="auto"
           sx={{
-            minHeight: 42,
+            minHeight: 34,
             "& .MuiTabs-indicator": {
-              height: 3,
-              borderRadius: "3px 3px 0 0",
+              height: 2.5,
+              borderRadius: "2px 2px 0 0",
               bgcolor: "primary.main",
             },
             "& .MuiTab-root": {
               textTransform: "none",
               fontWeight: 600,
-              fontSize: "0.86rem",
-              minHeight: 38,
-              py: 0.75,
-              px: 1.75,
-              borderRadius: 1.5,
+              fontSize: "0.8rem",
+              minHeight: 32,
+              py: 0.4,
+              px: 1.25,
+              borderRadius: 1.25,
               mr: 0.5,
-              transition: "all 0.2s ease",
+              transition: "all 0.15s ease",
               "&.Mui-selected": {
                 color: "primary.main",
                 fontWeight: 700,
@@ -931,7 +947,7 @@ export default function AgentConfigStudioPage() {
           {configs.map((c) => (
             <Tab
               key={c.agent_name}
-              icon={<SmartToyIcon sx={{ fontSize: 16 }} />}
+              icon={<SmartToyIcon sx={{ fontSize: 15 }} />}
               iconPosition="start"
               label={AGENT_LABELS[c.agent_name]?.label || c.agent_name}
             />
@@ -945,8 +961,9 @@ export default function AgentConfigStudioPage() {
           <Card
             variant="outlined"
             sx={{
-              p: 2,
-              borderRadius: 2,
+              py: 1,
+              px: 2,
+              borderRadius: 1.75,
               bgcolor: "background.paper",
               borderColor: "divider",
             }}
@@ -963,10 +980,10 @@ export default function AgentConfigStudioPage() {
                     }}
                   >
                     <Box sx={{ textAlign: "left" }}>
-                      <Typography variant="body2" sx={{ fontWeight: wizardStep === 0 ? 700 : 600, fontSize: "0.85rem" }}>
+                      <Typography variant="body2" sx={{ fontWeight: wizardStep === 0 ? 700 : 600, fontSize: "0.8rem" }}>
                         1. Agent Intelligence
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
                         Model &amp; Instructions
                       </Typography>
                     </Box>
@@ -985,10 +1002,10 @@ export default function AgentConfigStudioPage() {
                     }}
                   >
                     <Box sx={{ textAlign: "left" }}>
-                      <Typography variant="body2" sx={{ fontWeight: wizardStep === 1 ? 700 : 600, fontSize: "0.85rem" }}>
+                      <Typography variant="body2" sx={{ fontWeight: wizardStep === 1 ? 700 : 600, fontSize: "0.8rem" }}>
                         2. Simulation Staging
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
                         Scenarios &amp; Payloads
                       </Typography>
                     </Box>
@@ -1007,10 +1024,10 @@ export default function AgentConfigStudioPage() {
                     }}
                   >
                     <Box sx={{ textAlign: "left" }}>
-                      <Typography variant="body2" sx={{ fontWeight: wizardStep === 2 ? 700 : 600, fontSize: "0.85rem" }}>
+                      <Typography variant="body2" sx={{ fontWeight: wizardStep === 2 ? 700 : 600, fontSize: "0.8rem" }}>
                         3. Verification &amp; Telemetry
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
                         Real-Time Analysis
                       </Typography>
                     </Box>
@@ -1022,17 +1039,17 @@ export default function AgentConfigStudioPage() {
 
           {/* ── STEP 0: AGENT INTELLIGENCE & HYPERPARAMETERS ───────────────────────── */}
           {wizardStep === 0 && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", borderRadius: 2 }}>
-                <CardContent sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1.5, p: { xs: 1.5, sm: 2 } }}>
                   {/* Agent Header */}
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
                       <Box
                         sx={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 1.5,
+                          width: 32,
+                          height: 32,
+                          borderRadius: 1.25,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -1045,13 +1062,14 @@ export default function AgentConfigStudioPage() {
                         <SmartToyIcon fontSize="small" />
                       </Box>
                       <Box>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <Typography variant="subtitle1" fontWeight={700}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                          <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: "0.95rem" }}>
                             {agentMeta?.label || currentConfig.agent_name}
                           </Typography>
                           <Chip
                             label={agentMeta?.role?.includes("System 1") ? "System 1 Reflex" : "System 2 Reasoning"}
                             size="small"
+                            variant="outlined"
                             color={agentMeta?.role?.includes("System 1") ? "warning" : "primary"}
                             sx={{ fontWeight: 700, height: 20, fontSize: "0.68rem" }}
                           />
@@ -1063,266 +1081,262 @@ export default function AgentConfigStudioPage() {
                             sx={{ fontWeight: 700, height: 20, fontSize: "0.68rem" }}
                           />
                         </Box>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.74rem" }}>
                           {agentMeta?.role}
                         </Typography>
                       </Box>
                     </Box>
                   </Box>
 
-                  <Divider />
+                  <Divider sx={{ my: 0.25 }} />
 
-                  {/* Neural Inference Engine (Fixed Gemini 3.8 Flash) */}
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: "#1A73E8", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.75 }}
-                    >
-                      <GeminiIcon size={14} /> NEURAL INFERENCE ENGINE
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        p: 1.5,
-                        borderRadius: 1.5,
-                        bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.025)" : "rgba(0, 0, 0, 0.02)"),
-                        border: "1px solid",
-                        borderColor: "divider",
-                      }}
-                    >
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
-                        <GeminiIcon size={20} />
-                        <Box>
-                          <Typography variant="body2" fontWeight={700}>
-                            Gemini 3.8 Flash
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Google Cloud structured JSON output with deterministic sub-second reasoning
-                          </Typography>
-                        </Box>
-                      </Box>
-                      <Chip
-                        label="Production Engine"
-                        size="small"
-                        color="primary"
-                        variant="outlined"
-                        sx={{ fontWeight: 700, height: 22, fontSize: "0.7rem" }}
-                      />
-                    </Box>
-                  </Box>
-
-                  {/* Temperature Control with Quick Presets */}
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary" }}>
-                        REASONING TEMPERATURE: <strong>{currentConfig.temperature}</strong>
-                      </Typography>
-                      <Box sx={{ display: "flex", gap: 0.75 }}>
-                        <Chip
-                          label="Strict (0.1)"
-                          size="small"
-                          clickable
-                          onClick={() => setCurrentConfig({ ...currentConfig, temperature: 0.1 })}
-                          color={currentConfig.temperature <= 0.2 ? "primary" : "default"}
-                          variant={currentConfig.temperature <= 0.2 ? "filled" : "outlined"}
-                          sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
-                        />
-                        <Chip
-                          label="Balanced (0.4)"
-                          size="small"
-                          clickable
-                          onClick={() => setCurrentConfig({ ...currentConfig, temperature: 0.4 })}
-                          color={currentConfig.temperature > 0.2 && currentConfig.temperature <= 0.6 ? "primary" : "default"}
-                          variant={currentConfig.temperature > 0.2 && currentConfig.temperature <= 0.6 ? "filled" : "outlined"}
-                          sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
-                        />
-                        <Chip
-                          label="Exploratory (0.85)"
-                          size="small"
-                          clickable
-                          onClick={() => setCurrentConfig({ ...currentConfig, temperature: 0.85 })}
-                          color={currentConfig.temperature > 0.6 ? "primary" : "default"}
-                          variant={currentConfig.temperature > 0.6 ? "filled" : "outlined"}
-                          sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
-                        />
-                      </Box>
-                    </Box>
-                    <Slider
-                      size="small"
-                      value={currentConfig.temperature}
-                      min={0.0}
-                      max={1.0}
-                      step={0.05}
-                      onChange={(_, val) => setCurrentConfig({ ...currentConfig, temperature: val as number })}
-                      sx={{
-                        color: "#1A73E8",
-                        "& .MuiSlider-thumb": {
-                          boxShadow: "0 0 10px rgba(26, 115, 232, 0.4)",
-                        },
-                      }}
-                    />
-                  </Box>
-
-                  {/* Bound Enterprise Data Source */}
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: "#1A73E8", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.75 }}
-                    >
-                      <StorageIcon fontSize="small" /> BOUND ENTERPRISE DATA SOURCE
-                    </Typography>
-                    <TextField
-                      select
-                      size="small"
-                      value={currentConfig.data_source_id || ""}
-                      onChange={(e) => setCurrentConfig({ ...currentConfig, data_source_id: e.target.value || null })}
-                      fullWidth
-                    >
-                      <MenuItem value="">
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <StorageIcon sx={{ fontSize: 16, color: "text.secondary" }} />
-                          <span>— Use Default In-Memory Simulator —</span>
-                        </Box>
-                      </MenuItem>
-                      {dataSources.map((ds) => {
-                        const isBq = ds.source_type?.toLowerCase().includes("bigquery");
-                        return (
-                          <MenuItem key={ds.source_id} value={ds.source_id}>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, width: "100%" }}>
-                              {isBq ? <GoogleCloudIcon size={16} /> : <StorageIcon sx={{ fontSize: 16 }} />}
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                {ds.name}
+                  {/* 2-Column Split: Inference & Source (Left) vs Instructions & Hyperparameters (Right) */}
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1.15fr" }, gap: 2, alignItems: "start" }}>
+                    {/* Left Column: Inference Engine, Temp Slider, Data Source */}
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                      {/* Neural Inference Engine */}
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "#1A73E8", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.72rem" }}
+                        >
+                          <GeminiIcon size={13} /> NEURAL INFERENCE ENGINE
+                        </Typography>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            p: 1.25,
+                            borderRadius: 1.25,
+                            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.025)" : "rgba(0, 0, 0, 0.02)"),
+                            border: "1px solid",
+                            borderColor: "divider",
+                          }}
+                        >
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                            <GeminiIcon size={18} />
+                            <Box>
+                              <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.85rem" }}>
+                                Gemini 3.8 Flash
                               </Typography>
-                              <Chip
-                                label={isBq ? "Google BigQuery" : ds.source_type.toUpperCase()}
-                                size="small"
-                                color={isBq ? "primary" : "default"}
-                                variant="outlined"
-                                sx={{ ml: "auto", height: 20, fontSize: "0.65rem", fontWeight: 700 }}
-                              />
+                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
+                                Google Cloud structured JSON with deterministic sub-second reasoning
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Chip
+                            label="Production"
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                            sx={{ fontWeight: 700, height: 20, fontSize: "0.68rem" }}
+                          />
+                        </Box>
+                      </Box>
+
+                      {/* Temperature Control with Quick Presets */}
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", fontSize: "0.72rem" }}>
+                            REASONING TEMPERATURE: <strong>{currentConfig.temperature}</strong>
+                          </Typography>
+                          <Box sx={{ display: "flex", gap: 0.5 }}>
+                            <Chip
+                              label="Strict (0.1)"
+                              size="small"
+                              clickable
+                              onClick={() => setCurrentConfig({ ...currentConfig, temperature: 0.1 })}
+                              color={currentConfig.temperature <= 0.2 ? "primary" : "default"}
+                              variant="outlined"
+                              sx={{
+                                height: 20,
+                                fontSize: "0.66rem",
+                                fontWeight: 600,
+                                bgcolor: currentConfig.temperature <= 0.2 ? "rgba(26, 115, 232, 0.1)" : "transparent",
+                              }}
+                            />
+                            <Chip
+                              label="Balanced (0.4)"
+                              size="small"
+                              clickable
+                              onClick={() => setCurrentConfig({ ...currentConfig, temperature: 0.4 })}
+                              color={currentConfig.temperature > 0.2 && currentConfig.temperature <= 0.6 ? "primary" : "default"}
+                              variant="outlined"
+                              sx={{
+                                height: 20,
+                                fontSize: "0.66rem",
+                                fontWeight: 600,
+                                bgcolor: currentConfig.temperature > 0.2 && currentConfig.temperature <= 0.6 ? "rgba(26, 115, 232, 0.1)" : "transparent",
+                              }}
+                            />
+                            <Chip
+                              label="Exploratory (0.85)"
+                              size="small"
+                              clickable
+                              onClick={() => setCurrentConfig({ ...currentConfig, temperature: 0.85 })}
+                              color={currentConfig.temperature > 0.6 ? "primary" : "default"}
+                              variant="outlined"
+                              sx={{
+                                height: 20,
+                                fontSize: "0.66rem",
+                                fontWeight: 600,
+                                bgcolor: currentConfig.temperature > 0.6 ? "rgba(26, 115, 232, 0.1)" : "transparent",
+                              }}
+                            />
+                          </Box>
+                        </Box>
+                        <Slider
+                          size="small"
+                          value={currentConfig.temperature}
+                          min={0.0}
+                          max={1.0}
+                          step={0.05}
+                          onChange={(_, val) => setCurrentConfig({ ...currentConfig, temperature: val as number })}
+                          sx={{
+                            color: "#1A73E8",
+                            my: 0.5,
+                            "& .MuiSlider-thumb": {
+                              boxShadow: "0 0 8px rgba(26, 115, 232, 0.4)",
+                            },
+                          }}
+                        />
+                      </Box>
+
+                      {/* Bound Enterprise Data Source */}
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "#1A73E8", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.72rem" }}
+                        >
+                          <StorageIcon sx={{ fontSize: 13 }} /> BOUND ENTERPRISE DATA SOURCE
+                        </Typography>
+                        <TextField
+                          select
+                          size="small"
+                          value={currentConfig.data_source_id || ""}
+                          onChange={(e) => setCurrentConfig({ ...currentConfig, data_source_id: e.target.value || null })}
+                          fullWidth
+                        >
+                          <MenuItem value="">
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <StorageIcon sx={{ fontSize: 15, color: "text.secondary" }} />
+                              <Typography variant="body2" sx={{ fontSize: "0.82rem" }}>— Default In-Memory Simulator —</Typography>
                             </Box>
                           </MenuItem>
-                        );
-                      })}
-                    </TextField>
+                          {dataSources.map((ds) => {
+                            const isBq = ds.source_type?.toLowerCase().includes("bigquery");
+                            return (
+                              <MenuItem key={ds.source_id} value={ds.source_id}>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 1, width: "100%" }}>
+                                  {isBq ? <GoogleCloudIcon size={15} /> : <StorageIcon sx={{ fontSize: 15 }} />}
+                                  <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.82rem" }}>
+                                    {ds.name}
+                                  </Typography>
+                                  <Chip
+                                    label={isBq ? "Google BigQuery" : ds.source_type.toUpperCase()}
+                                    size="small"
+                                    color={isBq ? "primary" : "default"}
+                                    variant="outlined"
+                                    sx={{ ml: "auto", height: 18, fontSize: "0.62rem", fontWeight: 700 }}
+                                  />
+                                </Box>
+                              </MenuItem>
+                            );
+                          })}
+                        </TextField>
+                      </Box>
+                    </Box>
+
+                    {/* Right Column: Instructions & Hyperparameters */}
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                      {/* System Reasoning Instructions */}
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <Typography variant="caption" sx={{ color: "#1A73E8", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.72rem" }}>
+                            <TerminalIcon sx={{ fontSize: 13 }} /> SYSTEM REASONING INSTRUCTIONS &amp; PROMPT
+                          </Typography>
+                          <Chip
+                            label={`${(currentConfig.system_prompt || "").length} chars`}
+                            size="small"
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: "0.62rem" }}
+                          />
+                        </Box>
+                        <TextField
+                          multiline
+                          rows={3}
+                          size="small"
+                          fullWidth
+                          value={currentConfig.system_prompt || ""}
+                          onChange={(e) => setCurrentConfig({ ...currentConfig, system_prompt: e.target.value })}
+                          placeholder="Enter custom instructions to tailor agent reasoning..."
+                          sx={{
+                            "& textarea": {
+                              fontFamily: 'var(--font-mono, monospace)',
+                              fontSize: "0.78rem",
+                              lineHeight: 1.4,
+                            },
+                            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
+                          }}
+                        />
+                      </Box>
+
+                      {/* Domain Hyperparameters */}
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <Typography variant="caption" sx={{ color: "#1A73E8", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.72rem" }}>
+                            <TuneIcon sx={{ fontSize: 13 }} /> DOMAIN HYPERPARAMETERS (JSON)
+                          </Typography>
+                          <Chip
+                            label="JSON Parameters"
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
+                          />
+                        </Box>
+                        <TextField
+                          multiline
+                          rows={3}
+                          size="small"
+                          fullWidth
+                          value={JSON.stringify(currentConfig.parameters, null, 2)}
+                          onChange={(e) => {
+                            try {
+                              const parsed = JSON.parse(e.target.value);
+                              setCurrentConfig({ ...currentConfig, parameters: parsed });
+                            } catch {
+                              // Allow typing
+                            }
+                          }}
+                          sx={{
+                            "& textarea": {
+                              fontFamily: 'var(--font-mono, monospace)',
+                              fontSize: "0.78rem",
+                              lineHeight: 1.4,
+                            },
+                            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
+                          }}
+                        />
+                      </Box>
+                    </Box>
                   </Box>
 
-                  {/* Collapsible Panel 1: System Reasoning Instructions */}
-                  <Accordion
-                    defaultExpanded
-                    variant="outlined"
-                    sx={{
-                      borderRadius: 1.5,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      "&:before": { display: "none" },
-                    }}
-                  >
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", pr: 1 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <TerminalIcon sx={{ fontSize: 16, color: "#1A73E8" }} />
-                          <Typography variant="body2" fontWeight={700}>
-                            System Reasoning Instructions &amp; Prompt
-                          </Typography>
-                        </Box>
-                        <Chip
-                          label={`${(currentConfig.system_prompt || "").length} chars`}
-                          size="small"
-                          variant="outlined"
-                          sx={{ height: 18, fontSize: "0.62rem" }}
-                        />
-                      </Box>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ pt: 0 }}>
-                      <TextField
-                        multiline
-                        rows={4}
-                        size="small"
-                        fullWidth
-                        value={currentConfig.system_prompt || ""}
-                        onChange={(e) => setCurrentConfig({ ...currentConfig, system_prompt: e.target.value })}
-                        placeholder="Enter custom instructions to tailor agent reasoning..."
-                        sx={{
-                          "& textarea": {
-                            fontFamily: 'var(--font-mono, monospace)',
-                            fontSize: "0.82rem",
-                            lineHeight: 1.45,
-                          },
-                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
-                        }}
-                      />
-                    </AccordionDetails>
-                  </Accordion>
-
-                  {/* Collapsible Panel 2: Domain Hyperparameters */}
-                  <Accordion
-                    variant="outlined"
-                    sx={{
-                      borderRadius: 1.5,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      "&:before": { display: "none" },
-                    }}
-                  >
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", pr: 1 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <TuneIcon sx={{ fontSize: 16, color: "#1A73E8" }} />
-                          <Typography variant="body2" fontWeight={700}>
-                            Domain Hyperparameters (JSON)
-                          </Typography>
-                        </Box>
-                        <Chip
-                          label="JSON Parameters"
-                          size="small"
-                          color="success"
-                          variant="outlined"
-                          sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
-                        />
-                      </Box>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ pt: 0 }}>
-                      <TextField
-                        multiline
-                        rows={4}
-                        size="small"
-                        fullWidth
-                        value={JSON.stringify(currentConfig.parameters, null, 2)}
-                        onChange={(e) => {
-                          try {
-                            const parsed = JSON.parse(e.target.value);
-                            setCurrentConfig({ ...currentConfig, parameters: parsed });
-                          } catch {
-                            // Allow typing
-                          }
-                        }}
-                        sx={{
-                          "& textarea": {
-                            fontFamily: 'var(--font-mono, monospace)',
-                            fontSize: "0.82rem",
-                            lineHeight: 1.45,
-                          },
-                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
-                        }}
-                      />
-                    </AccordionDetails>
-                  </Accordion>
-
                   {/* Step 0 Navigation Actions */}
-                  <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1.5, pt: 1 }}>
+                  <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", pt: 0.5 }}>
                     <Button
                       variant="contained"
-                      endIcon={<ArrowForwardIcon />}
+                      size="small"
+                      endIcon={<ArrowForwardIcon sx={{ fontSize: 16 }} />}
                       onClick={() => setWizardStep(1)}
                       sx={{
                         fontWeight: 600,
+                        fontSize: "0.82rem",
                         textTransform: "none",
-                        px: 2.5,
-                        py: 0.8,
-                        borderRadius: 2,
+                        px: 2,
+                        py: 0.6,
+                        borderRadius: 1.75,
                         bgcolor: "#1A73E8",
                         color: "#FFFFFF",
                         boxShadow: "none",
@@ -1339,19 +1353,19 @@ export default function AgentConfigStudioPage() {
 
           {/* ── STEP 1: SIMULATION STAGING ────────────────────────────────────────── */}
           {wizardStep === 1 && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", borderRadius: 2 }}>
-                <CardContent sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1.5, p: { xs: 1.5, sm: 2 } }}>
                   {/* Header */}
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <BoltIcon sx={{ color: "#1A73E8", fontSize: 24 }} />
+                      <BoltIcon sx={{ color: "#1A73E8", fontSize: 20 }} />
                       <Box>
-                        <Typography variant="subtitle1" fontWeight={700}>
+                        <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: "0.95rem" }}>
                           Simulator Command Centre
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Select test scenario and stage simulation parameters for {agentMeta?.label || currentConfig.agent_name}
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.74rem" }}>
+                          Stage simulation parameters and test scenario for {agentMeta?.label || currentConfig.agent_name}
                         </Typography>
                       </Box>
                     </Box>
@@ -1359,111 +1373,123 @@ export default function AgentConfigStudioPage() {
                       label="Gemini 3.8 Flash"
                       size="small"
                       color="primary"
-                      sx={{ fontWeight: 700, height: 22, fontSize: "0.7rem" }}
+                      variant="outlined"
+                      sx={{ fontWeight: 700, height: 20, fontSize: "0.68rem" }}
                     />
                   </Box>
 
-                  <Divider />
+                  <Divider sx={{ my: 0.25 }} />
 
-                  {/* Dropdown Select for Preset Scenario */}
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary" }}>
-                      SELECT SIMULATION PRESET SCENARIO
-                    </Typography>
-                    <TextField
-                      select
-                      fullWidth
-                      size="small"
-                      label="Select Preset Scenario"
-                      value={selectedScenarioId}
-                      onChange={(e) => {
-                        const sc = currentScenarios.find((s) => s.id === e.target.value);
-                        if (sc) handleSelectScenario(sc);
-                      }}
-                    >
-                      {currentScenarios.map((sc) => (
-                        <MenuItem key={sc.id} value={sc.id}>
-                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 2, py: 0.5 }}>
-                            <Box>
-                              <Typography variant="body2" fontWeight={600}>
+                  {/* 2-Column Split: Preset Scenarios (Left) vs Payload JSON & Overrides (Right) */}
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1.15fr" }, gap: 2, alignItems: "start" }}>
+                    {/* Left Column: Preset Scenario Picker & Context */}
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", fontSize: "0.72rem" }}>
+                        SELECT SIMULATION PRESET SCENARIO
+                      </Typography>
+                      <TextField
+                        select
+                        fullWidth
+                        size="small"
+                        label="Preset Scenario"
+                        value={selectedScenarioId}
+                        onChange={(e) => {
+                          const sc = currentScenarios.find((s) => s.id === e.target.value);
+                          if (sc) handleSelectScenario(sc);
+                        }}
+                      >
+                        {currentScenarios.map((sc) => (
+                          <MenuItem key={sc.id} value={sc.id}>
+                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 1.5, py: 0.25 }}>
+                              <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>
                                 {sc.name}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {sc.description}
-                              </Typography>
+                              <Chip
+                                label={sc.badge}
+                                size="small"
+                                color={sc.badgeColor}
+                                variant="outlined"
+                                sx={{ fontWeight: 700, height: 18, fontSize: "0.65rem" }}
+                              />
                             </Box>
-                            <Chip
-                              label={sc.badge}
-                              size="small"
-                              color={sc.badgeColor}
-                              sx={{ fontWeight: 700, height: 20, fontSize: "0.68rem" }}
-                            />
-                          </Box>
-                        </MenuItem>
-                      ))}
-                    </TextField>
+                          </MenuItem>
+                        ))}
+                      </TextField>
 
-                    {/* Active Scenario Context Banner */}
-                    {activeScenario && (
+                      {/* Active Scenario Context Banner */}
+                      {activeScenario && (
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 1.25,
+                            borderRadius: 1.5,
+                            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.02)"),
+                            borderColor: "divider",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 0.75,
+                          }}
+                        >
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                            <Chip
+                              label={activeScenario.badge}
+                              size="small"
+                              color={activeScenario.badgeColor}
+                              variant="outlined"
+                              sx={{ fontWeight: 700, height: 18, fontSize: "0.65rem" }}
+                            />
+                            <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.82rem" }}>
+                              {activeScenario.name}
+                            </Typography>
+                          </Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem", lineHeight: 1.4 }}>
+                            {activeScenario.description}
+                          </Typography>
+                        </Paper>
+                      )}
+
                       <Paper
                         variant="outlined"
                         sx={{
-                          p: 1.5,
+                          p: 1.25,
                           borderRadius: 1.5,
-                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.02)"),
-                          borderColor: "divider",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 1.5,
+                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(26, 115, 232, 0.04)" : "rgba(26, 115, 232, 0.02)"),
+                          borderColor: (t) => (t.palette.mode === "dark" ? "rgba(26, 115, 232, 0.2)" : "rgba(26, 115, 232, 0.15)"),
                         }}
                       >
-                        <Chip
-                          label={activeScenario.badge}
-                          size="small"
-                          color={activeScenario.badgeColor}
-                          sx={{ fontWeight: 700, height: 20, fontSize: "0.68rem" }}
-                        />
-                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.82rem" }}>
-                          {activeScenario.description}
+                        <Typography variant="caption" sx={{ color: "#1A73E8", fontWeight: 700, display: "block", mb: 0.5, fontSize: "0.72rem" }}>
+                          STAGING SUMMARY
                         </Typography>
-                      </Paper>
-                    )}
-                  </Box>
-
-                  {/* Collapsible Panel 1: Raw Simulation Payload JSON */}
-                  <Accordion
-                    defaultExpanded
-                    variant="outlined"
-                    sx={{
-                      borderRadius: 1.5,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      "&:before": { display: "none" },
-                    }}
-                  >
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", pr: 1 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <CodeIcon sx={{ fontSize: 16, color: "#1A73E8" }} />
-                          <Typography variant="body2" fontWeight={700}>
-                            Raw Simulation Payload (JSON)
+                        <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: "0.74rem", color: "text.secondary", mb: 0.25 }}>
+                          <span>Target Agent:</span>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary" }}>{agentMeta?.label}</Typography>
+                        </Box>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: "0.74rem", color: "text.secondary" }}>
+                          <span>Data Source:</span>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary" }}>
+                            {currentConfig.data_source_id ? "Bound Data Connector" : "In-Memory Simulator"}
                           </Typography>
                         </Box>
-                        <Tooltip title="Reset payload to scenario preset">
-                          <IconButton
+                      </Paper>
+                    </Box>
+
+                    {/* Right Column: Raw Simulation Payload JSON & Overrides */}
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: "#1A73E8", display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.72rem" }}>
+                          <CodeIcon sx={{ fontSize: 13 }} /> RAW SIMULATION PAYLOAD (JSON)
+                        </Typography>
+                        <Tooltip title="Reset to preset">
+                          <Button
                             size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleResetPayload();
-                            }}
-                            sx={{ width: 26, height: 26, color: "text.secondary" }}
+                            onClick={handleResetPayload}
+                            startIcon={<RefreshIcon sx={{ fontSize: 13 }} />}
+                            sx={{ fontSize: "0.68rem", textTransform: "none", py: 0.1, px: 0.75 }}
                           >
-                            <RefreshIcon sx={{ fontSize: 15 }} />
-                          </IconButton>
+                            Reset
+                          </Button>
                         </Tooltip>
                       </Box>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ pt: 0 }}>
                       <TextField
                         multiline
                         rows={6}
@@ -1471,87 +1497,85 @@ export default function AgentConfigStudioPage() {
                         fullWidth
                         value={playgroundPayload}
                         onChange={(e) => setPlaygroundPayload(e.target.value)}
-                        placeholder="Enter JSON simulation payload..."
                         sx={{
                           "& textarea": {
                             fontFamily: 'var(--font-mono, monospace)',
-                            fontSize: "0.82rem",
+                            fontSize: "0.76rem",
                             lineHeight: 1.4,
                           },
                           bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
                         }}
                       />
-                    </AccordionDetails>
-                  </Accordion>
 
-                  {/* Collapsible Panel 2: Personal Gemini API Key Override */}
-                  <Accordion
-                    variant="outlined"
-                    sx={{
-                      borderRadius: 1.5,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      "&:before": { display: "none" },
-                    }}
-                  >
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <KeyIcon sx={{ fontSize: 16, color: "#1A73E8" }} />
-                        <Typography variant="body2" fontWeight={700}>
-                          Personal Gemini API Key (Optional Override)
-                        </Typography>
-                      </Box>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ pt: 0 }}>
-                      <TextField
-                        size="small"
-                        fullWidth
-                        type="password"
-                        placeholder="Paste personal AIzaSy... API key (Optional override)"
-                        value={customApiKey}
-                        onChange={(e) => setCustomApiKey(e.target.value)}
-                        InputProps={{
-                          startAdornment: <KeyIcon sx={{ fontSize: 15, mr: 1, color: "text.secondary" }} />,
+                      {/* Optional API Key Override (Collapsed Accordion) */}
+                      <Accordion
+                        variant="outlined"
+                        sx={{
+                          borderRadius: 1.25,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          "&:before": { display: "none" },
                         }}
-                      />
-                    </AccordionDetails>
-                  </Accordion>
+                      >
+                        <AccordionSummary expandIcon={<ExpandMoreIcon sx={{ fontSize: 16 }} />} sx={{ minHeight: 32, py: 0.5 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                            <KeyIcon sx={{ fontSize: 14, color: "text.secondary" }} />
+                            <Typography variant="caption" fontWeight={600} color="text.secondary">
+                              Custom Gemini API Key Override (Optional)
+                            </Typography>
+                          </Box>
+                        </AccordionSummary>
+                        <AccordionDetails sx={{ pt: 0, pb: 1 }}>
+                          <TextField
+                            size="small"
+                            type="password"
+                            fullWidth
+                            placeholder="AIzaSy... (leave blank to use system key)"
+                            value={customApiKey}
+                            onChange={(e) => setCustomApiKey(e.target.value)}
+                            sx={{
+                              "& input": { fontSize: "0.78rem" },
+                              bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.25)" : "rgba(0, 0, 0, 0.02)"),
+                            }}
+                          />
+                        </AccordionDetails>
+                      </Accordion>
+                    </Box>
+                  </Box>
 
                   {/* Step 1 Actions */}
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 1 }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 0.5 }}>
                     <Button
                       variant="outlined"
-                      startIcon={<ArrowBackIcon />}
+                      size="small"
+                      startIcon={<ArrowBackIcon sx={{ fontSize: 16 }} />}
                       onClick={() => setWizardStep(0)}
-                      sx={{ fontWeight: 600, textTransform: "none", borderRadius: 2 }}
+                      sx={{ fontWeight: 600, textTransform: "none", borderRadius: 1.75, fontSize: "0.82rem" }}
                     >
-                      Back to Intelligence
+                      Back
                     </Button>
-
-                    <Button
-                      variant="contained"
-                      size="large"
-                      startIcon={testing ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
-                      onClick={handleRunPlayground}
-                      disabled={testing}
-                      sx={{
-                        fontWeight: 600,
-                        px: 3,
-                        py: 1,
-                        textTransform: "none",
-                        fontSize: "0.9rem",
-                        borderRadius: 2,
-                        bgcolor: "#1A73E8",
-                        color: "#FFFFFF",
-                        boxShadow: "none",
-                        "&:hover": {
-                          bgcolor: "#1557B0",
-                          boxShadow: "0 2px 8px rgba(26, 115, 232, 0.3)",
-                        },
-                      }}
-                    >
-                      {testing ? "Simulating Live Agent Reasoning..." : `Run Gemini 3.8 Flash Simulation`}
-                    </Button>
+                    <Box sx={{ display: "flex", gap: 1.25 }}>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={testing ? <CircularProgress size={14} color="inherit" /> : <PlayArrowIcon sx={{ fontSize: 16 }} />}
+                        onClick={handleRunPlayground}
+                        disabled={testing}
+                        sx={{
+                          fontWeight: 600,
+                          fontSize: "0.82rem",
+                          textTransform: "none",
+                          px: 2,
+                          py: 0.6,
+                          borderRadius: 1.75,
+                          bgcolor: "#1A73E8",
+                          color: "#FFFFFF",
+                          "&:hover": { bgcolor: "#1557B0" },
+                        }}
+                      >
+                        {testing ? "Running Simulation..." : "Run Simulation Now"}
+                      </Button>
+                    </Box>
                   </Box>
                 </CardContent>
               </Card>
@@ -1560,122 +1584,97 @@ export default function AgentConfigStudioPage() {
 
           {/* ── STEP 2: VERIFICATION & TELEMETRY ──────────────────────────────────── */}
           {wizardStep === 2 && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <Card
-                variant="outlined"
-                sx={{
-                  bgcolor: "background.paper",
-                  borderColor: "divider",
-                  borderRadius: 2,
-                  minHeight: 460,
-                }}
-              >
-                <CardContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+              <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", borderRadius: 2 }}>
+                <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1.5, p: { xs: 1.5, sm: 2 } }}>
                   {/* Header with Subtabs & Export & Back button */}
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      borderBottom: 1,
-                      borderColor: "divider",
-                      pb: 1,
-                      flexWrap: "wrap",
-                      gap: 1,
-                    }}
-                  >
-                    <Tabs
-                      value={playgroundTab}
-                      onChange={(_, val) => setPlaygroundTab(val)}
-                      sx={{
-                        minHeight: 34,
-                        "& .MuiTab-root": {
-                          minHeight: 34,
-                          py: 0.25,
-                          textTransform: "none",
-                          fontWeight: 700,
-                          fontSize: "0.85rem",
-                        },
-                      }}
-                    >
-                      <Tab icon={<AssessmentIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Interactive Analysis" />
-                      <Tab icon={<CodeIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Raw Output JSON" />
-                    </Tabs>
-
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      {testResult && (
-                        <Tooltip title={copied ? "Copied" : "Copy output JSON"}>
-                          <IconButton
-                            size="small"
-                            onClick={handleCopyResult}
-                            sx={{ width: 28, height: 28, color: "text.secondary" }}
-                          >
+                      <AssessmentIcon sx={{ color: "#1A73E8", fontSize: 20 }} />
+                      <Box>
+                        <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: "0.95rem" }}>
+                          Verification &amp; Telemetry Studio
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.74rem" }}>
+                          Real-time reasoning verification &amp; simulation analytics for {agentMeta?.label}
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    {testResult && (
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Tabs
+                          value={playgroundTab}
+                          onChange={(_, v) => setPlaygroundTab(v)}
+                          sx={{
+                            minHeight: 28,
+                            "& .MuiTab-root": {
+                              minHeight: 28,
+                              py: 0.2,
+                              px: 1.25,
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              textTransform: "none",
+                              borderRadius: 1,
+                            },
+                          }}
+                        >
+                          <Tab label="Analysis & Narrative" />
+                          <Tab label="Raw JSON Output" />
+                        </Tabs>
+
+                        <Tooltip title={copied ? "Copied!" : "Copy Raw JSON"}>
+                          <IconButton size="small" onClick={handleCopyResult} sx={{ border: "1px solid", borderColor: "divider", p: 0.5 }}>
                             {copied ? <CheckIcon sx={{ fontSize: 15, color: "success.main" }} /> : <ContentCopyIcon sx={{ fontSize: 15 }} />}
                           </IconButton>
                         </Tooltip>
-                      )}
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<ArrowBackIcon sx={{ fontSize: 14 }} />}
-                        onClick={() => setWizardStep(1)}
-                        sx={{ fontWeight: 600, textTransform: "none", fontSize: "0.78rem", borderRadius: 1.5 }}
-                      >
-                        Back to Staging
-                      </Button>
-                    </Box>
+                      </Box>
+                    )}
                   </Box>
+
+                  <Divider sx={{ my: 0.25 }} />
 
                   {/* State 1: In Progress Loading */}
                   {testing && (
-                    <Box
-                      sx={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        py: 10,
-                        gap: 2,
-                        my: "auto",
-                      }}
-                    >
+                    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", py: 5, gap: 2 }}>
                       <CircularProgress size={36} sx={{ color: "#1A73E8" }} />
                       <Box sx={{ textAlign: "center" }}>
-                        <Typography variant="subtitle2" fontWeight={700}>
-                          Executing Live Agent Reasoning
+                        <Typography variant="body1" fontWeight={700}>
+                          Dispatched Neural Inference to Gemini 3.8 Flash...
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Invoking Gemini 3.8 Flash &amp; verifying statutory compliance rules...
+                          Evaluating statutory rules, cross-referencing ledger tables &amp; telemetry streams
                         </Typography>
                       </Box>
+                      <LinearProgress sx={{ width: "40%", borderRadius: 1 }} />
                     </Box>
                   )}
 
                   {/* State 2: Simulation Not Yet Run */}
                   {!testing && !testResult && (
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, my: "auto", p: 1 }}>
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, p: 1 }}>
                       <Paper
                         variant="outlined"
                         sx={{
-                          p: 3,
+                          p: 2,
                           borderRadius: 2,
-                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(26, 115, 232, 0.05)" : "rgba(26, 115, 232, 0.03)"),
+                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(26, 115, 232, 0.04)" : "rgba(26, 115, 232, 0.02)"),
                           borderColor: (t) => (t.palette.mode === "dark" ? "rgba(26, 115, 232, 0.2)" : "rgba(26, 115, 232, 0.15)"),
                           display: "flex",
                           flexDirection: "column",
-                          gap: 2,
+                          gap: 1.5,
                         }}
                       >
                         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
                             <Box
                               sx={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 1.5,
+                                width: 32,
+                                height: 32,
+                                borderRadius: 1.25,
                                 display: "flex",
                                 alignItems: "center",
-                                justifyCenter: "center",
+                                justifyContent: "center",
                                 bgcolor: "#1A73E8",
                                 color: "#FFFFFF",
                               }}
@@ -1683,10 +1682,10 @@ export default function AgentConfigStudioPage() {
                               <BoltIcon fontSize="small" />
                             </Box>
                             <Box>
-                              <Typography variant="subtitle1" fontWeight={700}>
+                              <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: "0.92rem" }}>
                                 Simulation Staging: {activeScenario?.name || "Ready to Run"}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">
+                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
                                 Prepared for execution against {agentMeta?.label}
                               </Typography>
                             </Box>
@@ -1694,64 +1693,65 @@ export default function AgentConfigStudioPage() {
                           <Chip
                             label={activeScenario?.badge || "Ready"}
                             size="small"
+                            variant="outlined"
                             color={activeScenario?.badgeColor || "primary"}
-                            sx={{ fontWeight: 700 }}
+                            sx={{ fontWeight: 700, height: 20, fontSize: "0.68rem" }}
                           />
                         </Box>
 
-                        <Divider />
-
-                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 1.5 }}>
-                          <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-                            <Typography variant="caption" color="text.secondary" display="block">
+                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 1.25 }}>
+                          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.25 }}>
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.7rem" }}>
                               Data Connector
                             </Typography>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5 }}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.25 }}>
                               <GoogleCloudIcon size={14} />
-                              <Typography variant="body2" fontWeight={700}>
+                              <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.82rem" }}>
                                 Google BigQuery
                               </Typography>
                             </Box>
                           </Paper>
 
-                          <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-                            <Typography variant="caption" color="text.secondary" display="block">
+                          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.25 }}>
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.7rem" }}>
                               Reasoning Engine
                             </Typography>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5 }}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.25 }}>
                               <GeminiIcon size={14} />
-                              <Typography variant="body2" fontWeight={700}>
+                              <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.82rem" }}>
                                 Gemini 3.8 Flash
                               </Typography>
                             </Box>
                           </Paper>
 
-                          <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5 }}>
-                            <Typography variant="caption" color="text.secondary" display="block">
+                          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.25 }}>
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.7rem" }}>
                               Verification Mode
                             </Typography>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5 }}>
-                              <CheckCircleIcon sx={{ fontSize: 14, color: "success.main" }} />
-                              <Typography variant="body2" fontWeight={700}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.25 }}>
+                              <CheckCircleIcon sx={{ fontSize: 14, color: "primary.main" }} />
+                              <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.82rem" }}>
                                 CPCB Statutory Audit
                               </Typography>
                             </Box>
                           </Paper>
                         </Box>
 
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 1, flexWrap: "wrap", gap: 1.5 }}>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.82rem" }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 0.5, flexWrap: "wrap", gap: 1 }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8rem" }}>
                             Launch live neural reasoning to evaluate payloads, calculate debt amortization, and verify physics anomalies.
                           </Typography>
                           <Button
                             variant="contained"
-                            startIcon={<PlayArrowIcon />}
+                            size="small"
+                            startIcon={<PlayArrowIcon sx={{ fontSize: 16 }} />}
                             onClick={handleRunPlayground}
                             sx={{
                               fontWeight: 600,
                               textTransform: "none",
-                              px: 2.5,
-                              borderRadius: 2,
+                              px: 2,
+                              py: 0.5,
+                              borderRadius: 1.5,
                               bgcolor: "#1A73E8",
                               color: "#FFFFFF",
                               "&:hover": { bgcolor: "#1557B0" },
@@ -1768,12 +1768,27 @@ export default function AgentConfigStudioPage() {
                   {!testing && testResult && (
                     <>
                       {playgroundTab === 0 && (
-                        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          {/* Verdict Banner */}
-                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                          {/* Unified High-Density Telemetry & Verdict Strip (Replaces separate heavy banners) */}
+                          <Box
+                            sx={{
+                              p: 1.25,
+                              borderRadius: 1.5,
+                              bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.02)"),
+                              border: "1px solid",
+                              borderColor: "divider",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              flexWrap: "wrap",
+                              gap: 1,
+                            }}
+                          >
+                            {/* Left: Verdict Chip (Outlined) + Latency + Records */}
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap" }}>
                               <Chip
                                 label={testResult.verdict || testResult.status}
+                                variant="outlined"
                                 color={
                                   testResult.status === "ERROR" ||
                                   testResult.verdict === "REJECTED_FRAUD" ||
@@ -1786,393 +1801,386 @@ export default function AgentConfigStudioPage() {
                                     ? "warning"
                                     : "success"
                                 }
-                                sx={{ fontWeight: 700, fontSize: "0.85rem", letterSpacing: 0.5 }}
+                                sx={{ fontWeight: 700, fontSize: "0.78rem", height: 24 }}
                               />
                               <Typography
                                 variant="caption"
-                                sx={{ color: "text.secondary", display: "flex", alignItems: "center", gap: 0.5 }}
+                                sx={{ color: "text.secondary", display: "flex", alignItems: "center", gap: 0.5, fontSize: "0.74rem" }}
                               >
-                                <SpeedIcon sx={{ fontSize: 15 }} /> {testResult.latency_ms ?? 0} ms
+                                <SpeedIcon sx={{ fontSize: 14 }} /> {testResult.latency_ms ?? 0} ms
                               </Typography>
-                              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                                • {testResult.records_analyzed ?? 1} records analyzed
+                              <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.74rem" }}>
+                                • {testResult.records_analyzed ?? 1} records
                               </Typography>
                             </Box>
-                            <Chip
-                              icon={
-                                testResult.data_source_used?.toLowerCase().includes("bigquery") ||
-                                testResult.data_source_used?.toLowerCase().includes("erp_sales") ? (
-                                  <GoogleCloudIcon size={14} />
-                                ) : undefined
-                              }
-                              label={testResult.data_source_used || "Dynamic Simulator"}
-                              size="small"
-                              color={
-                                testResult.data_source_used?.toLowerCase().includes("bigquery") ||
-                                testResult.data_source_used?.toLowerCase().includes("erp_sales")
-                                  ? "primary"
-                                  : "default"
-                              }
-                              variant="outlined"
-                              sx={{ fontSize: "0.75rem", borderColor: "divider" }}
-                            />
+
+                            {/* Right: Model (Outlined) + Tokens + Cost + Data Connector */}
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                              <Chip
+                                icon={<GeminiIcon size={13} />}
+                                label="Gemini 3.8 Flash"
+                                size="small"
+                                variant="outlined"
+                                color="primary"
+                                sx={{ fontWeight: 700, fontSize: "0.72rem", height: 22 }}
+                              />
+                              <Chip
+                                label={`${testResult.tokens || testResult.llm_telemetry?.total_tokens || 0} tokens`}
+                                size="small"
+                                variant="outlined"
+                                sx={{ fontSize: "0.7rem", height: 20 }}
+                              />
+                              <Chip
+                                label={`$${Number(testResult.cost_usd || 0).toFixed(4)}`}
+                                size="small"
+                                variant="outlined"
+                                sx={{ fontSize: "0.7rem", height: 20 }}
+                              />
+                              <Chip
+                                icon={
+                                  testResult.data_source_used?.toLowerCase().includes("bigquery") ||
+                                  testResult.data_source_used?.toLowerCase().includes("erp_sales") ? (
+                                    <GoogleCloudIcon size={13} />
+                                  ) : undefined
+                                }
+                                label={testResult.data_source_used || "Simulator"}
+                                size="small"
+                                variant="outlined"
+                                sx={{ fontSize: "0.7rem", height: 20 }}
+                              />
+                            </Box>
                           </Box>
 
-                          {/* Telemetry Inspector Banner */}
-                          <Paper
-                            variant="outlined"
-                            sx={{
-                              p: 1.5,
-                              borderRadius: 1.5,
-                              bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(15, 23, 42, 0.6)" : "rgba(248, 250, 252, 0.9)"),
-                              border: "1px solid",
-                              borderColor: testResult.live_inference ? "success.dark" : "warning.dark",
-                            }}
-                          >
-                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                                {testResult.live_inference ? (
-                                  <Chip
-                                    icon={<GeminiIcon size={14} />}
-                                    label="Gemini 3.8 Flash • Production Inference"
-                                    color="success"
-                                    size="small"
-                                    sx={{ fontWeight: 700, fontSize: "0.75rem" }}
-                                  />
-                                ) : (
-                                  <Chip
-                                    icon={<TuneIcon sx={{ fontSize: 14 }} />}
-                                    label="Deterministic System 2 Engine • Gemini 3.8 Flash"
-                                    color="warning"
-                                    size="small"
-                                    variant="outlined"
-                                    sx={{ fontWeight: 700, fontSize: "0.75rem" }}
-                                  />
-                                )}
-
-                                <Chip
-                                  label={`${testResult.tokens || testResult.llm_telemetry?.total_tokens || 0} tokens`}
-                                  size="small"
+                          {/* Main Results Split: Reasoning Narrative & Diagnostics (Left) vs KPIs & Trace (Right) */}
+                          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1.15fr 0.85fr" }, gap: 1.75, alignItems: "start" }}>
+                            {/* Left Column: AI Reasoning Narrative (Cleaned & Markdown Rendered) + Anomalies + Prompt Inspection */}
+                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                              {/* AI Reasoning Narrative Paper with MarkdownRenderer */}
+                              {testResult.reasoning_narrative && (
+                                <Paper
                                   variant="outlined"
-                                  sx={{ fontSize: "0.72rem", height: 22 }}
-                                />
-                                <Chip
-                                  label={`$${Number(testResult.cost_usd || 0).toFixed(4)} (~₹${Number(testResult.cost_inr || 0).toFixed(2)})`}
-                                  size="small"
-                                  variant="outlined"
-                                  sx={{ fontSize: "0.72rem", height: 22 }}
-                                />
-                              </Box>
-                            </Box>
-                          </Paper>
-
-                          {/* Collapsible Panel: Dispatched Prompt & Diagnostics */}
-                          <Accordion
-                            variant="outlined"
-                            sx={{
-                              borderRadius: 1.5,
-                              border: "1px solid",
-                              borderColor: "divider",
-                              "&:before": { display: "none" },
-                            }}
-                          >
-                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                <TerminalIcon sx={{ fontSize: 16, color: "#1A73E8" }} />
-                                <Typography variant="body2" fontWeight={700}>
-                                  Model Inspection &amp; Dispatched Prompt
-                                </Typography>
-                              </Box>
-                            </AccordionSummary>
-                            <AccordionDetails sx={{ pt: 0, display: "flex", flexDirection: "column", gap: 1 }}>
-                              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary" }}>
-                                  DISPATCHED PROMPT SENT TO MODEL:
-                                </Typography>
-                                <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: "monospace" }}>
-                                  Model: Gemini 3.8 Flash | Temp: {testResult.temperature ?? 0.2}
-                                </Typography>
-                              </Box>
-                              <Box
-                                sx={{
-                                  p: 1.5,
-                                  borderRadius: 1,
-                                  bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.4)" : "rgba(0, 0, 0, 0.04)"),
-                                  border: "1px solid",
-                                  borderColor: "divider",
-                                  fontFamily: 'var(--font-mono, monospace)',
-                                  fontSize: "0.78rem",
-                                  whiteSpace: "pre-wrap",
-                                  maxHeight: 220,
-                                  overflowY: "auto",
-                                  color: (t) => (t.palette.mode === "dark" ? "#93c5fd" : "#1e40af"),
-                                }}
-                              >
-                                {testResult.prompt_sent || (testResult.raw_input_evaluated ? JSON.stringify(testResult.raw_input_evaluated, null, 2) : "No raw prompt captured.")}
-                              </Box>
-                              {testResult.system_instruction && (
-                                <>
-                                  <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", mt: 0.5 }}>
-                                    SYSTEM INSTRUCTION:
-                                  </Typography>
-                                  <Typography variant="caption" sx={{ fontStyle: "italic", color: "text.secondary" }}>
-                                    {testResult.system_instruction}
-                                  </Typography>
-                                </>
-                              )}
-                              {testResult.raw_api_error && (
-                                <Alert severity="warning" sx={{ mt: 1, py: 0.5, fontSize: "0.75rem" }}>
-                                  <b>Google Gemini API Diagnostic:</b> {testResult.raw_api_error}
-                                </Alert>
-                              )}
-                            </AccordionDetails>
-                          </Accordion>
-
-                          {/* AI Reasoning Narrative */}
-                          {testResult.reasoning_narrative && (
-                            <Paper
-                              variant="outlined"
-                              sx={{
-                                p: 1.75,
-                                bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(26, 115, 232, 0.08)" : "rgba(26, 115, 232, 0.04)"),
-                                borderColor: (t) => (t.palette.mode === "dark" ? "rgba(26, 115, 232, 0.25)" : "rgba(26, 115, 232, 0.2)"),
-                                borderRadius: 1.5,
-                                maxHeight: 180,
-                                overflowY: "auto",
-                              }}
-                            >
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
-                                <AutoAwesomeIcon sx={{ fontSize: 16, color: "#1A73E8" }} />
-                                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1A73E8", fontSize: "0.85rem" }}>
-                                  Agent Reasoning &amp; Analysis Narrative
-                                </Typography>
-                              </Box>
-                              <Typography variant="body2" sx={{ lineHeight: 1.5, whiteSpace: "pre-line", fontSize: "0.82rem" }}>
-                                {testResult.reasoning_narrative}
-                              </Typography>
-                            </Paper>
-                          )}
-
-                          {/* Detected Anomalies Alert */}
-                          {testResult.anomalies_detected && testResult.anomalies_detected.length > 0 && (
-                            <Alert severity="error" icon={<WarningAmberIcon />}>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                                Critical Physics &amp; Telemetry Anomalies Flagged:
-                              </Typography>
-                              <Box component="ul" sx={{ m: 0, pl: 2 }}>
-                                {testResult.anomalies_detected.map((anom: string, i: number) => (
-                                  <li key={i}>
-                                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                                      {anom}
-                                    </Typography>
-                                  </li>
-                                ))}
-                              </Box>
-                            </Alert>
-                          )}
-
-                          {/* KPI Metrics Grid */}
-                          {testResult.kpis && typeof testResult.kpis === "object" && (
-                            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(4, 1fr)" }, gap: 1.25 }}>
-                              {Object.entries(testResult.kpis)
-                                .slice(0, 4)
-                                .map(([key, val]) => (
-                                  <Paper
-                                    key={key}
-                                    variant="outlined"
-                                    sx={{
-                                      p: 1.25,
-                                      bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.025)" : "rgba(0, 0, 0, 0.02)"),
-                                      borderColor: "divider",
-                                      borderRadius: 1.5,
-                                    }}
-                                  >
-                                    <Typography
-                                      variant="caption"
-                                      sx={{ color: "text.secondary", textTransform: "capitalize", display: "block", fontSize: "0.7rem", fontWeight: 600 }}
-                                    >
-                                      {key.replace(/_/g, " ")}
-                                    </Typography>
-                                    <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.25, fontSize: "0.95rem" }}>
-                                      {typeof val === "number"
-                                        ? val.toLocaleString(undefined, { maximumFractionDigits: 2 })
-                                        : String(val)}
-                                    </Typography>
-                                  </Paper>
-                                ))}
-                            </Box>
-                          )}
-
-                          {/* Side-by-Side: Execution Trace (Left) & Domain Breakdown (Right) */}
-                          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2, alignItems: "start" }}>
-                            {/* Execution Trace Timeline */}
-                            {testResult.execution_trace && Array.isArray(testResult.execution_trace) && (
-                              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5, fontSize: "0.72rem" }}>
-                                  EXECUTION PIPELINE TRACE
-                                </Typography>
-                                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                                  {testResult.execution_trace.map((step: any, idx: number) => {
-                                    const isFailed = step.status === "FAILED" || step.status === "FLAGGED";
-                                    return (
-                                      <Box
-                                        key={idx}
-                                        sx={{
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: 1.25,
-                                          py: 0.75,
-                                          px: 1.25,
-                                          borderRadius: 1,
-                                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.01)"),
-                                          border: "1px solid",
-                                          borderColor: isFailed ? "error.main" : "divider",
-                                        }}
-                                      >
-                                        {isFailed ? (
-                                          <ErrorIcon sx={{ fontSize: 16, color: "error.main" }} />
-                                        ) : (
-                                          <CheckCircleIcon sx={{ fontSize: 16, color: "success.main" }} />
-                                        )}
-                                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.82rem" }}>
-                                            {step.step}
-                                          </Typography>
-                                          <Typography variant="caption" sx={{ color: "text.secondary", display: "block", fontSize: "0.7rem" }}>
-                                            {step.details}
-                                          </Typography>
-                                        </Box>
-                                        <Chip
-                                          label={step.status}
-                                          size="small"
-                                          color={isFailed ? "error" : step.status === "DYNAMIC_SYNTHESIS" ? "warning" : "success"}
-                                          variant="outlined"
-                                          sx={{ height: 18, fontSize: "0.65rem", fontWeight: 700 }}
-                                        />
-                                      </Box>
-                                    );
-                                  })}
-                                </Box>
-                              </Box>
-                            )}
-
-                            {/* Domain Specific Breakdown Column */}
-                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                              {testResult.category_breakdown_tons && (
-                                <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5, fontSize: "0.72rem" }}>
-                                    POLYMER CATEGORY BREAKDOWN (METRIC TONS)
-                                  </Typography>
-                                  <TableContainer component={Paper} variant="outlined">
-                                    <Table size="small">
-                                      <TableHead>
-                                        <TableRow>
-                                          <TableCell sx={{ fontWeight: 700, py: 0.75, fontSize: "0.75rem" }}>Polymer Category</TableCell>
-                                          <TableCell align="right" sx={{ fontWeight: 700, py: 0.75, fontSize: "0.75rem" }}>Calculated Volume</TableCell>
-                                        </TableRow>
-                                      </TableHead>
-                                      <TableBody>
-                                        {Object.entries(testResult.category_breakdown_tons).map(([cat, tons]: [string, any]) => (
-                                          <TableRow key={cat}>
-                                            <TableCell sx={{ textTransform: "capitalize", py: 0.6, fontSize: "0.75rem" }}>{cat.replace(/_/g, " ")}</TableCell>
-                                            <TableCell align="right" sx={{ fontWeight: 600, py: 0.6, fontSize: "0.75rem" }}>{Number(tons).toLocaleString()} MT</TableCell>
-                                          </TableRow>
-                                        ))}
-                                      </TableBody>
-                                    </Table>
-                                  </TableContainer>
-                                </Box>
-                              )}
-
-                              {testResult.clearing_summary?.allocated_bids && (
-                                <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5, fontSize: "0.72rem" }}>
-                                    ALLOCATED RECYCLER BIDS (CLEARING SUMMARY)
-                                  </Typography>
-                                  <TableContainer component={Paper} variant="outlined">
-                                    <Table size="small">
-                                      <TableHead>
-                                        <TableRow>
-                                          <TableCell sx={{ fontWeight: 700, py: 0.75, fontSize: "0.75rem" }}>Bidder / Recycler</TableCell>
-                                          <TableCell align="right" sx={{ fontWeight: 700, py: 0.75, fontSize: "0.75rem" }}>Allocated (MT)</TableCell>
-                                          <TableCell align="right" sx={{ fontWeight: 700, py: 0.75, fontSize: "0.75rem" }}>Clearing Rate</TableCell>
-                                        </TableRow>
-                                      </TableHead>
-                                      <TableBody>
-                                        {testResult.clearing_summary.allocated_bids.map((b: any, i: number) => (
-                                          <TableRow key={i}>
-                                            <TableCell sx={{ fontWeight: 600, py: 0.6, fontSize: "0.75rem" }}>{b.bidder}</TableCell>
-                                            <TableCell align="right" sx={{ py: 0.6, fontSize: "0.75rem" }}>{b.allocated_tons} MT</TableCell>
-                                            <TableCell align="right" sx={{ py: 0.6, fontSize: "0.75rem" }}>₹{b.rate_inr.toLocaleString()}</TableCell>
-                                          </TableRow>
-                                        ))}
-                                      </TableBody>
-                                    </Table>
-                                  </TableContainer>
-                                </Box>
-                              )}
-
-                              {testResult.escrow_split && (
-                                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
-                                  <Paper variant="outlined" sx={{ p: 1.25, borderColor: "primary.main" }}>
-                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                                      80% Advance Disbursed
-                                    </Typography>
-                                    <Typography variant="subtitle1" fontWeight={700} color="primary.main" sx={{ fontSize: "0.95rem" }}>
-                                      ₹{testResult.escrow_split.advance_payable_inr?.toLocaleString()}
-                                    </Typography>
-                                  </Paper>
-                                  <Paper variant="outlined" sx={{ p: 1.25, borderColor: "warning.main" }}>
-                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                                      20% Retention Escrow
-                                    </Typography>
-                                    <Typography variant="subtitle1" fontWeight={700} color="warning.main" sx={{ fontSize: "0.95rem" }}>
-                                      ₹{testResult.escrow_split.retention_payable_inr?.toLocaleString()}
-                                    </Typography>
-                                  </Paper>
-                                </Box>
-                              )}
-
-                              {testResult.filing_manifest && (
-                                <Paper variant="outlined" sx={{ p: 1.25, bgcolor: "background.default" }}>
-                                  <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.7rem" }}>
-                                    CPCB Form-1 Manifest SHA-256 Digest:
-                                  </Typography>
-                                  <Typography
-                                    variant="caption"
-                                    sx={{ fontFamily: 'var(--font-mono, monospace)', wordBreak: "break-all", fontWeight: 700, fontSize: "0.72rem" }}
-                                  >
-                                    {testResult.filing_manifest.sha256_audit_digest}
-                                  </Typography>
-                                  <Divider sx={{ my: 0.75 }} />
-                                  <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.7rem" }}>
-                                    DSC Key: {testResult.filing_manifest.digital_signature_certificate}
-                                  </Typography>
+                                  sx={{
+                                    p: 1.5,
+                                    bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(26, 115, 232, 0.05)" : "rgba(26, 115, 232, 0.03)"),
+                                    borderColor: (t) => (t.palette.mode === "dark" ? "rgba(26, 115, 232, 0.25)" : "rgba(26, 115, 232, 0.2)"),
+                                    borderRadius: 1.5,
+                                    maxHeight: 280,
+                                    overflowY: "auto",
+                                  }}
+                                >
+                                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.75 }}>
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                                      <AutoAwesomeIcon sx={{ fontSize: 16, color: "#1A73E8" }} />
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1A73E8", fontSize: "0.85rem" }}>
+                                        Agent Reasoning &amp; Analysis Narrative
+                                      </Typography>
+                                    </Box>
+                                    <Chip
+                                      label="Gemini 3.8 Flash"
+                                      size="small"
+                                      variant="outlined"
+                                      color="primary"
+                                      sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
+                                    />
+                                  </Box>
+                                  {/* Formatted Markdown Report with Raw Debug Headers Stripped */}
+                                  <MarkdownRenderer content={testResult.reasoning_narrative} />
                                 </Paper>
                               )}
+
+                              {/* Detected Anomalies Alert (Outlined) */}
+                              {testResult.anomalies_detected && testResult.anomalies_detected.length > 0 && (
+                                <Alert
+                                  severity="error"
+                                  variant="outlined"
+                                  icon={<WarningAmberIcon fontSize="small" />}
+                                  sx={{ py: 0.5, px: 1.5, fontSize: "0.8rem" }}
+                                >
+                                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.25, fontSize: "0.82rem" }}>
+                                    Critical Physics &amp; Telemetry Anomalies Flagged:
+                                  </Typography>
+                                  <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                                    {testResult.anomalies_detected.map((anom: string, i: number) => (
+                                      <li key={i}>
+                                        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>
+                                          {anom}
+                                        </Typography>
+                                      </li>
+                                    ))}
+                                  </Box>
+                                </Alert>
+                              )}
+
+                              {/* Collapsible Panel: Dispatched Prompt & Diagnostics (Collapsed by default to save height) */}
+                              <Accordion
+                                variant="outlined"
+                                sx={{
+                                  borderRadius: 1.25,
+                                  border: "1px solid",
+                                  borderColor: "divider",
+                                  "&:before": { display: "none" },
+                                }}
+                              >
+                                <AccordionSummary expandIcon={<ExpandMoreIcon sx={{ fontSize: 16 }} />} sx={{ minHeight: 32, py: 0.5 }}>
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                    <TerminalIcon sx={{ fontSize: 15, color: "#1A73E8" }} />
+                                    <Typography variant="caption" fontWeight={700}>
+                                      Model Inspection &amp; Dispatched Prompt
+                                    </Typography>
+                                  </Box>
+                                </AccordionSummary>
+                                <AccordionDetails sx={{ pt: 0, pb: 1, display: "flex", flexDirection: "column", gap: 0.75 }}>
+                                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 700, fontSize: "0.7rem" }}>
+                                      PROMPT SENT:
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ color: "text.secondary", fontFamily: "monospace", fontSize: "0.68rem" }}>
+                                      Model: Gemini 3.8 Flash | Temp: {testResult.temperature ?? 0.2}
+                                    </Typography>
+                                  </Box>
+                                  <Box
+                                    sx={{
+                                      p: 1.25,
+                                      borderRadius: 1,
+                                      bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0, 0, 0, 0.4)" : "rgba(0, 0, 0, 0.04)"),
+                                      border: "1px solid",
+                                      borderColor: "divider",
+                                      fontFamily: 'var(--font-mono, monospace)',
+                                      fontSize: "0.74rem",
+                                      whiteSpace: "pre-wrap",
+                                      maxHeight: 180,
+                                      overflowY: "auto",
+                                      color: (t) => (t.palette.mode === "dark" ? "#93c5fd" : "#1e40af"),
+                                    }}
+                                  >
+                                    {testResult.prompt_sent || (testResult.raw_input_evaluated ? JSON.stringify(testResult.raw_input_evaluated, null, 2) : "No raw prompt captured.")}
+                                  </Box>
+                                  {testResult.system_instruction && (
+                                    <>
+                                      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", fontSize: "0.68rem", mt: 0.25 }}>
+                                        SYSTEM INSTRUCTION:
+                                      </Typography>
+                                      <Typography variant="caption" sx={{ fontStyle: "italic", color: "text.secondary", fontSize: "0.72rem" }}>
+                                        {testResult.system_instruction}
+                                      </Typography>
+                                    </>
+                                  )}
+                                  {testResult.raw_api_error && (
+                                    <Alert severity="warning" variant="outlined" sx={{ mt: 0.5, py: 0.25, fontSize: "0.72rem" }}>
+                                      <b>Google Gemini Diagnostic:</b> {testResult.raw_api_error}
+                                    </Alert>
+                                  )}
+                                </AccordionDetails>
+                              </Accordion>
+                            </Box>
+
+                            {/* Right Column: KPI Metrics Grid + Pipeline Execution Trace & Domain Breakdown */}
+                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                              {/* KPI Metrics Grid (2x2 Compact) */}
+                              {testResult.kpis && typeof testResult.kpis === "object" && (
+                                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                                  {Object.entries(testResult.kpis)
+                                    .slice(0, 4)
+                                    .map(([key, val]) => (
+                                      <Paper
+                                        key={key}
+                                        variant="outlined"
+                                        sx={{
+                                          p: 1,
+                                          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.02)"),
+                                          borderColor: "divider",
+                                          borderRadius: 1.25,
+                                        }}
+                                      >
+                                        <Typography
+                                          variant="caption"
+                                          sx={{ color: "text.secondary", textTransform: "capitalize", display: "block", fontSize: "0.68rem", fontWeight: 600 }}
+                                        >
+                                          {key.replace(/_/g, " ")}
+                                        </Typography>
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 800, mt: 0.1, fontSize: "0.88rem" }}>
+                                          {typeof val === "number"
+                                            ? val.toLocaleString(undefined, { maximumFractionDigits: 2 })
+                                            : String(val)}
+                                        </Typography>
+                                      </Paper>
+                                    ))}
+                                </Box>
+                              )}
+
+                              {/* Execution Pipeline Trace */}
+                              {testResult.execution_trace && Array.isArray(testResult.execution_trace) && (
+                                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5, fontSize: "0.68rem" }}>
+                                    EXECUTION PIPELINE TRACE
+                                  </Typography>
+                                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, maxHeight: 160, overflowY: "auto" }}>
+                                    {testResult.execution_trace.map((step: any, idx: number) => {
+                                      const isFailed = step.status === "FAILED" || step.status === "FLAGGED";
+                                      return (
+                                        <Box
+                                          key={idx}
+                                          sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 1,
+                                            py: 0.5,
+                                            px: 1,
+                                            borderRadius: 1,
+                                            bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.01)"),
+                                            border: "1px solid",
+                                            borderColor: isFailed ? "error.main" : "divider",
+                                          }}
+                                        >
+                                          {isFailed ? (
+                                            <ErrorIcon sx={{ fontSize: 14, color: "error.main" }} />
+                                          ) : (
+                                            <CheckCircleIcon sx={{ fontSize: 14, color: "primary.main" }} />
+                                          )}
+                                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                                            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.78rem" }}>
+                                              {step.step}
+                                            </Typography>
+                                            <Typography variant="caption" sx={{ color: "text.secondary", display: "block", fontSize: "0.68rem" }} noWrap>
+                                              {step.details}
+                                            </Typography>
+                                          </Box>
+                                          <Chip
+                                            label={step.status}
+                                            size="small"
+                                            color={isFailed ? "error" : step.status === "DYNAMIC_SYNTHESIS" ? "warning" : "default"}
+                                            variant="outlined"
+                                            sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
+                                          />
+                                        </Box>
+                                      );
+                                    })}
+                                  </Box>
+                                </Box>
+                              )}
+
+                              {/* Domain Specific Breakdown Column */}
+                              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                                {testResult.category_breakdown_tons && (
+                                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5, fontSize: "0.68rem" }}>
+                                      POLYMER CATEGORY BREAKDOWN (METRIC TONS)
+                                    </Typography>
+                                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 140 }}>
+                                      <Table size="small" stickyHeader>
+                                        <TableHead>
+                                          <TableRow>
+                                            <TableCell sx={{ fontWeight: 700, py: 0.5, fontSize: "0.7rem" }}>Polymer Category</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 700, py: 0.5, fontSize: "0.7rem" }}>Volume</TableCell>
+                                          </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                          {Object.entries(testResult.category_breakdown_tons).map(([cat, tons]: [string, any]) => (
+                                            <TableRow key={cat}>
+                                              <TableCell sx={{ textTransform: "capitalize", py: 0.4, fontSize: "0.72rem" }}>{cat.replace(/_/g, " ")}</TableCell>
+                                              <TableCell align="right" sx={{ fontWeight: 600, py: 0.4, fontSize: "0.72rem" }}>{Number(tons).toLocaleString()} MT</TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </TableContainer>
+                                  </Box>
+                                )}
+
+                                {testResult.clearing_summary?.allocated_bids && (
+                                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5, fontSize: "0.68rem" }}>
+                                      ALLOCATED RECYCLER BIDS (CLEARING SUMMARY)
+                                    </Typography>
+                                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 140 }}>
+                                      <Table size="small" stickyHeader>
+                                        <TableHead>
+                                          <TableRow>
+                                            <TableCell sx={{ fontWeight: 700, py: 0.5, fontSize: "0.7rem" }}>Bidder</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 700, py: 0.5, fontSize: "0.7rem" }}>Allocated</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 700, py: 0.5, fontSize: "0.7rem" }}>Rate</TableCell>
+                                          </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                          {testResult.clearing_summary.allocated_bids.map((b: any, i: number) => (
+                                            <TableRow key={i}>
+                                              <TableCell sx={{ fontWeight: 600, py: 0.4, fontSize: "0.72rem" }}>{b.bidder}</TableCell>
+                                              <TableCell align="right" sx={{ py: 0.4, fontSize: "0.72rem" }}>{b.allocated_tons} MT</TableCell>
+                                              <TableCell align="right" sx={{ py: 0.4, fontSize: "0.72rem" }}>₹{b.rate_inr.toLocaleString()}</TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </TableContainer>
+                                  </Box>
+                                )}
+
+                                {testResult.escrow_split && (
+                                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                                    <Paper variant="outlined" sx={{ p: 1, borderColor: "primary.main" }}>
+                                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
+                                        80% Advance Disbursed
+                                      </Typography>
+                                      <Typography variant="subtitle2" fontWeight={700} color="primary.main" sx={{ fontSize: "0.85rem" }}>
+                                        ₹{testResult.escrow_split.advance_payable_inr?.toLocaleString()}
+                                      </Typography>
+                                    </Paper>
+                                    <Paper variant="outlined" sx={{ p: 1, borderColor: "warning.main" }}>
+                                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem" }}>
+                                        20% Retention Escrow
+                                      </Typography>
+                                      <Typography variant="subtitle2" fontWeight={700} color="warning.main" sx={{ fontSize: "0.85rem" }}>
+                                        ₹{testResult.escrow_split.retention_payable_inr?.toLocaleString()}
+                                      </Typography>
+                                    </Paper>
+                                  </Box>
+                                )}
+
+                                {testResult.filing_manifest && (
+                                  <Paper variant="outlined" sx={{ p: 1, bgcolor: "background.default" }}>
+                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.68rem" }}>
+                                      CPCB Form-1 Manifest SHA-256 Digest:
+                                    </Typography>
+                                    <Typography
+                                      variant="caption"
+                                      sx={{ fontFamily: 'var(--font-mono, monospace)', wordBreak: "break-all", fontWeight: 700, fontSize: "0.7rem" }}
+                                    >
+                                      {testResult.filing_manifest.sha256_audit_digest}
+                                    </Typography>
+                                    <Divider sx={{ my: 0.5 }} />
+                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.68rem" }}>
+                                      DSC Key: {testResult.filing_manifest.digital_signature_certificate}
+                                    </Typography>
+                                  </Paper>
+                                )}
+                              </Box>
                             </Box>
                           </Box>
 
                           {/* Bottom Actions */}
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 1 }}>
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 0.5 }}>
                             <Button
                               variant="outlined"
-                              startIcon={<ArrowBackIcon />}
+                              size="small"
+                              startIcon={<ArrowBackIcon sx={{ fontSize: 16 }} />}
                               onClick={() => setWizardStep(1)}
-                              sx={{ fontWeight: 600, textTransform: "none", borderRadius: 2 }}
+                              sx={{ fontWeight: 600, textTransform: "none", borderRadius: 1.75, fontSize: "0.82rem" }}
                             >
                               Back to Staging
                             </Button>
                             <Button
                               variant="contained"
-                              startIcon={testing ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+                              size="small"
+                              startIcon={testing ? <CircularProgress size={14} color="inherit" /> : <PlayArrowIcon sx={{ fontSize: 16 }} />}
                               onClick={handleRunPlayground}
                               disabled={testing}
                               sx={{
                                 fontWeight: 600,
+                                fontSize: "0.82rem",
                                 textTransform: "none",
-                                px: 2.5,
-                                borderRadius: 2,
+                                px: 2,
+                                py: 0.6,
+                                borderRadius: 1.75,
                                 bgcolor: "#1A73E8",
                                 color: "#FFFFFF",
                                 "&:hover": { bgcolor: "#1557B0" },
@@ -2186,15 +2194,15 @@ export default function AgentConfigStudioPage() {
 
                       {/* TAB 1: Raw Output JSON */}
                       {playgroundTab === 1 && (
-                        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
                           <Paper
                             variant="outlined"
                             sx={{
-                              p: 2,
+                              p: 1.5,
                               bgcolor: (t) => (t.palette.mode === "dark" ? "#0D1117" : "#F8FAFC"),
-                              borderRadius: "2px",
+                              borderRadius: 1.5,
                               borderColor: "divider",
-                              maxHeight: 520,
+                              maxHeight: 400,
                               overflow: "auto",
                             }}
                           >
@@ -2204,9 +2212,10 @@ export default function AgentConfigStudioPage() {
                               component="pre"
                               sx={{
                                 m: 0,
-                                color: (t) => (t.palette.mode === "dark" ? "#86EFAC" : "#15803d"),
+                                color: (t) => (t.palette.mode === "dark" ? "#93C5FD" : "#1E40AF"),
                                 whiteSpace: "pre-wrap",
                                 wordBreak: "break-all",
+                                fontSize: "0.75rem",
                               }}
                             >
                               {JSON.stringify(testResult, null, 2)}
@@ -2215,9 +2224,10 @@ export default function AgentConfigStudioPage() {
                           <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
                             <Button
                               variant="outlined"
-                              startIcon={<ArrowBackIcon />}
+                              size="small"
+                              startIcon={<ArrowBackIcon sx={{ fontSize: 16 }} />}
                               onClick={() => setWizardStep(1)}
-                              sx={{ fontWeight: 600, textTransform: "none", borderRadius: 2 }}
+                              sx={{ fontWeight: 600, textTransform: "none", borderRadius: 1.75, fontSize: "0.82rem" }}
                             >
                               Back to Staging
                             </Button>

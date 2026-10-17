@@ -39,27 +39,27 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 const COLOR_MAP: Record<NotificationType, { border: string; bgLight: string; bgDark: string; icon: string }> = {
   success: {
     border: "#10B981",
-    bgLight: "rgba(240, 253, 244, 0.95)",
-    bgDark: "rgba(6, 78, 59, 0.90)",
+    bgLight: "#FFFFFF",
+    bgDark: "#131A26",
     icon: "#10B981",
   },
   error: {
     border: "#EF4444",
-    bgLight: "rgba(254, 242, 242, 0.95)",
-    bgDark: "rgba(127, 29, 29, 0.90)",
+    bgLight: "#FFFFFF",
+    bgDark: "#18141F",
     icon: "#EF4444",
   },
   warning: {
     border: "#F59E0B",
-    bgLight: "rgba(255, 251, 235, 0.95)",
-    bgDark: "rgba(120, 53, 15, 0.90)",
+    bgLight: "#FFFFFF",
+    bgDark: "#1A1713",
     icon: "#F59E0B",
   },
   info: {
-    border: "#8B5CF6",
-    bgLight: "rgba(245, 243, 255, 0.95)",
-    bgDark: "rgba(91, 33, 182, 0.90)",
-    icon: "#8B5CF6",
+    border: "#3B82F6",
+    bgLight: "#FFFFFF",
+    bgDark: "#111726",
+    icon: "#3B82F6",
   },
 };
 
@@ -128,15 +128,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 elevation={6}
                 sx={{
                   pointerEvents: "auto",
-                  borderLeft: `4px solid ${cfg.border}`,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderLeft: `3px solid ${cfg.border}`,
                   bgcolor: (t) => (t.palette.mode === "dark" ? cfg.bgDark : cfg.bgLight),
                   color: "text.primary",
                   backdropFilter: "blur(12px)",
                   boxShadow: (t) =>
                     t.palette.mode === "dark"
-                      ? "0 10px 25px -5px rgba(0,0,0,0.6)"
-                      : "0 10px 25px -5px rgba(0,0,0,0.12)",
-                  p: 1.5,
+                      ? "0 8px 24px -4px rgba(0,0,0,0.6)"
+                      : "0 8px 24px -4px rgba(0,0,0,0.08)",
+                  p: 1.25,
                   borderRadius: 1.5,
                   display: "flex",
                   alignItems: "flex-start",

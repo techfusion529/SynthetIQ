@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  --font-plex: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --background: #eef1f4;
   --foreground: #1b232a;
 }

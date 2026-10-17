@@ -44,6 +44,7 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import SyncIcon from "@mui/icons-material/Sync";
 import PageHeader from "@/components/ui/PageHeader";
+import { GoogleCloudIcon } from "@/components/icons/GoogleIcons";
 
 import { useRouter } from "next/navigation";
 import { useSession } from "../lib/contexts/SessionContext";
@@ -480,8 +481,9 @@ export default function DataSourcesPage() {
                       {src.source_id}
                     </Typography>
                   </Box>
-                  <Box sx={{ display: "flex", gap: 1 }}>
+                  <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                     <Chip
+                      icon={src.source_type === "bigquery" ? <GoogleCloudIcon size={14} /> : undefined}
                       label={src.source_type.toUpperCase()}
                       size="small"
                       color={src.source_type === "bigquery" ? "primary" : "secondary"}
@@ -980,7 +982,10 @@ export default function DataSourcesPage() {
               onChange={(e) => handleSourceTypeChange(e.target.value)}
               size="small"
             >
-              <MenuItem value="bigquery">Google BigQuery</MenuItem>
+              <MenuItem value="bigquery" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <GoogleCloudIcon size={16} />
+                <span>Google BigQuery</span>
+              </MenuItem>
               <MenuItem value="postgresql">PostgreSQL / SQL</MenuItem>
               <MenuItem value="rest_api">REST API (SAP/Oracle)</MenuItem>
               <MenuItem value="csv">CSV File Upload / Seed</MenuItem>

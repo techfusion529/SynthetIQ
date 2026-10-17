@@ -1033,11 +1033,24 @@ export default function AgentConfigStudioPage() {
           </Card>
 
           {/* ── 2-Column Split Workspace ────────────────────────────────────────── */}
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "5fr 7fr" }, gap: 3, alignItems: "start" }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "400px 1fr" }, gap: 2.5, alignItems: "start" }}>
             {/* ========================================================= */}
-            {/* LEFT COLUMN: Agent Architecture & Hyperparameters         */}
+            {/* LEFT COLUMN: Agent Architecture & Hyperparameters (Sticky) */}
             {/* ========================================================= */}
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+                position: { lg: "sticky" },
+                top: { lg: 84 },
+                maxHeight: { lg: "calc(100vh - 100px)" },
+                overflowY: { lg: "auto" },
+                pr: { lg: 0.5 },
+                "&::-webkit-scrollbar": { width: 4 },
+                "&::-webkit-scrollbar-thumb": { bgcolor: "rgba(255,255,255,0.1)", borderRadius: 2 },
+              }}
+            >
               <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", borderRadius: 2 }}>
                 <CardContent sx={{ display: "flex", flexDirection: "column", gap: 2.25 }}>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1898,21 +1911,23 @@ export default function AgentConfigStudioPage() {
                         <Paper
                           variant="outlined"
                           sx={{
-                            p: 2,
+                            p: 1.75,
                             bgcolor: (t) =>
                               t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.08)" : "rgba(124, 58, 237, 0.04)",
                             borderColor: (t) =>
                               t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.25)" : "rgba(124, 58, 237, 0.2)",
                             borderRadius: 1.5,
+                            maxHeight: 180,
+                            overflowY: "auto",
                           }}
                         >
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                            <AutoAwesomeIcon sx={{ fontSize: 18, color: "primary.main" }} />
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "primary.main" }}>
-                              Agent Reasoning & Analysis Narrative
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
+                            <AutoAwesomeIcon sx={{ fontSize: 16, color: "primary.main" }} />
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "primary.main", fontSize: "0.85rem" }}>
+                              Agent Reasoning &amp; Analysis Narrative
                             </Typography>
                           </Box>
-                          <Typography variant="body2" sx={{ lineHeight: 1.6, whiteSpace: "pre-line" }}>
+                          <Typography variant="body2" sx={{ lineHeight: 1.5, whiteSpace: "pre-line", fontSize: "0.82rem" }}>
                             {testResult.reasoning_narrative}
                           </Typography>
                         </Paper>
@@ -1922,7 +1937,7 @@ export default function AgentConfigStudioPage() {
                       {testResult.anomalies_detected && testResult.anomalies_detected.length > 0 && (
                         <Alert severity="error" icon={<WarningAmberIcon />}>
                           <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                            Critical Physics & Telemetry Anomalies Flagged:
+                            Critical Physics &amp; Telemetry Anomalies Flagged:
                           </Typography>
                           <Box component="ul" sx={{ m: 0, pl: 2 }}>
                             {testResult.anomalies_detected.map((anom: string, i: number) => (
@@ -1938,7 +1953,7 @@ export default function AgentConfigStudioPage() {
 
                       {/* KPI Metrics Grid */}
                       {testResult.kpis && typeof testResult.kpis === "object" && (
-                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(4, 1fr)" }, gap: 1.5 }}>
+                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(4, 1fr)" }, gap: 1.25 }}>
                           {Object.entries(testResult.kpis)
                             .slice(0, 4)
                             .map(([key, val]) => (
@@ -1946,20 +1961,20 @@ export default function AgentConfigStudioPage() {
                                 key={key}
                                 variant="outlined"
                                 sx={{
-                                  p: 1.5,
+                                  p: 1.25,
                                   bgcolor: (t) =>
-                                    t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.03)" : "rgba(0, 0, 0, 0.02)",
+                                    t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.025)" : "rgba(0, 0, 0, 0.02)",
                                   borderColor: "divider",
                                   borderRadius: 1.5,
                                 }}
                               >
                                 <Typography
                                   variant="caption"
-                                  sx={{ color: "text.secondary", textTransform: "capitalize", display: "block" }}
+                                  sx={{ color: "text.secondary", textTransform: "capitalize", display: "block", fontSize: "0.7rem", fontWeight: 600 }}
                                 >
                                   {key.replace(/_/g, " ")}
                                 </Typography>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 700, mt: 0.5 }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 800, mt: 0.25, fontSize: "0.95rem" }}>
                                   {typeof val === "number"
                                     ? val.toLocaleString(undefined, { maximumFractionDigits: 2 })
                                     : String(val)}
@@ -1969,153 +1984,160 @@ export default function AgentConfigStudioPage() {
                         </Box>
                       )}
 
-                      {/* Execution Trace Timeline */}
-                      {testResult.execution_trace && Array.isArray(testResult.execution_trace) && (
-                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5 }}>
-                            EXECUTION PIPELINE TRACE
-                          </Typography>
-                          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-                            {testResult.execution_trace.map((step: any, idx: number) => {
-                              const isFailed = step.status === "FAILED" || step.status === "FLAGGED";
-                              return (
-                                <Box
-                                  key={idx}
-                                  sx={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 1.5,
-                                    p: 1,
-                                    borderRadius: 1,
-                                    bgcolor: (t) =>
-                                      t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.01)",
-                                    border: "1px solid",
-                                    borderColor: isFailed ? "error.main" : "divider",
-                                  }}
-                                >
-                                  {isFailed ? (
-                                    <ErrorIcon sx={{ fontSize: 18, color: "error.main" }} />
-                                  ) : (
-                                    <CheckCircleIcon sx={{ fontSize: 18, color: "success.main" }} />
-                                  )}
-                                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.85rem" }}>
-                                      {step.step}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                                      {step.details}
-                                    </Typography>
+                      {/* Side-by-Side: Execution Trace (Left) & Domain Breakdown (Right) */}
+                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2, alignItems: "start" }}>
+                        {/* Execution Trace Timeline */}
+                        {testResult.execution_trace && Array.isArray(testResult.execution_trace) && (
+                          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5, fontSize: "0.72rem" }}>
+                              EXECUTION PIPELINE TRACE
+                            </Typography>
+                            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                              {testResult.execution_trace.map((step: any, idx: number) => {
+                                const isFailed = step.status === "FAILED" || step.status === "FLAGGED";
+                                return (
+                                  <Box
+                                    key={idx}
+                                    sx={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 1.25,
+                                      py: 0.75,
+                                      px: 1.25,
+                                      borderRadius: 1,
+                                      bgcolor: (t) =>
+                                        t.palette.mode === "dark" ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.01)",
+                                      border: "1px solid",
+                                      borderColor: isFailed ? "error.main" : "divider",
+                                    }}
+                                  >
+                                    {isFailed ? (
+                                      <ErrorIcon sx={{ fontSize: 16, color: "error.main" }} />
+                                    ) : (
+                                      <CheckCircleIcon sx={{ fontSize: 16, color: "success.main" }} />
+                                    )}
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.82rem" }}>
+                                        {step.step}
+                                      </Typography>
+                                      <Typography variant="caption" sx={{ color: "text.secondary", display: "block", fontSize: "0.7rem" }}>
+                                        {step.details}
+                                      </Typography>
+                                    </Box>
+                                    <Chip
+                                      label={step.status}
+                                      size="small"
+                                      color={isFailed ? "error" : step.status === "DYNAMIC_SYNTHESIS" ? "warning" : "success"}
+                                      variant="outlined"
+                                      sx={{ height: 18, fontSize: "0.65rem", fontWeight: 700 }}
+                                    />
                                   </Box>
-                                  <Chip
-                                    label={step.status}
-                                    size="small"
-                                    color={isFailed ? "error" : step.status === "DYNAMIC_SYNTHESIS" ? "warning" : "success"}
-                                    variant="outlined"
-                                    sx={{ height: 20, fontSize: "0.7rem", fontWeight: 700 }}
-                                  />
-                                </Box>
-                              );
-                            })}
+                                );
+                              })}
+                            </Box>
                           </Box>
-                        </Box>
-                      )}
+                        )}
 
-                      {/* Domain Breakdown: Category Packaging Tons (Brand Liability) */}
-                      {testResult.category_breakdown_tons && (
-                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5 }}>
-                            POLYMER CATEGORY BREAKDOWN (METRIC TONS)
-                          </Typography>
-                          <TableContainer component={Paper} variant="outlined">
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell sx={{ fontWeight: 700 }}>Polymer Category</TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 700 }}>Calculated Volume (MT)</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {Object.entries(testResult.category_breakdown_tons).map(([cat, tons]: [string, any]) => (
-                                  <TableRow key={cat}>
-                                    <TableCell sx={{ textTransform: "capitalize" }}>{cat.replace(/_/g, " ")}</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 600 }}>{Number(tons).toLocaleString()} MT</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
-                        </Box>
-                      )}
+                        {/* Domain Specific Breakdown Column */}
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                          {/* Domain Breakdown: Category Packaging Tons (Brand Liability) */}
+                          {testResult.category_breakdown_tons && (
+                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5, fontSize: "0.72rem" }}>
+                                POLYMER CATEGORY BREAKDOWN (METRIC TONS)
+                              </Typography>
+                              <TableContainer component={Paper} variant="outlined">
+                                <Table size="small">
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell sx={{ fontWeight: 700, py: 0.75, fontSize: "0.75rem" }}>Polymer Category</TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 700, py: 0.75, fontSize: "0.75rem" }}>Calculated Volume</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {Object.entries(testResult.category_breakdown_tons).map(([cat, tons]: [string, any]) => (
+                                      <TableRow key={cat}>
+                                        <TableCell sx={{ textTransform: "capitalize", py: 0.6, fontSize: "0.75rem" }}>{cat.replace(/_/g, " ")}</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 600, py: 0.6, fontSize: "0.75rem" }}>{Number(tons).toLocaleString()} MT</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </TableContainer>
+                            </Box>
+                          )}
 
-                      {/* Domain Breakdown: Reverse Auction Allocated Bids (Treasury) */}
-                      {testResult.clearing_summary?.allocated_bids && (
-                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5 }}>
-                            ALLOCATED RECYCLER BIDS (CLEARING SUMMARY)
-                          </Typography>
-                          <TableContainer component={Paper} variant="outlined">
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell sx={{ fontWeight: 700 }}>Bidder / Recycler</TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 700 }}>Allocated (MT)</TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 700 }}>Clearing Rate (₹/MT)</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {testResult.clearing_summary.allocated_bids.map((b: any, i: number) => (
-                                  <TableRow key={i}>
-                                    <TableCell sx={{ fontWeight: 600 }}>{b.bidder}</TableCell>
-                                    <TableCell align="right">{b.allocated_tons} MT</TableCell>
-                                    <TableCell align="right">₹{b.rate_inr.toLocaleString()}</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
-                        </Box>
-                      )}
+                          {/* Domain Breakdown: Reverse Auction Allocated Bids (Treasury) */}
+                          {testResult.clearing_summary?.allocated_bids && (
+                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                              <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: 0.5, fontSize: "0.72rem" }}>
+                                ALLOCATED RECYCLER BIDS (CLEARING SUMMARY)
+                              </Typography>
+                              <TableContainer component={Paper} variant="outlined">
+                                <Table size="small">
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell sx={{ fontWeight: 700, py: 0.75, fontSize: "0.75rem" }}>Bidder / Recycler</TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 700, py: 0.75, fontSize: "0.75rem" }}>Allocated (MT)</TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 700, py: 0.75, fontSize: "0.75rem" }}>Clearing Rate</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {testResult.clearing_summary.allocated_bids.map((b: any, i: number) => (
+                                      <TableRow key={i}>
+                                        <TableCell sx={{ fontWeight: 600, py: 0.6, fontSize: "0.75rem" }}>{b.bidder}</TableCell>
+                                        <TableCell align="right" sx={{ py: 0.6, fontSize: "0.75rem" }}>{b.allocated_tons} MT</TableCell>
+                                        <TableCell align="right" sx={{ py: 0.6, fontSize: "0.75rem" }}>₹{b.rate_inr.toLocaleString()}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </TableContainer>
+                            </Box>
+                          )}
 
-                      {/* Domain Breakdown: Escrow Split (ERP / Settlement) */}
-                      {testResult.escrow_split && (
-                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
-                          <Paper variant="outlined" sx={{ p: 1.5, borderColor: "primary.main" }}>
-                            <Typography variant="caption" color="text.secondary">
-                              80% Advance Disbursed (Immediate)
-                            </Typography>
-                            <Typography variant="h6" fontWeight={700} color="primary.main">
-                              ₹{testResult.escrow_split.advance_payable_inr?.toLocaleString()}
-                            </Typography>
-                          </Paper>
-                          <Paper variant="outlined" sx={{ p: 1.5, borderColor: "warning.main" }}>
-                            <Typography variant="caption" color="text.secondary">
-                              20% Retention Escrow (Held in Trust)
-                            </Typography>
-                            <Typography variant="h6" fontWeight={700} color="warning.main">
-                              ₹{testResult.escrow_split.retention_payable_inr?.toLocaleString()}
-                            </Typography>
-                          </Paper>
-                        </Box>
-                      )}
+                          {/* Domain Breakdown: Escrow Split (ERP / Settlement) */}
+                          {testResult.escrow_split && (
+                            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+                              <Paper variant="outlined" sx={{ p: 1.25, borderColor: "primary.main" }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
+                                  80% Advance Disbursed
+                                </Typography>
+                                <Typography variant="subtitle1" fontWeight={700} color="primary.main" sx={{ fontSize: "0.95rem" }}>
+                                  ₹{testResult.escrow_split.advance_payable_inr?.toLocaleString()}
+                                </Typography>
+                              </Paper>
+                              <Paper variant="outlined" sx={{ p: 1.25, borderColor: "warning.main" }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
+                                  20% Retention Escrow
+                                </Typography>
+                                <Typography variant="subtitle1" fontWeight={700} color="warning.main" sx={{ fontSize: "0.95rem" }}>
+                                  ₹{testResult.escrow_split.retention_payable_inr?.toLocaleString()}
+                                </Typography>
+                              </Paper>
+                            </Box>
+                          )}
 
-                      {/* Domain Breakdown: CPCB Form-1 Filing (Legal) */}
-                      {testResult.filing_manifest && (
-                        <Paper variant="outlined" sx={{ p: 1.5, bgcolor: "background.default" }}>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            CPCB Form-1 Manifest SHA-256 Digest:
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            sx={{ fontFamily: 'var(--font-mono, monospace)', wordBreak: "break-all", fontWeight: 700 }}
-                          >
-                            {testResult.filing_manifest.sha256_audit_digest}
-                          </Typography>
-                          <Divider sx={{ my: 1 }} />
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            Digital Signature Certificate (DSC): {testResult.filing_manifest.digital_signature_certificate}
-                          </Typography>
-                        </Paper>
-                      )}
+                          {/* Domain Breakdown: CPCB Form-1 Filing (Legal) */}
+                          {testResult.filing_manifest && (
+                            <Paper variant="outlined" sx={{ p: 1.25, bgcolor: "background.default" }}>
+                              <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.7rem" }}>
+                                CPCB Form-1 Manifest SHA-256 Digest:
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                sx={{ fontFamily: 'var(--font-mono, monospace)', wordBreak: "break-all", fontWeight: 700, fontSize: "0.72rem" }}
+                              >
+                                {testResult.filing_manifest.sha256_audit_digest}
+                              </Typography>
+                              <Divider sx={{ my: 0.75 }} />
+                              <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.7rem" }}>
+                                DSC Key: {testResult.filing_manifest.digital_signature_certificate}
+                              </Typography>
+                            </Paper>
+                          )}
+                        </Box>
+                      </Box>
                     </Box>
                   )}
 

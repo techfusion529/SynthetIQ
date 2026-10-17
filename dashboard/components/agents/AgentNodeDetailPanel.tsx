@@ -37,6 +37,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ErrorIcon from "@mui/icons-material/Error";
 import type { E2ERunResult, E2EStep } from "../../app/lib/types/compliance.types";
 import { useNotification } from "../../app/lib/contexts/NotificationContext";
+import { GeminiIcon } from "@/components/icons/GoogleIcons";
 import AgentEventTimeline from "./AgentEventTimeline";
 
 interface AgentNodeDetailPanelProps {
@@ -68,6 +69,7 @@ const AGENT_BLUEPRINTS: Record<
     name: string;
     role: string;
     system: string;
+    model: string;
     icon: React.ReactNode;
   }
 > = {
@@ -76,6 +78,7 @@ const AGENT_BLUEPRINTS: Record<
     name: "Brand Liability Agent",
     role: "ERP Sales Debt Amortization",
     system: "System 2 Reasoning",
+    model: "Gemini 3.8 Flash (Vertex AI)",
     icon: <ScaleIcon fontSize="small" />,
   },
   regulatory_watchdog: {
@@ -83,6 +86,7 @@ const AGENT_BLUEPRINTS: Record<
     name: "Regulatory Watchdog",
     role: "CPCB Gazette Rules & Base Rates",
     system: "System 2 Reasoning",
+    model: "Gemini 3.8 Flash (Vertex AI)",
     icon: <SmartToyIcon fontSize="small" />,
   },
   auction: {
@@ -90,6 +94,7 @@ const AGENT_BLUEPRINTS: Record<
     name: "Continuous Double Auction",
     role: "Uniform Clearing Price Corridor",
     system: "System 2 Reasoning",
+    model: "Gemini 3.8 Flash (Vertex AI)",
     icon: <GavelIcon fontSize="small" />,
   },
   scada_auditor: {
@@ -97,6 +102,7 @@ const AGENT_BLUEPRINTS: Record<
     name: "SCADA Physics Auditor",
     role: "Extruder Torque & Power Factor",
     system: "System 1 Reflex",
+    model: "SCADA Physics Reflex (100Hz)",
     icon: <SpeedIcon fontSize="small" />,
   },
   forensic_auditor: {
@@ -104,6 +110,7 @@ const AGENT_BLUEPRINTS: Record<
     name: "Forensic Gemini Reasoner",
     role: "Heat Balance Anti-Fraud Reasoning",
     system: "System 2 Reasoning",
+    model: "Gemini 3.8 Flash (Vertex AI)",
     icon: <SmartToyIcon fontSize="small" />,
   },
   escrow: {
@@ -111,6 +118,7 @@ const AGENT_BLUEPRINTS: Record<
     name: "Escrow & Treasury Agent",
     role: "80/20 SAP Split-Payment PO",
     system: "System 2 Reasoning",
+    model: "Gemini 3.8 Flash (Vertex AI)",
     icon: <AccountBalanceWalletIcon fontSize="small" />,
   },
   cpcb_dispatch: {
@@ -118,6 +126,7 @@ const AGENT_BLUEPRINTS: Record<
     name: "CPCB Form-1 Dispatcher",
     role: "X.509 Cryptographic DSC Signing",
     system: "System 2 Reasoning",
+    model: "Gemini 3.8 Flash (Vertex AI)",
     icon: <DescriptionIcon fontSize="small" />,
   },
 };
@@ -181,6 +190,7 @@ export default function AgentNodeDetailPanel({
     switch (activeNodeId) {
       case "brand_liability":
         return [
+          { key: "neural_engine", label: "Inference Engine", type: "Vertex AI Model Garden", value: "Gemini 3.8 Flash (Vertex AI)" },
           { key: "company_id", label: "Enterprise Company", type: "Entity ID", value: comp },
           { key: "fiscal_year", label: "Statutory Cycle", type: "Fiscal Cycle", value: selectedRun?.fiscal_year || selectedRun?.input_params?.fiscal_year || "FY 2025-26" },
           { key: "batch_id", label: "ERP Sales Batch", type: "ERP Reference", value: "BATCH-SAP-8921" },
@@ -191,6 +201,7 @@ export default function AgentNodeDetailPanel({
         ];
       case "regulatory_watchdog":
         return [
+          { key: "neural_engine", label: "Inference Engine", type: "Vertex AI Model Garden", value: "Gemini 3.8 Flash (Vertex AI)" },
           { key: "cpcb_gazette_id", label: "Gazette Reference", type: "Legal Statute", value: "CPCB/PWM/2026/GZ-04" },
           { key: "plastic_category", label: "PWM Category", type: "Classification", value: cat },
           { key: "mandate_pct", label: "Mandatory Target", type: "Compliance Floor", value: "100.0% Recycling Obligation" },
@@ -200,6 +211,7 @@ export default function AgentNodeDetailPanel({
         ];
       case "auction":
         return [
+          { key: "neural_engine", label: "Inference Engine", type: "Vertex AI Model Garden", value: "Gemini 3.8 Flash (Vertex AI)" },
           { key: "buyer_id", label: "Registered Buyer", type: "PIBO Entity", value: comp },
           { key: "required_volume", label: "Target Deficit Volume", type: "Weight (MT)", value: `${vol} MT` },
           { key: "max_bid_price", label: "Max Allowed Bid", type: "Currency (INR)", value: "₹5,500.00 / MT" },
@@ -209,6 +221,7 @@ export default function AgentNodeDetailPanel({
         ];
       case "scada_auditor":
         return [
+          { key: "reflex_engine", label: "Audit Engine", type: "SCADA Telemetry", value: "SCADA Physics Reflex (100Hz)" },
           { key: "recycler_id", label: "Recycler Vendor", type: "Tenant ID", value: "RECYC-DELHI-01" },
           { key: "plant_line_id", label: "Extrusion Line", type: "Sensor Node", value: "PLANT-OKHLA-2 / LINE-04" },
           { key: "sampling_frequency", label: "SCADA Sampling Rate", type: "High-Frequency Telemetry", value: "100 Hz Streaming Feed" },
@@ -218,7 +231,7 @@ export default function AgentNodeDetailPanel({
         ];
       case "forensic_auditor":
         return [
-          { key: "reasoner_model", label: "Reasoning Engine", type: "AI Engine", value: "Gemini 3.8 Flash (System 2)" },
+          { key: "reasoner_model", label: "Reasoning Engine", type: "Vertex AI Model Garden", value: "Gemini 3.8 Flash (Vertex AI)" },
           { key: "heat_balance_qin", label: "Thermodynamic Heat In", type: "Specific Energy", value: "Q_in = 342.1 kJ/kg" },
           { key: "heat_balance_qreq", label: "Theoretical Heat Req", type: "Specific Energy", value: "Q_req = 338.5 kJ/kg" },
           { key: "gst_eway_bill", label: "GST e-Way Bill ID", type: "Tax Ingestion", value: "EWAY-2026-9041284" },
@@ -226,6 +239,7 @@ export default function AgentNodeDetailPanel({
         ];
       case "escrow":
         return [
+          { key: "neural_engine", label: "Inference Engine", type: "Vertex AI Model Garden", value: "Gemini 3.8 Flash (Vertex AI)" },
           { key: "sap_po_number", label: "SAP Purchase Order", type: "ERP Document", value: selectedRun?.po_number || "PO-SAP-2026-8912" },
           { key: "total_deal_amount", label: "Contract Value", type: "Currency (INR)", value: `₹${(vol * 4150).toLocaleString()}` },
           { key: "split_gate_rule", label: "Split Escrow Gate", type: "Statutory Contract", value: "80% Melt Proof / 20% CPCB ACK" },
@@ -235,6 +249,7 @@ export default function AgentNodeDetailPanel({
         ];
       case "cpcb_dispatch":
         return [
+          { key: "neural_engine", label: "Inference Engine", type: "Vertex AI Model Garden", value: "Gemini 3.8 Flash (Vertex AI)" },
           { key: "cpcb_portal_endpoint", label: "CPCB Portal API", type: "National Gateway", value: "https://cpcbepr.nic.in/api/v2/statutory/form1" },
           { key: "pibo_reg_id", label: "PIBO Registration", type: "Statutory ID", value: "CPCB/EPR/2026/PIBO-9921" },
           { key: "dsc_cert_alias", label: "X.509 Certificate", type: "Cryptographic Key", value: "SynthetIQ-Digital-Signer-RSA4096" },
@@ -410,6 +425,34 @@ export default function AgentNodeDetailPanel({
         </Box>
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {bp.system.includes("Reflex") ? (
+            <Chip
+              size="small"
+              label="⚡ SCADA Reflex"
+              sx={{
+                height: 22,
+                fontSize: "0.68rem",
+                fontWeight: 700,
+                bgcolor: "rgba(16, 185, 129, 0.15)",
+                color: "#34D399",
+                border: "1px solid rgba(16, 185, 129, 0.3)",
+              }}
+            />
+          ) : (
+            <Chip
+              icon={<GeminiIcon size={12} />}
+              size="small"
+              label="Gemini 3.8 Flash (Vertex AI)"
+              sx={{
+                height: 22,
+                fontSize: "0.68rem",
+                fontWeight: 700,
+                bgcolor: "rgba(139, 92, 246, 0.15)",
+                color: "#C4B5FD",
+                border: "1px solid rgba(139, 92, 246, 0.3)",
+              }}
+            />
+          )}
           <Chip
             label={nodeStatus}
             color={nodeStatus === "COMPLETED" ? "success" : nodeStatus === "HITL" ? "warning" : "error"}

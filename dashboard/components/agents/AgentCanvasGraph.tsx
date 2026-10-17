@@ -1,34 +1,32 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
 import Tooltip from "@mui/material/Tooltip";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import ErrorIcon from "@mui/icons-material/Error";
-import ScheduleIcon from "@mui/icons-material/Schedule";
-import SmartToyIcon from "@mui/icons-material/SmartToy";
+import SpeedIcon from "@mui/icons-material/Speed";
+import TollIcon from "@mui/icons-material/Toll";
+import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import ScaleIcon from "@mui/icons-material/BalanceOutlined";
 import GavelIcon from "@mui/icons-material/GavelOutlined";
 import RadarIcon from "@mui/icons-material/SensorsOutlined";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import DescriptionIcon from "@mui/icons-material/DescriptionOutlined";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
-import SpeedIcon from "@mui/icons-material/Speed";
-import TollIcon from "@mui/icons-material/Toll";
-import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import type { E2ERunResult, E2EStep } from "../../app/lib/types/compliance.types";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
+import type { E2ERunResult } from "../../app/lib/types/compliance.types";
 
-interface AgentNodeDef {
+export interface AgentNodeDef {
   id: string;
   name: string;
   role: string;
   systemType: "System 1 Reflex" | "System 2 Reasoning";
+  modelLabel: string;
   x: number;
   y: number;
   stepNumber: number;
+  gradient: string;
   icon: React.ReactNode;
 }
 
@@ -38,70 +36,84 @@ const AGENT_NODES: AgentNodeDef[] = [
     name: "Brand Liability Agent",
     role: "ERP Sales Debt Amortization",
     systemType: "System 2 Reasoning",
-    x: 60,
-    y: 80,
+    modelLabel: "gemini-3.8-flash",
+    x: 50,
+    y: 60,
     stepNumber: 1,
-    icon: <ScaleIcon fontSize="small" />,
+    gradient: "linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)",
+    icon: <ScaleIcon sx={{ fontSize: 20 }} />,
   },
   {
     id: "regulatory_watchdog",
     name: "Regulatory Watchdog",
-    role: "CPCB Gazette Rules & Base Rates",
+    role: "CPCB Gazette Rules & Rates",
     systemType: "System 2 Reasoning",
-    x: 60,
-    y: 280,
+    modelLabel: "gemini-3.8-flash",
+    x: 50,
+    y: 260,
     stepNumber: 2,
-    icon: <SmartToyIcon fontSize="small" />,
+    gradient: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)",
+    icon: <SmartToyIcon sx={{ fontSize: 20 }} />,
   },
   {
     id: "auction",
-    name: "Continuous Double Auction",
+    name: "Double Auction Engine",
     role: "Uniform Clearing Price Corridor",
     systemType: "System 2 Reasoning",
-    x: 350,
-    y: 180,
+    modelLabel: "gemini-3.8-flash",
+    x: 345,
+    y: 160,
     stepNumber: 3,
-    icon: <GavelIcon fontSize="small" />,
+    gradient: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)",
+    icon: <GavelIcon sx={{ fontSize: 20 }} />,
   },
   {
     id: "scada_auditor",
     name: "SCADA Physics Auditor",
     role: "Extruder Torque & Power Factor",
     systemType: "System 1 Reflex",
+    modelLabel: "SCADA Reflex",
     x: 640,
-    y: 80,
+    y: 60,
     stepNumber: 4,
-    icon: <RadarIcon fontSize="small" />,
+    gradient: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+    icon: <RadarIcon sx={{ fontSize: 20 }} />,
   },
   {
     id: "forensic_auditor",
     name: "Forensic Deep Reasoner",
     role: "Gemini System 2 Heat Balance",
     systemType: "System 2 Reasoning",
+    modelLabel: "gemini-3.8-flash",
     x: 640,
-    y: 280,
+    y: 260,
     stepNumber: 5,
-    icon: <AutoAwesomeIcon fontSize="small" />,
+    gradient: "linear-gradient(135deg, #EC4899 0%, #8B5CF6 100%)",
+    icon: <AutoAwesomeIcon sx={{ fontSize: 20 }} />,
   },
   {
     id: "escrow",
     name: "Escrow & Treasury Agent",
     role: "80/20 SAP Split-Payment PO",
     systemType: "System 2 Reasoning",
-    x: 930,
-    y: 80,
+    modelLabel: "gemini-3.8-flash",
+    x: 935,
+    y: 60,
     stepNumber: 6,
-    icon: <AccountBalanceWalletIcon fontSize="small" />,
+    gradient: "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
+    icon: <AccountBalanceWalletIcon sx={{ fontSize: 20 }} />,
   },
   {
     id: "cpcb_dispatch",
     name: "CPCB Form-1 Dispatcher",
-    role: "X.509 Cryptographic DSC Signing",
+    role: "X.509 Cryptographic DSC Sign",
     systemType: "System 2 Reasoning",
-    x: 930,
-    y: 280,
+    modelLabel: "gemini-3.8-flash",
+    x: 935,
+    y: 260,
     stepNumber: 7,
-    icon: <DescriptionIcon fontSize="small" />,
+    gradient: "linear-gradient(135deg, #10B981 0%, #047857 100%)",
+    icon: <DescriptionIcon sx={{ fontSize: 20 }} />,
   },
 ];
 
@@ -125,7 +137,42 @@ export default function AgentCanvasGraph({
   activeNodeId,
   onSelectNode,
 }: AgentCanvasGraphProps) {
-  // Resolve per-node telemetry dynamically based on the active run
+  // Dynamic step animation for active runs
+  const [simulatedActiveStep, setSimulatedActiveStep] = useState<number>(1);
+
+  const runStatus = (selectedRun?.status || "").toUpperCase();
+  const isRunning = runStatus.includes("RUNNING") || runStatus.includes("PENDING");
+
+  useEffect(() => {
+    if (!isRunning) {
+      setSimulatedActiveStep(0);
+      return;
+    }
+
+    // Check if there is an actual running step from backend events
+    const runningStep = selectedRun?.steps?.find(
+      (s) =>
+        s.status?.toUpperCase().includes("RUNNING") ||
+        s.status?.toUpperCase().includes("PROGRESS")
+    );
+    if (runningStep) {
+      setSimulatedActiveStep(runningStep.step);
+      return;
+    }
+
+    // Sequence stages 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+    setSimulatedActiveStep(1);
+    const interval = setInterval(() => {
+      setSimulatedActiveStep((prev) => {
+        if (prev >= 7) return 7;
+        return prev + 1;
+      });
+    }, 1800);
+
+    return () => clearInterval(interval);
+  }, [selectedRun?.run_id, isRunning, selectedRun?.steps]);
+
+  // Resolve node state
   const getNodeState = (node: AgentNodeDef): NodeTelemetry => {
     if (!selectedRun) {
       return {
@@ -138,11 +185,10 @@ export default function AgentCanvasGraph({
       };
     }
 
-    const runStatus = (selectedRun.status || "").toUpperCase();
-    const isHitl = selectedRun.hitl_required || runStatus.includes("HITL");
+    const isHitl = Boolean(selectedRun.hitl_required || runStatus.includes("HITL"));
     const isHalted = runStatus.includes("HALT") || runStatus.includes("FRAUD");
 
-    // Match by step number or service name
+    // Match against real steps if available
     const step = selectedRun.steps?.find(
       (s) =>
         s.step === node.stepNumber ||
@@ -150,10 +196,10 @@ export default function AgentCanvasGraph({
         s.name?.toLowerCase().includes(node.id)
     );
 
-    if (step) {
+    if (step && !isRunning) {
       const st = step.status.toUpperCase();
       let status: NodeTelemetry["status"] = "COMPLETED";
-      if (st.includes("RUNNING") || st.includes("PROGRESS") || st.includes("ACTIVE")) status = "RUNNING";
+      if (st.includes("RUNNING") || st.includes("PROGRESS")) status = "RUNNING";
       else if (st.includes("HITL") || st.includes("REVIEW")) status = "HITL";
       else if (st.includes("HALT") || st.includes("FAIL") || st.includes("FRAUD")) status = "HALTED";
       else if (st.includes("QUEUE")) status = "QUEUED";
@@ -162,98 +208,180 @@ export default function AgentCanvasGraph({
       let metric = "";
       const out = (step as any).output || step.response || step.data || {};
       if (node.id === "brand_liability") {
-        metric = out.net_liability_tons ? `${out.net_liability_tons} MT Net` : `${selectedRun.volume_tons || 450} MT Net`;
+        metric = out.net_liability_tons ? `${out.net_liability_tons} MT Net` : `${selectedRun.volume_tons || 250} MT Net`;
       } else if (node.id === "regulatory_watchdog") {
         metric = out.mandated_target_pct ? `${out.mandated_target_pct}% Mandate` : "100% Mandate";
       } else if (node.id === "auction") {
-        metric = status === "RUNNING" ? "⚡ Matching Orders..." : (out.clearing_price ? `₹${out.clearing_price.toLocaleString()}/MT Cleared` : "₹4,150/MT Cleared");
+        metric = out.clearing_price ? `₹${out.clearing_price.toLocaleString()}/MT` : "₹4,150/MT";
       } else if (node.id === "scada_auditor") {
-        if (status === "RUNNING") {
-          metric = "⚡ Sampling Sensors...";
-        } else if (status === "HALTED") {
-          metric = out.is_spoofed ? "PF 0.99 (Resistive Spoof)" : "Halted: Physics Anomaly";
-        } else if (status === "HITL") {
-          metric = "Δ Variance Exceeded";
-        } else {
-          metric = out.torque_nm ? `${out.torque_nm} Nm · PF ${out.power_factor || 0.84}` : "45.2 Nm · PF 0.84";
-        }
+        metric = status === "HALTED" ? "PF 0.99 Spoof" : "45.2 Nm · PF 0.84";
       } else if (node.id === "forensic_auditor") {
-        metric = status === "RUNNING" ? "⚡ Reasoning Anti-Fraud..." : (status === "HALTED" ? "Halted: Upstream Fraud" : (status === "HITL" ? "Requires Officer Approval" : (out.confidence_pct ? `${out.confidence_pct}% Confidence` : "98.4% Confidence")));
+        metric = status === "HALTED" ? "Halted: Spoof" : "98.4% Confidence";
       } else if (node.id === "escrow") {
-        metric = status === "RUNNING" ? "⚡ Authorizing Gate..." : (status === "HALTED" || status === "SKIPPED" ? "Payment Halted" : (status === "QUEUED" ? "Gate Locked" : (out.status ? out.status.replace("_", " ") : "80/20 PO Disbursed")));
+        metric = status === "HALTED" ? "Disbursement Locked" : "80/20 PO Disbursed";
       } else if (node.id === "cpcb_dispatch") {
-        metric = status === "RUNNING" ? "⚡ Signing DSC X.509..." : (status === "HALTED" || status === "SKIPPED" ? "Filing Blocked" : (status === "QUEUED" ? "Awaiting Escrow" : (out.portal_ack_number ? "DSC Form-1 Signed" : "DSC Form-1 Signed")));
+        metric = status === "HALTED" ? "Filing Blocked" : "Form-1 Signed";
       }
 
       return {
         status,
         metric,
         runtime_ms: step.runtime_ms ?? (node.id === "scada_auditor" ? 45 : 120),
-        tokens: step.tokens ?? (node.systemType.includes("Reflex") ? 0 : 750),
+        tokens: step.tokens ?? (node.systemType.includes("Reflex") ? 0 : 720),
         cost_usd: step.cost_usd ?? (node.systemType.includes("Reflex") ? 0 : 0.0009),
         cost_inr: step.cost_inr ?? (node.systemType.includes("Reflex") ? 0 : 0.08),
       };
     }
 
-    // Active in-progress execution fallback
-    if (runStatus === "RUNNING" || runStatus === "PENDING") {
-      if (node.stepNumber <= 2) {
-        return { status: "COMPLETED", metric: "Completed", runtime_ms: 110, tokens: 680, cost_usd: 0.0009, cost_inr: 0.08 };
+    // Dynamic execution simulation during active run
+    if (isRunning) {
+      if (node.stepNumber < simulatedActiveStep) {
+        return {
+          status: "COMPLETED",
+          metric: node.stepNumber === 1 ? `${selectedRun.volume_tons || 250} MT Net` : "Passed",
+          runtime_ms: 110 + node.stepNumber * 15,
+          tokens: node.systemType.includes("Reflex") ? 0 : 680,
+          cost_usd: 0.0008,
+          cost_inr: 0.07,
+        };
       }
-      if (node.stepNumber === 3) {
-        return { status: "RUNNING", metric: "⚡ Matching CDA Corridor...", runtime_ms: 60, tokens: 350, cost_usd: 0.0004, cost_inr: 0.03 };
+      if (node.stepNumber === simulatedActiveStep) {
+        return {
+          status: "RUNNING",
+          metric:
+            node.id === "brand_liability"
+              ? "⚡ Querying ERP Debt..."
+              : node.id === "regulatory_watchdog"
+              ? "⚡ Parsing Gazette..."
+              : node.id === "auction"
+              ? "⚡ Matching Double Auction..."
+              : node.id === "scada_auditor"
+              ? "⚡ Sampling 100Hz SCADA..."
+              : node.id === "forensic_auditor"
+              ? "⚡ Gemini Heat Balance..."
+              : node.id === "escrow"
+              ? "⚡ Authorizing 80/20 PO..."
+              : "⚡ Signing X.509 DSC...",
+          runtime_ms: 65,
+          tokens: 340,
+          cost_usd: 0.0004,
+          cost_inr: 0.03,
+        };
       }
       return { status: "QUEUED", metric: "Queued", runtime_ms: 0, tokens: 0, cost_usd: 0, cost_inr: 0 };
     }
 
-    // Deterministic fallback based on run conditions
+    // Completed deterministic fallback
     if (isHalted) {
       if (node.stepNumber <= 3) {
-        return { status: "COMPLETED", metric: "Completed", runtime_ms: 110, tokens: 620, cost_usd: 0.0008, cost_inr: 0.07 };
+        return { status: "COMPLETED", metric: "Passed", runtime_ms: 115, tokens: 620, cost_usd: 0.0008, cost_inr: 0.07 };
       }
       if (node.stepNumber === 4) {
-        return { status: "HALTED", metric: "PF 0.99 Unity Spoof", runtime_ms: 45, tokens: 0, cost_usd: 0, cost_inr: 0 };
+        return { status: "HALTED", metric: "PF 0.99 Spoof", runtime_ms: 45, tokens: 0, cost_usd: 0, cost_inr: 0 };
       }
       return { status: "SKIPPED", metric: "Halted by Fraud", runtime_ms: 0, tokens: 0, cost_usd: 0, cost_inr: 0 };
     }
 
     if (isHitl) {
       if (node.stepNumber <= 3) {
-        return { status: "COMPLETED", metric: "Completed", runtime_ms: 110, tokens: 680, cost_usd: 0.0009, cost_inr: 0.08 };
+        return { status: "COMPLETED", metric: "Passed", runtime_ms: 110, tokens: 680, cost_usd: 0.0009, cost_inr: 0.08 };
       }
       if (node.stepNumber === 4 || node.stepNumber === 5) {
-        return { status: "HITL", metric: "Δ Variance Exceeded", runtime_ms: 48, tokens: 840, cost_usd: 0.0011, cost_inr: 0.09 };
+        return { status: "HITL", metric: "Δ Variance > 2%", runtime_ms: 48, tokens: 840, cost_usd: 0.0011, cost_inr: 0.09 };
       }
       return { status: "QUEUED", metric: "Gate Locked", runtime_ms: 0, tokens: 0, cost_usd: 0, cost_inr: 0 };
     }
 
-    // Default clean run
+    // Default clean completed run
     return {
       status: "COMPLETED",
-      metric: node.stepNumber === 4 ? "45.2 Nm · PF 0.84" : `${selectedRun.volume_tons || 250} MT Verified`,
-      runtime_ms: node.stepNumber === 4 ? 45 : (node.stepNumber === 5 ? 520 : 140),
+      metric:
+        node.id === "brand_liability"
+          ? `${selectedRun.volume_tons || 250} MT Net`
+          : node.id === "regulatory_watchdog"
+          ? "100% Mandate"
+          : node.id === "auction"
+          ? "₹4,150/MT"
+          : node.id === "scada_auditor"
+          ? "45.2 Nm · PF 0.84"
+          : node.id === "forensic_auditor"
+          ? "98.4% Confidence"
+          : node.id === "escrow"
+          ? "80/20 PO Disbursed"
+          : "Form-1 Signed",
+      runtime_ms: node.stepNumber === 4 ? 45 : node.stepNumber === 5 ? 520 : 130,
       tokens: node.stepNumber === 4 ? 0 : 720,
       cost_usd: node.stepNumber === 4 ? 0 : 0.001,
       cost_inr: node.stepNumber === 4 ? 0 : 0.08,
     };
   };
 
-  const getStatusColor = (status: NodeTelemetry["status"]) => {
+  const getStatusVisuals = (status: NodeTelemetry["status"]) => {
     switch (status) {
       case "COMPLETED":
-        return { border: "#10B981", bg: "rgba(16, 185, 129, 0.08)", text: "#10B981", badge: "success" as const };
+        return {
+          border: "#10B981",
+          pillBg: "rgba(16, 185, 129, 0.15)",
+          pillBorder: "#10B981",
+          text: "#34D399",
+          label: "Completed",
+          portColor: "#10B981",
+        };
       case "RUNNING":
-        return { border: "#3B82F6", bg: "rgba(59, 130, 246, 0.16)", text: "#3B82F6", badge: "info" as const };
+        return {
+          border: "#3B82F6",
+          pillBg: "rgba(59, 130, 246, 0.25)",
+          pillBorder: "#3B82F6",
+          text: "#93C5FD",
+          label: "Running",
+          portColor: "#3B82F6",
+        };
       case "HITL":
-        return { border: "#F59E0B", bg: "rgba(245, 158, 11, 0.12)", text: "#F59E0B", badge: "warning" as const };
+        return {
+          border: "#F59E0B",
+          pillBg: "rgba(245, 158, 11, 0.2)",
+          pillBorder: "#F59E0B",
+          text: "#FBBF24",
+          label: "HITL Review",
+          portColor: "#F59E0B",
+        };
       case "HALTED":
-        return { border: "#EF4444", bg: "rgba(239, 68, 68, 0.12)", text: "#EF4444", badge: "error" as const };
+        return {
+          border: "#EF4444",
+          pillBg: "rgba(239, 68, 68, 0.2)",
+          pillBorder: "#EF4444",
+          text: "#F87171",
+          label: "Halted",
+          portColor: "#EF4444",
+        };
       case "QUEUED":
-        return { border: "#8B5CF6", bg: "rgba(139, 92, 246, 0.08)", text: "#8B5CF6", badge: "info" as const };
+      case "PENDING":
+        return {
+          border: "#334155",
+          pillBg: "rgba(51, 65, 85, 0.3)",
+          pillBorder: "#475569",
+          text: "#94A3B8",
+          label: "Queued",
+          portColor: "#475569",
+        };
       case "SKIPPED":
-        return { border: "#6B7280", bg: "rgba(107, 114, 128, 0.08)", text: "#9CA3AF", badge: "default" as const };
+        return {
+          border: "#475569",
+          pillBg: "rgba(71, 85, 105, 0.2)",
+          pillBorder: "#475569",
+          text: "#64748B",
+          label: "Skipped",
+          portColor: "#475569",
+        };
       default:
-        return { border: "rgba(255, 255, 255, 0.12)", bg: "rgba(255, 255, 255, 0.02)", text: "#94A3B8", badge: "default" as const };
+        return {
+          border: "#334155",
+          pillBg: "rgba(51, 65, 85, 0.2)",
+          pillBorder: "#475569",
+          text: "#94A3B8",
+          label: "Idle",
+          portColor: "#475569",
+        };
     }
   };
 
@@ -262,12 +390,69 @@ export default function AgentCanvasGraph({
   const totalCostUsd = selectedRun?.total_cost_usd || 0.0058;
   const totalCostInr = selectedRun?.total_cost_inr || 0.49;
 
+  // Connection wire definitions between ports
+  // Port radius is 5. Width = 246, height = 92, port Y = y + 46
+  const WIRES = useMemo(
+    () => [
+      {
+        id: "w1",
+        from: "brand_liability",
+        to: "auction",
+        path: "M 296 106 C 325 106, 316 206, 345 206",
+        activeAtStep: 3,
+      },
+      {
+        id: "w2",
+        from: "regulatory_watchdog",
+        to: "auction",
+        path: "M 296 306 C 325 306, 316 206, 345 206",
+        activeAtStep: 3,
+      },
+      {
+        id: "w3",
+        from: "auction",
+        to: "scada_auditor",
+        path: "M 591 206 C 620 206, 611 106, 640 106",
+        activeAtStep: 4,
+      },
+      {
+        id: "w4",
+        from: "auction",
+        to: "forensic_auditor",
+        path: "M 591 206 C 620 206, 611 306, 640 306",
+        activeAtStep: 5,
+      },
+      {
+        id: "w5",
+        from: "scada_auditor",
+        to: "escrow",
+        path: "M 886 106 C 910 106, 911 106, 935 106",
+        activeAtStep: 6,
+      },
+      {
+        id: "w6",
+        from: "forensic_auditor",
+        to: "escrow",
+        path: "M 886 306 C 915 306, 906 106, 935 106",
+        activeAtStep: 6,
+      },
+      {
+        id: "w7",
+        from: "escrow",
+        to: "cpcb_dispatch",
+        path: "M 1058 152 C 1058 190, 1058 220, 1058 260",
+        activeAtStep: 7,
+      },
+    ],
+    []
+  );
+
   return (
     <Box
       sx={{
         width: "100%",
         height: { xs: "auto", lg: 520 },
-        bgcolor: "background.paper",
+        bgcolor: "#0C0F17",
         border: 1,
         borderColor: "divider",
         borderRadius: 2,
@@ -275,34 +460,58 @@ export default function AgentCanvasGraph({
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.45)",
       }}
     >
       {/* Canvas Top Bar with Aggregate Run Telemetry */}
       <Box
         sx={{
           px: 2,
-          py: 1.5,
+          py: 1.25,
           borderBottom: 1,
-          borderColor: "divider",
+          borderColor: "rgba(255,255,255,0.08)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
           gap: 1.5,
-          bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#FAFAFA"),
+          bgcolor: "rgba(17, 21, 30, 0.95)",
+          backdropFilter: "blur(8px)",
+          zIndex: 10,
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
-          <Typography sx={{ fontWeight: 800, fontSize: "0.9rem", letterSpacing: "-0.01em" }}>
-            Autonomous Multi-Agent Topology
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box
+              sx={{
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                bgcolor: isRunning ? "#3B82F6" : "#10B981",
+                boxShadow: isRunning ? "0 0 10px #3B82F6" : "0 0 8px #10B981",
+              }}
+            />
+            <Typography sx={{ fontWeight: 800, fontSize: "0.88rem", letterSpacing: "-0.01em", color: "#F8FAFC" }}>
+              Agent Orchestration Topology (n8n Engine)
+            </Typography>
+          </Box>
+
           {selectedRun && (
             <Chip
               size="small"
               label={`Run: ${selectedRun.run_id}`}
-              sx={{ fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, height: 22, fontSize: "0.72rem" }}
+              sx={{
+                fontFamily: "var(--font-mono, monospace)",
+                fontWeight: 700,
+                height: 22,
+                fontSize: "0.72rem",
+                bgcolor: "rgba(255,255,255,0.06)",
+                color: "#E2E8F0",
+                border: "1px solid rgba(255,255,255,0.12)",
+              }}
             />
           )}
+
           {activeNodeId ? (
             <Chip
               size="small"
@@ -316,7 +525,7 @@ export default function AgentCanvasGraph({
               size="small"
               variant="outlined"
               label="💡 Click any node to inspect Inputs & Outputs"
-              sx={{ height: 22, fontSize: "0.68rem" }}
+              sx={{ height: 22, fontSize: "0.68rem", borderColor: "rgba(255,255,255,0.15)", color: "#94A3B8" }}
             />
           )}
         </Box>
@@ -326,8 +535,8 @@ export default function AgentCanvasGraph({
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
             <Tooltip title="Total End-to-End Orchestration Runtime">
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <SpeedIcon sx={{ fontSize: 15, color: "primary.main" }} />
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, fontFamily: 'var(--font-mono, monospace)' }}>
+                <SpeedIcon sx={{ fontSize: 15, color: "#60A5FA" }} />
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "#E2E8F0" }}>
                   {totalRuntime} ms
                 </Typography>
               </Box>
@@ -335,8 +544,8 @@ export default function AgentCanvasGraph({
 
             <Tooltip title="Total LLM Tokens Consumed">
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <TollIcon sx={{ fontSize: 15, color: "secondary.main" }} />
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, fontFamily: 'var(--font-mono, monospace)' }}>
+                <TollIcon sx={{ fontSize: 15, color: "#C084FC" }} />
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "#E2E8F0" }}>
                   {totalTokens.toLocaleString()} tok
                 </Typography>
               </Box>
@@ -344,250 +553,394 @@ export default function AgentCanvasGraph({
 
             <Tooltip title="Total Execution Cost ($ USD / ₹ INR)">
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <AttachMoneyIcon sx={{ fontSize: 15, color: "success.main" }} />
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, fontFamily: 'var(--font-mono, monospace)' }}>
+                <AttachMoneyIcon sx={{ fontSize: 15, color: "#34D399" }} />
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "#E2E8F0" }}>
                   ${totalCostUsd.toFixed(4)} (₹{totalCostInr.toFixed(2)})
                 </Typography>
               </Box>
             </Tooltip>
 
             {/* Status Legend */}
-            <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", pl: 1, borderLeft: 1, borderColor: "divider" }}>
+            <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", pl: 1, borderLeft: 1, borderColor: "rgba(255,255,255,0.12)" }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#10B981" }} />
-                <Typography sx={{ fontSize: "0.7rem", color: "text.secondary" }}>Passed</Typography>
+                <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: "#10B981" }} />
+                <Typography sx={{ fontSize: "0.68rem", color: "#94A3B8" }}>Passed</Typography>
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#F59E0B" }} />
-                <Typography sx={{ fontSize: "0.7rem", color: "text.secondary" }}>HITL</Typography>
+                <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: "#3B82F6" }} />
+                <Typography sx={{ fontSize: "0.68rem", color: "#94A3B8" }}>Running</Typography>
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#EF4444" }} />
-                <Typography sx={{ fontSize: "0.7rem", color: "text.secondary" }}>Halted</Typography>
+                <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: "#F59E0B" }} />
+                <Typography sx={{ fontSize: "0.68rem", color: "#94A3B8" }}>HITL</Typography>
               </Box>
             </Box>
           </Box>
         )}
       </Box>
 
-      {/* SVG Canvas Area */}
+      {/* Authentic n8n SVG Canvas Area */}
       <Box sx={{ flexGrow: 1, position: "relative", width: "100%", height: "100%", minHeight: 0, overflow: "hidden" }}>
         <svg
-          viewBox="0 0 1200 440"
+          viewBox="0 0 1230 420"
           style={{ width: "100%", height: "100%" }}
           preserveAspectRatio="xMidYMid meet"
         >
           <defs>
-            <linearGradient id="edgeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#10B981" stopOpacity="0.8" />
+            {/* Signature n8n Dot Grid Pattern */}
+            <pattern id="n8nGrid" width="22" height="22" patternUnits="userSpaceOnUse">
+              <circle cx="11" cy="11" r="1.15" fill="#252D3F" opacity="0.85" />
+            </pattern>
+
+            {/* Glowing Wire Gradients */}
+            <linearGradient id="edgeGradRunning" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4" />
+              <stop offset="50%" stopColor="#60A5FA" stopOpacity="1" />
+              <stop offset="100%" stopColor="#93C5FD" stopOpacity="0.6" />
             </linearGradient>
-            <linearGradient id="edgeAlert" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#F59E0B" stopOpacity="0.8" />
+
+            <linearGradient id="edgeGradSuccess" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#10B981" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="#059669" stopOpacity="0.8" />
             </linearGradient>
-            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+
+            <linearGradient id="edgeGradDefault" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#2A3347" />
+              <stop offset="100%" stopColor="#2A3347" />
+            </linearGradient>
+
+            {/* Node Shadows & Glow Filters */}
+            <filter id="nodeShadow" x="-10%" y="-10%" width="120%" height="130%">
+              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000000" floodOpacity="0.55" />
+            </filter>
+
+            <filter id="particleGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
+            <filter id="runPulseGlow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
             </filter>
           </defs>
 
-          {/* DAG Directed Edges */}
-          {/* Node 1 & 2 -> Node 3 (Auction) */}
-          <path
-            d="M 290 125 C 315 125, 325 225, 350 225"
-            fill="none"
-            stroke="url(#edgeGrad)"
-            strokeWidth="2.5"
-            strokeDasharray="4 2"
-          />
-          <path
-            d="M 290 325 C 315 325, 325 225, 350 225"
-            fill="none"
-            stroke="url(#edgeGrad)"
-            strokeWidth="2.5"
-            strokeDasharray="4 2"
-          />
+          {/* Background Canvas & Dot Grid */}
+          <rect width="100%" height="100%" fill="#0C0F17" />
+          <rect width="100%" height="100%" fill="url(#n8nGrid)" />
 
-          {/* Node 3 (Auction) -> Node 4 & 5 (Auditors) */}
-          <path
-            d="M 580 225 C 605 225, 615 125, 640 125"
-            fill="none"
-            stroke="url(#edgeGrad)"
-            strokeWidth="2.5"
-          />
-          <path
-            d="M 580 225 C 605 225, 615 325, 640 325"
-            fill="none"
-            stroke="url(#edgeGrad)"
-            strokeWidth="2.5"
-          />
+          {/* S-Curve Bezier Connection Wires */}
+          {WIRES.map((wire) => {
+            const isWireActive = isRunning && (simulatedActiveStep === wire.activeAtStep || simulatedActiveStep > wire.activeAtStep);
+            const isWireFlowing = isRunning && simulatedActiveStep === wire.activeAtStep;
 
-          {/* Node 4 & 5 -> Node 6 (Escrow) */}
-          <path
-            d="M 870 125 L 930 125"
-            fill="none"
-            stroke="url(#edgeGrad)"
-            strokeWidth="2.5"
-          />
-          <path
-            d="M 870 325 C 895 325, 905 125, 930 125"
-            fill="none"
-            stroke="url(#edgeGrad)"
-            strokeWidth="2.5"
-          />
+            return (
+              <g key={wire.id}>
+                {/* Base Wire Track */}
+                <path
+                  d={wire.path}
+                  fill="none"
+                  stroke={isWireActive ? "url(#edgeGradSuccess)" : "url(#edgeGradDefault)"}
+                  strokeWidth="2.5"
+                  opacity={isWireActive ? 0.9 : 0.6}
+                />
 
-          {/* Node 6 -> Node 7 (CPCB Form 1 Dispatch) */}
-          <path
-            d="M 1045 175 L 1045 280"
-            fill="none"
-            stroke="url(#edgeGrad)"
-            strokeWidth="2.5"
-            strokeDasharray="3 3"
-          />
+                {/* Flowing Dashed Energy Line when Workflow is Running */}
+                {isWireFlowing && (
+                  <path
+                    d={wire.path}
+                    fill="none"
+                    stroke="#60A5FA"
+                    strokeWidth="2.5"
+                    strokeDasharray="8 8"
+                    opacity="0.95"
+                    filter="url(#particleGlow)"
+                  >
+                    <animate attributeName="stroke-dashoffset" values="32;0" dur="0.8s" repeatCount="indefinite" />
+                  </path>
+                )}
 
-          {/* Render Interactive Agent Nodes */}
+                {/* n8n Trademark High-Energy Traveling Particle Dot */}
+                {isWireFlowing && (
+                  <>
+                    <circle r="4.5" fill="#60A5FA" filter="url(#particleGlow)">
+                      <animateMotion path={wire.path} dur="1.2s" repeatCount="indefinite" />
+                    </circle>
+                    <circle r="2" fill="#FFFFFF">
+                      <animateMotion path={wire.path} dur="1.2s" repeatCount="indefinite" />
+                    </circle>
+                  </>
+                )}
+              </g>
+            );
+          })}
+
+          {/* Node 6 to 7 Vertical Port Markers */}
+          <circle cx="1058" cy="152" r="4.5" fill="#10B981" stroke="#141824" strokeWidth="2" />
+          <circle cx="1058" cy="260" r="4.5" fill="#10B981" stroke="#141824" strokeWidth="2" />
+
+          {/* Render Authentic n8n Node Cards */}
           {AGENT_NODES.map((node) => {
             const telemetry = getNodeState(node);
-            const colorCfg = getStatusColor(telemetry.status);
+            const visuals = getStatusVisuals(telemetry.status);
             const isSelected = activeNodeId === node.id;
+            const isNodeRunning = telemetry.status === "RUNNING";
 
             return (
               <g
                 key={node.id}
-                transform={`translate(${node.x}, ${node.y})`}
                 onClick={() => onSelectNode(node.id)}
                 style={{ cursor: "pointer" }}
               >
-                {/* Running Pulse Animation Ring */}
-                {telemetry.status === "RUNNING" && (
-                  <rect
-                    x="-6"
-                    y="-6"
-                    width="242"
-                    height="102"
-                    rx="10"
-                    fill="none"
-                    stroke="#3B82F6"
-                    strokeWidth="2.5"
-                    strokeDasharray="6 4"
-                    filter="url(#glow)"
-                  >
-                    <animate attributeName="stroke-dashoffset" values="0;20" dur="1s" repeatCount="indefinite" />
-                  </rect>
+                {/* n8n Active Running Pulsing Wave Rings */}
+                {isNodeRunning && (
+                  <>
+                    <rect
+                      x={node.x - 4}
+                      y={node.y - 4}
+                      width={254}
+                      height={100}
+                      rx={15}
+                      fill="none"
+                      stroke="#3B82F6"
+                      strokeWidth="2"
+                      filter="url(#runPulseGlow)"
+                    >
+                      <animate attributeName="stroke-opacity" values="0.9;0" dur="1.6s" repeatCount="indefinite" />
+                      <animate attributeName="stroke-width" values="1.5;7" dur="1.6s" repeatCount="indefinite" />
+                      <animate attributeName="x" values={`${node.x - 4};${node.x - 10}`} dur="1.6s" repeatCount="indefinite" />
+                      <animate attributeName="y" values={`${node.y - 4};${node.y - 10}`} dur="1.6s" repeatCount="indefinite" />
+                      <animate attributeName="width" values="254;266" dur="1.6s" repeatCount="indefinite" />
+                      <animate attributeName="height" values="100;112" dur="1.6s" repeatCount="indefinite" />
+                    </rect>
+                  </>
                 )}
 
-                {/* Outer Glow / Active Selection Ring */}
+                {/* Selection Halo Ring */}
                 {isSelected && (
                   <rect
-                    x="-6"
-                    y="-6"
-                    width="242"
-                    height="102"
-                    rx="10"
+                    x={node.x - 3}
+                    y={node.y - 3}
+                    width={252}
+                    height={98}
+                    rx={14}
                     fill="none"
                     stroke="#8B5CF6"
-                    strokeWidth="2.5"
+                    strokeWidth="2"
                     strokeDasharray="5 3"
-                    filter="url(#glow)"
+                    filter="url(#particleGlow)"
                   />
                 )}
 
-                {/* Main Node Card */}
+                {/* Main n8n Slate Node Card */}
                 <rect
-                  x="0"
-                  y="0"
-                  width="230"
-                  height="90"
-                  rx="8"
-                  fill="var(--mui-palette-background-paper, #1E293B)"
-                  stroke={colorCfg.border}
-                  strokeWidth={isSelected ? "2.5" : "1.5"}
-                  style={{ transition: "all 0.2s ease-in-out" }}
+                  x={node.x}
+                  y={node.y}
+                  width={246}
+                  height={92}
+                  rx={12}
+                  fill="#141824"
+                  stroke={isSelected ? "#8B5CF6" : visuals.border}
+                  strokeWidth={isSelected ? "2" : isNodeRunning ? "2" : "1.5"}
+                  filter="url(#nodeShadow)"
+                  style={{ transition: "all 0.2s ease" }}
                 />
 
-                {/* Node Top Accent Stripe */}
-                <rect
-                  x="0"
-                  y="0"
-                  width="230"
-                  height="4"
-                  rx="2"
-                  fill={colorCfg.border}
+                {/* Left Port Dot (Input) */}
+                <circle
+                  cx={node.x}
+                  cy={node.y + 46}
+                  r={5}
+                  fill={visuals.portColor}
+                  stroke="#141824"
+                  strokeWidth="2.5"
                 />
 
-                {/* Status Dot */}
-                <g transform="translate(210, 16)">
-                  <circle cx="0" cy="0" r="6" fill={colorCfg.border} />
-                </g>
+                {/* Right Port Dot (Output) */}
+                <circle
+                  cx={node.x + 246}
+                  cy={node.y + 46}
+                  r={5}
+                  fill={visuals.portColor}
+                  stroke="#141824"
+                  strokeWidth="2.5"
+                />
 
-                {/* Agent Name */}
+                {/* Left Icon Badge (n8n signature rounded square with role gradient) */}
+                <foreignObject x={node.x + 12} y={node.y + 13} width={38} height={38}>
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      borderRadius: "10px",
+                      background: node.gradient,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#FFFFFF",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+                    }}
+                  >
+                    {node.icon}
+                  </div>
+                </foreignObject>
+
+                {/* Node Title */}
                 <text
-                  x="12"
-                  y="22"
-                  fill="var(--mui-palette-text-primary, #FFFFFF)"
-                  fontSize="12"
+                  x={node.x + 58}
+                  y={node.y + 27}
+                  fill="#F8FAFC"
+                  fontSize="11.5"
                   fontWeight="700"
-                  fontFamily="inherit"
+                  fontFamily="system-ui, -apple-system, sans-serif"
                 >
                   {node.name}
                 </text>
 
-                {/* Agent Role */}
+                {/* Node Role Subtitle */}
                 <text
-                  x="12"
-                  y="38"
-                  fill="var(--mui-palette-text-secondary, #94A3B8)"
-                  fontSize="9.5"
-                  fontFamily="inherit"
+                  x={node.x + 58}
+                  y={node.y + 42}
+                  fill="#94A3B8"
+                  fontSize="9"
+                  fontWeight="500"
+                  fontFamily="system-ui, -apple-system, sans-serif"
                 >
                   {node.role}
                 </text>
 
-                {/* System Type Tag & Domain Metric */}
-                <rect
-                  x="12"
-                  y="46"
-                  width={node.systemType.includes("Reflex") ? "80" : "96"}
-                  height="16"
-                  rx="3"
-                  fill={node.systemType.includes("Reflex") ? "rgba(139, 92, 246, 0.2)" : "rgba(59, 130, 246, 0.2)"}
-                />
-                <text
-                  x="16"
-                  y="57"
-                  fill={node.systemType.includes("Reflex") ? "#A78BFA" : "#93C5FD"}
-                  fontSize="8"
-                  fontWeight="700"
-                  fontFamily="inherit"
-                >
-                  {node.systemType}
-                </text>
+                {/* Top-Right n8n Execution Status Pill */}
+                <g transform={`translate(${node.x + 172}, ${node.y + 11})`}>
+                  <rect
+                    x="0"
+                    y="0"
+                    width="64"
+                    height="19"
+                    rx="9.5"
+                    fill={visuals.pillBg}
+                    stroke={visuals.pillBorder}
+                    strokeWidth="1"
+                  />
+                  {isNodeRunning ? (
+                    <>
+                      <circle cx="10" cy="9.5" r="3.5" fill="#60A5FA">
+                        <animate attributeName="opacity" values="0.3;1;0.3" dur="1s" repeatCount="indefinite" />
+                      </circle>
+                      <text
+                        x="18"
+                        y="12.5"
+                        fill="#93C5FD"
+                        fontSize="7.5"
+                        fontWeight="800"
+                        fontFamily="system-ui, -apple-system, sans-serif"
+                      >
+                        RUNNING
+                      </text>
+                    </>
+                  ) : telemetry.status === "COMPLETED" ? (
+                    <text
+                      x="32"
+                      y="12.5"
+                      textAnchor="middle"
+                      fill="#34D399"
+                      fontSize="8"
+                      fontWeight="800"
+                      fontFamily="var(--font-mono, monospace)"
+                    >
+                      ✓ {telemetry.runtime_ms}ms
+                    </text>
+                  ) : (
+                    <text
+                      x="32"
+                      y="12.5"
+                      textAnchor="middle"
+                      fill={visuals.text}
+                      fontSize="7.5"
+                      fontWeight="700"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                    >
+                      {visuals.label}
+                    </text>
+                  )}
+                </g>
 
-                {telemetry.metric && (
-                  <text
-                    x={node.systemType.includes("Reflex") ? "100" : "114"}
-                    y="58"
-                    fill={colorCfg.border}
-                    fontSize="8.5"
-                    fontWeight="700"
-                    fontFamily="monospace"
-                  >
-                    {telemetry.metric}
-                  </text>
+                {/* Divider Line */}
+                <line
+                  x1={node.x + 12}
+                  y1={node.y + 59}
+                  x2={node.x + 234}
+                  y2={node.y + 59}
+                  stroke="#222B3E"
+                  strokeWidth="1"
+                />
+
+                {/* Bottom Bar: Model Pill on Left + Metric on Right */}
+                {/* Model Badge */}
+                {node.systemType.includes("Reflex") ? (
+                  <g transform={`translate(${node.x + 12}, ${node.y + 66})`}>
+                    <rect
+                      x="0"
+                      y="0"
+                      width="92"
+                      height="17"
+                      rx="4"
+                      fill="rgba(16, 185, 129, 0.15)"
+                      stroke="rgba(16, 185, 129, 0.4)"
+                      strokeWidth="0.8"
+                    />
+                    <text
+                      x="6"
+                      y="11.5"
+                      fill="#6EE7B7"
+                      fontSize="7.5"
+                      fontWeight="700"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                    >
+                      ⚡ SCADA Reflex
+                    </text>
+                  </g>
+                ) : (
+                  <g transform={`translate(${node.x + 12}, ${node.y + 66})`}>
+                    <rect
+                      x="0"
+                      y="0"
+                      width="114"
+                      height="17"
+                      rx="4"
+                      fill="rgba(139, 92, 246, 0.18)"
+                      stroke="rgba(139, 92, 246, 0.45)"
+                      strokeWidth="0.8"
+                    />
+                    <text
+                      x="6"
+                      y="11.5"
+                      fill="#C4B5FD"
+                      fontSize="7.5"
+                      fontWeight="700"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                    >
+                      🤖 gemini-3.8-flash
+                    </text>
+                  </g>
                 )}
 
-                {/* Bottom Telemetry Strip: Runtime · Tokens · Cost */}
-                <line x1="8" y1="68" x2="222" y2="68" stroke="rgba(128,128,128,0.2)" strokeWidth="0.8" />
+                {/* Domain Metric Value on Right */}
                 <text
-                  x="12"
-                  y="81"
-                  fill="var(--mui-palette-text-secondary, #94A3B8)"
+                  x={node.x + 234}
+                  y={node.y + 78}
+                  textAnchor="end"
+                  fill={visuals.text}
                   fontSize="8.5"
-                  fontWeight="600"
-                  fontFamily="monospace"
+                  fontWeight="700"
+                  fontFamily="var(--font-mono, monospace)"
                 >
-                  ⚡ {telemetry.runtime_ms}ms  ·  ✦ {telemetry.tokens} tok  ·  ₹{telemetry.cost_inr.toFixed(2)}
+                  {telemetry.metric}
                 </text>
               </g>
             );

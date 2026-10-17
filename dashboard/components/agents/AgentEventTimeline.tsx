@@ -32,6 +32,7 @@ import UnfoldLessIcon from "@mui/icons-material/UnfoldLess";
 import PlayCircleFilledIcon from "@mui/icons-material/PlayCircleFilled";
 import type { E2ERunResult, E2EStep } from "../../app/lib/types/compliance.types";
 import { useNotification } from "../../app/lib/contexts/NotificationContext";
+import { GeminiIcon } from "@/components/icons/GoogleIcons";
 
 interface AgentEventTimelineProps {
   selectedRun: E2ERunResult | null;
@@ -580,6 +581,35 @@ export default function AgentEventTimeline({
                           color: step.system?.includes("Reflex") ? "info.main" : "secondary.main",
                         }}
                       />
+
+                      {step.system?.includes("Reflex") ? (
+                        <Chip
+                          size="small"
+                          label="⚡ SCADA Reflex"
+                          variant="outlined"
+                          sx={{
+                            height: 20,
+                            fontSize: "0.62rem",
+                            fontWeight: 700,
+                            borderColor: "rgba(16, 185, 129, 0.4)",
+                            color: "#34D399",
+                          }}
+                        />
+                      ) : (
+                        <Chip
+                          size="small"
+                          icon={<GeminiIcon size={11} />}
+                          label="gemini-3.8-flash"
+                          variant="outlined"
+                          sx={{
+                            height: 20,
+                            fontSize: "0.62rem",
+                            fontWeight: 700,
+                            borderColor: "rgba(139, 92, 246, 0.4)",
+                            color: "#C4B5FD",
+                          }}
+                        />
+                      )}
 
                       <Chip
                         size="small"

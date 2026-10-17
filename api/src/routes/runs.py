@@ -348,6 +348,8 @@ def _calculate_step_telemetry(
     """Calculate token usage and USD/INR compute costs at API level."""
     if is_reflex:
         return {
+            "model": "nimble-vfd-physics",
+            "provider": "SCADA Physics Reflex Engine",
             "prompt_tokens": 0,
             "completion_tokens": 0,
             "tokens": 0,
@@ -360,10 +362,12 @@ def _calculate_step_telemetry(
     prompt_tokens = max(140, len(in_text) // 4 + 160)
     completion_tokens = max(180, len(out_text) // 4 + 140)
     total_tokens = prompt_tokens + completion_tokens
-    # System 2 Gemini Flash pricing: $0.00010/1k input, $0.00040/1k output
+    # System 2 Gemini 3.8 Flash Vertex AI pricing: $0.00010/1k input, $0.00040/1k output
     cost_usd = round((prompt_tokens * 0.00010 + completion_tokens * 0.00040) / 1000.0, 5)
     cost_inr = round(cost_usd * 86.5, 4)
     return {
+        "model": "gemini-3.8-flash",
+        "provider": "Google Cloud Vertex AI Model Garden (gemini-3.8-flash)",
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
         "tokens": total_tokens,

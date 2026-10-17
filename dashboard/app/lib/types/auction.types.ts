@@ -39,6 +39,9 @@ export interface BroadcastRfpParams {
   company_id: string;
   category: string;
   target_tons: number;
+  statutory_rate_per_kg?: number;
+  floor_price_inr?: number;
+  ceiling_price_inr?: number;
 }
 
 export interface SubmitBidParams {

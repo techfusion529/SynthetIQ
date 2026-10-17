@@ -53,10 +53,21 @@ const AUCTION_STATUS_COLOR: Record<string, "success" | "warning" | "error" | "in
   MATCHED:   "success",
 };
 
+/** Category statutory rates and corridors (CPCB PWM statutory rules) */
+const CATEGORY_CORRIDORS: Record<string, { label: string; baseRate: number; floor: number; ceiling: number }> = {
+  cat_i_rigid: { label: "Cat I — Rigid", baseRate: 12.0, floor: 3.60, ceiling: 12.00 },
+  cat_ii_flexible: { label: "Cat II — Flexible", baseRate: 10.0, floor: 3.00, ceiling: 10.00 },
+  cat_iii_mlp: { label: "Cat III — MLP", baseRate: 8.0, floor: 2.40, ceiling: 8.00 },
+  cat_iv_compostable: { label: "Cat IV — Compostable", baseRate: 15.0, floor: 4.50, ceiling: 15.00 },
+};
+
 function CorridorVisualizer({ auction }: { auction: Auction | null }) {
   if (!auction) return <Skeleton variant="rounded" height={60} />;
-  const { floor_price_inr: floor, ceiling_price_inr: ceiling, clearing_price_inr: clearing } = auction;
-  const pct = ceiling > floor ? Math.round(((clearing - floor) / (ceiling - floor)) * 100) : 50;
+  const floor = Number(auction.floor_price_inr ?? 3.6);
+  const ceiling = Number(auction.ceiling_price_inr ?? 12.0);
+  const clearing = Number(auction.clearing_price_inr ?? floor);
+  const statutoryRate = Number(auction.statutory_rate_per_kg ?? ceiling);
+  const pct = ceiling > floor ? Math.min(100, Math.max(0, Math.round(((clearing - floor) / (ceiling - floor)) * 100))) : 50;
   return (
     <Box>
       <Box sx={{ position: "relative", height: 40, borderRadius: 2, overflow: "hidden", display: "flex" }}>
@@ -77,7 +88,7 @@ function CorridorVisualizer({ auction }: { auction: Auction | null }) {
       <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.5 }}>
         <Typography variant="caption" color="text.disabled">₹0</Typography>
         <Typography variant="caption" color="text.secondary" fontSize="0.65rem">
-          Corridor active: ₹{floor.toFixed(2)} — ₹{ceiling.toFixed(2)} (30–100% of ₹{auction.statutory_rate_per_kg}/kg base rate)
+          Corridor active: ₹{floor.toFixed(2)} — ₹{ceiling.toFixed(2)} (30–100% of ₹{statutoryRate.toFixed(2)}/kg base rate)
         </Typography>
         <Typography variant="caption" color="text.disabled">₹{(ceiling * 1.2).toFixed(2)}+</Typography>
       </Box>
@@ -153,10 +164,23 @@ export default function AuctionPage() {
   // ── broadcast RFP ─────────────────────────────────────────────────────────
   const handleBroadcast = async () => {
     if (!companyId) return;
+    const tons = Number(targetTons);
+    if (!tons || tons <= 0 || isNaN(tons)) {
+      setBroadcastResult("Error: target_tons must be a positive number");
+      return;
+    }
+    const catConfig = CATEGORY_CORRIDORS[category] ?? { baseRate: 12.0, floor: 3.60, ceiling: 12.00 };
     setBroadcasting(true);
     setBroadcastResult(null);
     try {
-      const res = await auctionSvc.broadcastRfp({ company_id: companyId, category, target_tons: Number(targetTons) });
+      const res = await auctionSvc.broadcastRfp({
+        company_id: companyId,
+        category,
+        target_tons: tons,
+        statutory_rate_per_kg: catConfig.baseRate,
+        floor_price_inr: catConfig.floor,
+        ceiling_price_inr: catConfig.ceiling,
+      });
       setBroadcastResult(`Auction ${res.auction_id} created — Temporal workflow ${res.workflow_id}`);
       await fetchAuctions();
     } catch (e) {
@@ -199,6 +223,8 @@ export default function AuctionPage() {
   const isRecycler = currentOrg?.org_type === "recycler";
   const canSubmitBid = isRecycler && activeAuction !== null && activeAuction.status !== "cleared";
 
+  const activeCategoryCorridor = CATEGORY_CORRIDORS[category] ?? { baseRate: 12.0, floor: 3.60, ceiling: 12.00 };
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
       <PageHeader
@@ -213,12 +239,12 @@ export default function AuctionPage() {
               label="Category"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              sx={{ width: 170 }}
+              sx={{ width: 185 }}
             >
-              <MenuItem value="cat_i_rigid">Cat I — Rigid</MenuItem>
-              <MenuItem value="cat_ii_flexible">Cat II — Flexible</MenuItem>
-              <MenuItem value="cat_iii_mlp">Cat III — MLP</MenuItem>
-              <MenuItem value="cat_iv_compostable">Cat IV — Compostable</MenuItem>
+              <MenuItem value="cat_i_rigid">Cat I — Rigid (₹12/kg)</MenuItem>
+              <MenuItem value="cat_ii_flexible">Cat II — Flexible (₹10/kg)</MenuItem>
+              <MenuItem value="cat_iii_mlp">Cat III — MLP (₹8/kg)</MenuItem>
+              <MenuItem value="cat_iv_compostable">Cat IV — Compostable (₹15/kg)</MenuItem>
             </TextField>
             <TextField
               size="small"
@@ -227,6 +253,13 @@ export default function AuctionPage() {
               onChange={(e) => setTargetTons(e.target.value)}
               sx={{ width: 120 }}
               type="number"
+            />
+            <Chip
+              label={`Corridor: ₹${activeCategoryCorridor.floor.toFixed(2)}–₹${activeCategoryCorridor.ceiling.toFixed(2)}/kg`}
+              size="small"
+              variant="outlined"
+              color="primary"
+              sx={{ fontWeight: 600, fontSize: "0.75rem", height: 32 }}
             />
             <Button
               variant="contained"
@@ -250,7 +283,12 @@ export default function AuctionPage() {
       />
 
       {broadcastResult && (
-        <Alert severity={broadcastResult.startsWith("Error") ? "error" : "success"}>{broadcastResult}</Alert>
+        <Alert
+          severity={broadcastResult.startsWith("Error") ? "error" : "success"}
+          onClose={() => setBroadcastResult(null)}
+        >
+          {broadcastResult}
+        </Alert>
       )}
 
       {auctionsError && <Alert severity="error">{auctionsError}</Alert>}

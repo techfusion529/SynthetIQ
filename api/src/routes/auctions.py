@@ -55,6 +55,14 @@ async def _get_bids(auction_id: str, org_id: str | None = None) -> list[dict[str
     return []
 
 
+DEFAULT_STATUTORY_RATES: dict[str, float] = {
+    "cat_i_rigid": 12.0,
+    "cat_ii_flexible": 10.0,
+    "cat_iii_mlp": 8.0,
+    "cat_iv_compostable": 15.0,
+}
+
+
 @router.post("/rfp")
 async def broadcast_rfp(
     payload: dict[str, Any],
@@ -67,20 +75,52 @@ async def broadcast_rfp(
         raise HTTPException(status_code=400, detail="company_id required")
     category = payload.get("category", "cat_i_rigid")
 
-    statutory_rate = payload.get("statutory_rate_per_kg")
-    floor_price = payload.get("floor_price_inr")
-    ceiling_price = payload.get("ceiling_price_inr")
-    target_tons = payload.get("target_tons")
-    if any(v is None for v in [statutory_rate, floor_price, ceiling_price, target_tons]):
+    target_tons_raw = payload.get("target_tons")
+    if target_tons_raw is None:
         raise HTTPException(
             status_code=422,
-            detail="statutory_rate_per_kg, floor_price_inr, ceiling_price_inr, and target_tons are required",
+            detail="target_tons is required",
+        )
+    try:
+        target_tons = float(target_tons_raw)
+        if target_tons <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=422,
+            detail="target_tons must be a positive number",
         )
 
-    statutory_rate = float(statutory_rate)
-    floor_price = float(floor_price)
-    ceiling_price = float(ceiling_price)
-    target_tons = float(target_tons)
+    # Statutory rate & price corridor defaults (floor 30%, ceiling 100%)
+    statutory_rate_raw = payload.get("statutory_rate_per_kg")
+    if statutory_rate_raw is None:
+        statutory_rate = DEFAULT_STATUTORY_RATES.get(category, 12.0)
+    else:
+        try:
+            statutory_rate = float(statutory_rate_raw)
+        except (ValueError, TypeError):
+            statutory_rate = DEFAULT_STATUTORY_RATES.get(category, 12.0)
+
+    floor_price_raw = payload.get("floor_price_inr")
+    if floor_price_raw is None:
+        floor_price = round(statutory_rate * 0.30, 2)
+    else:
+        try:
+            floor_price = float(floor_price_raw)
+        except (ValueError, TypeError):
+            floor_price = round(statutory_rate * 0.30, 2)
+
+    ceiling_price_raw = payload.get("ceiling_price_inr")
+    if ceiling_price_raw is None:
+        ceiling_price = round(statutory_rate * 1.00, 2)
+    else:
+        try:
+            ceiling_price = float(ceiling_price_raw)
+        except (ValueError, TypeError):
+            ceiling_price = round(statutory_rate * 1.00, 2)
+
+    if floor_price > ceiling_price:
+        floor_price, ceiling_price = ceiling_price, floor_price
 
     # CFG-03: fetch corridor from active regulatory pack; fall back to request body values
     _corridor_min: float = floor_price

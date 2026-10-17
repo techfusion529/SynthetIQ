@@ -167,34 +167,28 @@ export default function DispatchPage() {
   const [dispatchResult, setDispatchResult] = useState<string | null>(null);
   const [dispatchError, setDispatchError]   = useState<string | null>(null);
 
-  const handleDownloadPdf = async (auditIdOrHash: string) => {
+  const handleDownloadPdf = (auditIdOrHash: string) => {
     if (!auditIdOrHash) return;
     setDownloadingPdf(true);
     try {
-      const url = `${API_BASE}/api/v1/audit/report/${auditIdOrHash}/pdf`;
-      const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) {
-        throw new Error(`Server returned HTTP ${res.status}`);
-      }
-      const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
+      const downloadUrl = `${API_BASE}/api/v1/audit/report/${encodeURIComponent(auditIdOrHash)}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
       const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = `CPCB_Form1_Audit_${auditIdOrHash.slice(0, 12)}.pdf`;
+      a.href = downloadUrl;
+      a.setAttribute("download", `CPCB_Form1_Audit_${auditIdOrHash.slice(0, 12)}.pdf`);
+      a.setAttribute("target", "_blank");
+      a.setAttribute("rel", "noopener noreferrer");
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(blobUrl);
       document.body.removeChild(a);
       notify.success("Cryptographic Forensic PDF downloaded successfully", "PDF Ready");
     } catch (e) {
       console.error("PDF download error:", e);
       notify.error("Unable to generate PDF report from server", "Download Failed");
     } finally {
-      setDownloadingPdf(false);
+      setTimeout(() => setDownloadingPdf(false), 1000);
     }
   };
+
 
   const handleDownloadCpcbTemplate = (form: Form1Payload) => {
     const templateData = {

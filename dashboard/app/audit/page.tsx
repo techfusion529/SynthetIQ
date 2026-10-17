@@ -131,7 +131,7 @@ export default function AuditPage() {
     setTimeout(() => setCopiedHash(null), 2000);
   };
 
-  const handleDownloadPdf = async (auditId: string, auditHash?: string) => {
+  const handleDownloadPdf = (auditId: string, auditHash?: string) => {
     setDownloadingPdf(auditId);
     try {
       const targetId = auditId || auditHash || "";
@@ -139,30 +139,19 @@ export default function AuditPage() {
         ? (localStorage.getItem("synthetiq_auth_token") || localStorage.getItem("synthetiq_token"))
         : null;
       const downloadUrl = `${API_BASE}/api/v1/audit/report/${encodeURIComponent(targetId)}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
-      const res = await fetch(downloadUrl, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("PDF generation failed");
-      const blob = await res.blob();
-      const pdfBlob = new Blob([blob], { type: "application/pdf" });
-      const url = window.URL.createObjectURL(pdfBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `CPCB_Form1_Audit_${targetId || "Certificate"}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-    } catch {
-      const token = typeof window !== "undefined"
-        ? (localStorage.getItem("synthetiq_auth_token") || localStorage.getItem("synthetiq_token"))
-        : null;
-      window.open(
-        `${API_BASE}/api/v1/audit/report/${encodeURIComponent(auditId)}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`,
-        "_blank"
-      );
+      
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.setAttribute("download", `CPCB_Form1_Audit_${targetId || "Certificate"}.pdf`);
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      console.error("PDF download error", e);
     } finally {
-      setDownloadingPdf(null);
+      setTimeout(() => setDownloadingPdf(null), 1000);
     }
   };
 

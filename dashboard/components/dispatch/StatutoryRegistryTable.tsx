@@ -87,31 +87,28 @@ export default function StatutoryRegistryTable({
   const [manualAckInput, setManualAckInput] = useState("");
   const [submittingManualAck, setSubmittingManualAck] = useState(false);
 
-  const handleDownloadPdf = async (identifier: string) => {
+  const handleDownloadPdf = (identifier: string) => {
     setDownloadingPdfId(identifier);
     try {
       const token = typeof window !== "undefined"
         ? (localStorage.getItem("synthetiq_auth_token") || localStorage.getItem("synthetiq_token"))
         : null;
-      const res = await fetch(`${API_BASE}/api/v1/audit/report/${encodeURIComponent(identifier)}/pdf`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("PDF download failed");
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `CPCB_Form1_Certificate_${identifier.substring(0, 14)}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      const downloadUrl = `${API_BASE}/api/v1/audit/report/${encodeURIComponent(identifier)}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.setAttribute("download", `CPCB_Form1_Certificate_${identifier.substring(0, 14)}.pdf`);
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch {
       window.open(`${API_BASE}/api/v1/audit/report/${encodeURIComponent(identifier)}/pdf`, "_blank");
     } finally {
-      setDownloadingPdfId(null);
+      setTimeout(() => setDownloadingPdfId(null), 1000);
     }
   };
+
 
   const handleDownloadCpcbTemplate = (form: Form1Payload) => {
     const templateData = {

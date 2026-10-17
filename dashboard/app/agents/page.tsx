@@ -39,7 +39,6 @@ import { useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
 import { PoweredByGemini, GeminiIcon } from "@/components/icons/GoogleIcons";
 import AgentCanvasGraph from "@/components/agents/AgentCanvasGraph";
-import AgentEventTimeline from "@/components/agents/AgentEventTimeline";
 import AgentNodeDetailPanel from "@/components/agents/AgentNodeDetailPanel";
 import HumanApprovalModal from "@/components/HumanApprovalModal";
 import { useComplianceService, useConfigService, useAuditService } from "../lib/hooks/useServices";
@@ -602,13 +601,6 @@ export default function AgentsPage() {
           </Grid>
         )}
       </Grid>
-
-      {/* ── Chronological Multi-Agent Timeline & Event Stream ──────────────── */}
-      <AgentEventTimeline
-        selectedRun={selectedRun}
-        activeNodeId={activeNodeId}
-        onSelectNode={(nodeId) => setActiveNodeId((prev) => (prev === nodeId ? null : nodeId))}
-      />
 
       {/* ── Trigger Autonomous Multi-Agent Pipeline Modal ───────────────────── */}
       <Dialog open={triggerOpen} onClose={() => setTriggerOpen(false)} maxWidth="sm" fullWidth>

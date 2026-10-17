@@ -38,7 +38,6 @@ import ErrorIcon from "@mui/icons-material/Error";
 import type { E2ERunResult, E2EStep } from "../../app/lib/types/compliance.types";
 import { useNotification } from "../../app/lib/contexts/NotificationContext";
 import { GeminiIcon } from "@/components/icons/GoogleIcons";
-import AgentEventTimeline from "./AgentEventTimeline";
 
 interface AgentNodeDetailPanelProps {
   selectedRun: E2ERunResult | null;
@@ -158,12 +157,19 @@ export default function AgentNodeDetailPanel({
     icon: <SmartToyIcon fontSize="small" />,
   };
 
+  const matchingStep = ((selectedRun as any)?.events || selectedRun?.steps)?.find(
+    (e: any) => e.service === activeNodeId || e.step === bp.step
+  );
+
   const runStatus = (selectedRun?.status || "").toUpperCase();
   const isHalted = runStatus.includes("HALT") || runStatus.includes("FRAUD");
-  const isHitl = selectedRun?.hitl_required || runStatus.includes("HITL");
+  const isHitl = Boolean(selectedRun?.hitl_required || runStatus.includes("HITL"));
 
   // Determine node execution status
-  const nodeStatus = (() => {
+  const nodeStatus: string = (() => {
+    if (matchingStep?.status) {
+      return matchingStep.status.toUpperCase();
+    }
     if (isHalted) {
       if (bp.step <= 3) return "COMPLETED";
       if (bp.step === 4) return "HALTED";
@@ -174,12 +180,23 @@ export default function AgentNodeDetailPanel({
       if (bp.step === 4 || bp.step === 5) return "HITL";
       return "QUEUED";
     }
-    return "COMPLETED";
+    if (runStatus === "SUCCESS_FULLY_COMPLIANT" || runStatus === "COMPLETED") {
+      return "COMPLETED";
+    }
+    if (runStatus === "RUNNING") {
+      if (bp.step === 1) return "RUNNING";
+      return "QUEUED";
+    }
+    return "QUEUED";
   })();
 
-  const runtimeMs = bp.step === 4 ? 45 : bp.step === 5 ? 520 : 120 + bp.step * 15;
-  const tokens = bp.system.includes("Reflex") ? 0 : 650 + bp.step * 40;
-  const costInr = bp.system.includes("Reflex") ? 0 : 0.06 + bp.step * 0.01;
+  const isStepDone = nodeStatus === "COMPLETED" || nodeStatus === "SUCCESS_FULLY_COMPLIANT";
+  const isStepFailed = nodeStatus.includes("FAIL") || nodeStatus.includes("HALT") || nodeStatus.includes("REJECT");
+  const isStepHitl = nodeStatus === "HITL" || nodeStatus.includes("HITL");
+
+  const runtimeMs = isStepDone ? (matchingStep?.runtime_ms ?? (bp.step === 4 ? 45 : bp.step === 5 ? 520 : 120 + bp.step * 15)) : 0;
+  const tokens = isStepDone ? (matchingStep?.tokens ?? (bp.system.includes("Reflex") ? 0 : 650 + bp.step * 40)) : 0;
+  const costInr = isStepDone ? (matchingStep?.cost_inr ?? (bp.system.includes("Reflex") ? 0 : 0.06 + bp.step * 0.01)) : 0;
 
   // Extract structured Input Parameters
   const inputRows: ParamRow[] = (() => {
@@ -267,6 +284,11 @@ export default function AgentNodeDetailPanel({
 
   // Extract structured Output Results
   const outputRows: OutputRow[] = (() => {
+    // If the step has not executed or finished, do NOT show fabricated outputs
+    if (!isStepDone && !isStepFailed && !isStepHitl) {
+      return [];
+    }
+
     const vol = selectedRun?.volume_tons || 250;
     const cat = selectedRun?.category || "cat_i_rigid";
 
@@ -344,6 +366,11 @@ export default function AgentNodeDetailPanel({
     }
   })();
 
+  const inputData = Object.fromEntries(inputRows.map((r) => [r.key, r.value]));
+  const outputData = isStepDone || isStepFailed || isStepHitl
+    ? Object.fromEntries(outputRows.map((r) => [r.key, r.value]))
+    : {};
+
   const handleCopyJson = () => {
     const payload = {
       agent_id: activeNodeId,
@@ -355,8 +382,8 @@ export default function AgentNodeDetailPanel({
       runtime_ms: runtimeMs,
       tokens: tokens,
       cost_inr: costInr,
-      inputs: Object.fromEntries(inputRows.map((r) => [r.key, r.value])),
-      outputs: Object.fromEntries(outputRows.map((r) => [r.key, r.value])),
+      inputs: inputData,
+      outputs: outputData,
     };
     navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
     setCopied(true);
@@ -378,27 +405,27 @@ export default function AgentNodeDetailPanel({
         boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
       }}
     >
-      {/* Panel Header */}
+      {/* Header */}
       <Box
         sx={{
-          px: 2,
-          py: 1.25,
+          p: 1.5,
           borderBottom: 1,
           borderColor: "divider",
           bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.08)" : "rgba(124, 58, 237, 0.04)"),
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: "flex-start",
           gap: 1.5,
+          flexWrap: "wrap",
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 200, flex: "1 1 auto" }}>
           <Box
             sx={{
-              width: 32,
-              height: 32,
+              width: 34,
+              height: 34,
               borderRadius: "8px",
-              bgcolor: "primary.main",
+              bgcolor: "#1A73E8",
               color: "#fff",
               display: "grid",
               placeItems: "center",
@@ -408,8 +435,8 @@ export default function AgentNodeDetailPanel({
             {bp.icon}
           </Box>
           <Box sx={{ minWidth: 0 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography sx={{ fontWeight: 800, fontSize: "0.88rem", lineHeight: 1.2 }} noWrap>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+              <Typography sx={{ fontWeight: 800, fontSize: "0.88rem", lineHeight: 1.2 }}>
                 {bp.name}
               </Typography>
               <Chip
@@ -419,13 +446,13 @@ export default function AgentNodeDetailPanel({
                 sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
               />
             </Box>
-            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block", fontSize: "0.72rem" }}>
-              {bp.role} • {bp.system}
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontSize: "0.72rem" }}>
+              {bp.role}
             </Typography>
           </Box>
         </Box>
 
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0, flexWrap: "wrap" }}>
           {bp.system.includes("Reflex") ? (
             <Chip
               size="small"
@@ -457,11 +484,11 @@ export default function AgentNodeDetailPanel({
           <Chip
             label={nodeStatus}
             variant="outlined"
-            color={nodeStatus === "COMPLETED" ? "success" : nodeStatus === "HITL" ? "warning" : "error"}
+            color={nodeStatus === "COMPLETED" ? "success" : nodeStatus === "RUNNING" ? "info" : nodeStatus === "HITL" ? "warning" : nodeStatus === "QUEUED" ? "default" : "error"}
             size="small"
             sx={{ height: 22, fontSize: "0.68rem", fontWeight: 800 }}
           />
-          <Tooltip title="Close panel and expand canvas">
+          <Tooltip title="Close panel">
             <IconButton size="small" onClick={onClose} sx={{ color: "text.secondary", width: 28, height: 28 }}>
               <CloseIcon fontSize="small" />
             </IconButton>
@@ -526,7 +553,7 @@ export default function AgentNodeDetailPanel({
         }}
       >
         <Tab label="Inputs & Outputs" />
-        <Tab label="Pipeline Timeline" />
+        <Tab label="Raw Payload JSON" />
       </Tabs>
 
       {/* Tab Panels */}
@@ -597,75 +624,121 @@ export default function AgentNodeDetailPanel({
               <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: "0.05em", mb: 0.75, display: "block" }}>
                 Agent Execution Outputs & Telemetry ({outputRows.length})
               </Typography>
-              <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, overflow: "hidden" }}>
-                <Table size="small" aria-label="output telemetry">
-                  <TableHead sx={{ bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.04)" : "#F8FAFC") }}>
-                    <TableRow>
-                      <TableCell sx={{ fontSize: "0.7rem", fontWeight: 700, py: 0.75 }}>Metric / Field</TableCell>
-                      <TableCell sx={{ fontSize: "0.7rem", fontWeight: 700, py: 0.75 }}>Verification</TableCell>
-                      <TableCell sx={{ fontSize: "0.7rem", fontWeight: 700, py: 0.75 }} align="right">Output Value</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {outputRows
-                      .slice(outputPage * outputRowsPerPage, outputPage * outputRowsPerPage + outputRowsPerPage)
-                      .map((row) => (
-                        <TableRow key={row.key} hover>
-                          <TableCell sx={{ fontSize: "0.74rem", fontFamily: 'var(--font-mono, monospace)', fontWeight: 600, py: 0.75 }}>
-                            {row.metric}
-                          </TableCell>
-                          <TableCell sx={{ fontSize: "0.7rem", color: "text.secondary", py: 0.75 }}>
-                            <Chip
-                              label={row.verified}
-                              size="small"
-                              color={row.highlight || "default"}
-                              sx={{ height: 18, fontSize: "0.62rem", fontWeight: 600 }}
-                            />
-                          </TableCell>
-                          <TableCell
-                            sx={{
-                              fontSize: "0.74rem",
-                              fontFamily: 'var(--font-mono, monospace)',
-                              fontWeight: 700,
-                              py: 0.75,
-                              color: row.highlight === "error" ? "error.main" : row.highlight === "success" ? "success.main" : "text.primary",
-                            }}
-                            align="right"
-                          >
-                            {row.value}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-                <TablePagination
-                  component="div"
-                  count={outputRows.length}
-                  page={outputPage}
-                  onPageChange={(_, p) => setOutputPage(p)}
-                  rowsPerPage={outputRowsPerPage}
-                  onRowsPerPageChange={(e) => {
-                    setOutputRowsPerPage(parseInt(e.target.value, 10));
-                    setOutputPage(0);
-                  }}
-                  rowsPerPageOptions={[5, 10]}
-                  sx={{
-                    "& .MuiTablePagination-toolbar": { minHeight: 36, px: 1 },
-                    "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": { fontSize: "0.7rem" },
-                  }}
-                />
-              </TableContainer>
+              {outputRows.length === 0 ? (
+                <Alert severity="info" sx={{ fontSize: "0.78rem" }}>
+                  This agent stage has not completed execution yet. Verified metrics will appear here once the step finishes.
+                </Alert>
+              ) : (
+                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, overflow: "hidden" }}>
+                  <Table size="small" aria-label="output telemetry">
+                    <TableHead sx={{ bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.04)" : "#F8FAFC") }}>
+                      <TableRow>
+                        <TableCell sx={{ fontSize: "0.7rem", fontWeight: 700, py: 0.75 }}>Metric / Field</TableCell>
+                        <TableCell sx={{ fontSize: "0.7rem", fontWeight: 700, py: 0.75 }}>Verification</TableCell>
+                        <TableCell sx={{ fontSize: "0.7rem", fontWeight: 700, py: 0.75 }} align="right">Output Value</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {outputRows
+                        .slice(outputPage * outputRowsPerPage, outputPage * outputRowsPerPage + outputRowsPerPage)
+                        .map((row) => (
+                          <TableRow key={row.key} hover>
+                            <TableCell sx={{ fontSize: "0.74rem", fontFamily: 'var(--font-mono, monospace)', fontWeight: 600, py: 0.75 }}>
+                              {row.metric}
+                            </TableCell>
+                            <TableCell sx={{ fontSize: "0.7rem", color: "text.secondary", py: 0.75 }}>
+                              <Chip
+                                label={row.verified}
+                                size="small"
+                                color={row.highlight || "default"}
+                                sx={{ height: 18, fontSize: "0.62rem", fontWeight: 600 }}
+                              />
+                            </TableCell>
+                            <TableCell
+                              sx={{
+                                fontSize: "0.74rem",
+                                fontFamily: 'var(--font-mono, monospace)',
+                                fontWeight: 700,
+                                py: 0.75,
+                                color: row.highlight === "error" ? "error.main" : row.highlight === "success" ? "success.main" : "text.primary",
+                              }}
+                              align="right"
+                            >
+                              {row.value}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                  <TablePagination
+                    component="div"
+                    count={outputRows.length}
+                    page={outputPage}
+                    onPageChange={(_, p) => setOutputPage(p)}
+                    rowsPerPage={outputRowsPerPage}
+                    onRowsPerPageChange={(e) => {
+                      setOutputRowsPerPage(parseInt(e.target.value, 10));
+                      setOutputPage(0);
+                    }}
+                    rowsPerPageOptions={[5, 10]}
+                    sx={{
+                      "& .MuiTablePagination-toolbar": { minHeight: 36, px: 1 },
+                      "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": { fontSize: "0.7rem" },
+                    }}
+                  />
+                </TableContainer>
+              )}
             </Box>
           </>
         )}
 
         {tabIndex === 1 && (
-          <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-            <AgentEventTimeline
-              selectedRun={selectedRun}
-              activeNodeId={activeNodeId}
-              onSelectNode={onSelectNode}
-            />
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box>
+              <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: "0.05em", mb: 0.75, display: "block" }}>
+                Input Payload (JSON)
+              </Typography>
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 1.5,
+                  borderRadius: 1.5,
+                  bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0,0,0,0.3)" : "#F8FAFC"),
+                  fontFamily: "var(--font-mono, monospace)",
+                  fontSize: "0.76rem",
+                  maxHeight: 220,
+                  overflowY: "auto",
+                }}
+              >
+                <pre style={{ margin: 0 }}>{JSON.stringify(inputData, null, 2)}</pre>
+              </Paper>
+            </Box>
+
+            <Box>
+              <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: "0.05em", mb: 0.75, display: "block" }}>
+                Output Payload (JSON)
+              </Typography>
+              {Object.keys(outputData || {}).length === 0 ? (
+                <Alert severity="info" sx={{ fontSize: "0.78rem" }}>
+                  Stage has not completed yet. Output payload will be recorded here upon completion.
+                </Alert>
+              ) : (
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1.5,
+                    bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(0,0,0,0.3)" : "#F8FAFC"),
+                    fontFamily: "var(--font-mono, monospace)",
+                    fontSize: "0.76rem",
+                    maxHeight: 220,
+                    overflowY: "auto",
+                  }}
+                >
+                  <pre style={{ margin: 0 }}>{JSON.stringify(outputData, null, 2)}</pre>
+                </Paper>
+              )}
+            </Box>
           </Box>
         )}
       </Box>

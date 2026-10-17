@@ -565,15 +565,19 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
         "declared_volume_tons": volume_tons,
         "regulatory_framework": "Rule 13(2) Historic Deficit Amortization",
     }
-    s1_out = run_result.get("liability") or {
-        "net_liability_tons": volume_tons,
-        "gross_liability_tons": round(volume_tons * 1.333, 2),
-        "amortized_debt_tons": round(volume_tons * 0.333, 2),
-        "dominant_category": category,
-        "statutory_penalty_exposure_inr": round(volume_tons * 5000.0, 2),
-        "status": "VERIFIED",
-    }
-    s1_telem = _calculate_step_telemetry(s1_in, s1_out, is_reflex=False)
+    if s1_status == "COMPLETED" or run_result.get("liability"):
+        s1_out = run_result.get("liability") or {
+            "net_liability_tons": volume_tons,
+            "gross_liability_tons": round(volume_tons * 1.333, 2),
+            "amortized_debt_tons": round(volume_tons * 0.333, 2),
+            "dominant_category": category,
+            "statutory_penalty_exposure_inr": round(volume_tons * 5000.0, 2),
+            "status": "VERIFIED",
+        }
+        s1_telem = _calculate_step_telemetry(s1_in, s1_out, is_reflex=False)
+    else:
+        s1_out = {}
+        s1_telem = {"tokens": 0, "cost_usd": 0.0, "cost_inr": 0.0}
 
     # Build Stage 2
     s2_in = {
@@ -582,14 +586,18 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
         "statutory_mandate_pct": 100.0,
         "floor_price_inr_kg": 5.0,
     }
-    s2_out = run_result.get("rules") or {
-        "pack_name": "CPCB PWM Rules 2026",
-        "mandated_target_pct": 100.0,
-        "statutory_floor_rate_inr_mt": 5000.0,
-        "compliance_deadline": "30-JUN-2027",
-        "status": "PARSED",
-    }
-    s2_telem = _calculate_step_telemetry(s2_in, s2_out, is_reflex=False)
+    if s2_status == "COMPLETED" or run_result.get("rules"):
+        s2_out = run_result.get("rules") or {
+            "pack_name": "CPCB PWM Rules 2026",
+            "mandated_target_pct": 100.0,
+            "statutory_floor_rate_inr_mt": 5000.0,
+            "compliance_deadline": "30-JUN-2027",
+            "status": "PARSED",
+        }
+        s2_telem = _calculate_step_telemetry(s2_in, s2_out, is_reflex=False)
+    else:
+        s2_out = {}
+        s2_telem = {"tokens": 0, "cost_usd": 0.0, "cost_inr": 0.0}
 
     # Build Stage 3
     s3_in = {
@@ -599,15 +607,19 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
         "price_corridor_min_inr_kg": 3.8,
         "price_corridor_max_inr_kg": 6.5,
     }
-    s3_out = run_result.get("auction") or {
-        "clearing_price": clearing_price,
-        "cleared_volume_tons": volume_tons,
-        "winner_org_id": recycler_id,
-        "corridor_spread_pct": 4.2,
-        "mode": "Continuous Double Auction",
-        "status": "CLEARED",
-    }
-    s3_telem = _calculate_step_telemetry(s3_in, s3_out, is_reflex=False)
+    if s3_status == "COMPLETED" or run_result.get("auction"):
+        s3_out = run_result.get("auction") or {
+            "clearing_price": clearing_price,
+            "cleared_volume_tons": volume_tons,
+            "winner_org_id": recycler_id,
+            "corridor_spread_pct": 4.2,
+            "mode": "Continuous Double Auction",
+            "status": "CLEARED",
+        }
+        s3_telem = _calculate_step_telemetry(s3_in, s3_out, is_reflex=False)
+    else:
+        s3_out = {}
+        s3_telem = {"tokens": 0, "cost_usd": 0.0, "cost_inr": 0.0}
 
     # Build Stage 4
     s4_in = {
@@ -630,6 +642,7 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "verdict": "REJECTED_RESISTIVE_HEATER_FRAUD",
             "anomaly": "Unity power factor (0.99) & 1.2 Nm torque proves pure resistive space heaters spoofing electrical load.",
         }
+        s4_telem = _calculate_step_telemetry(s4_in, s4_out, is_reflex=True)
     elif is_hitl:
         s4_out = run_result.get("audit") or {
             "torque_nm": 12.4,
@@ -638,7 +651,8 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "flag": "Delta variance (4.8%) between weighbridge reading and SCADA mass displacement exceeds autonomous 2% tolerance.",
             "verdict": "HITL",
         }
-    else:
+        s4_telem = _calculate_step_telemetry(s4_in, s4_out, is_reflex=True)
+    elif s4_status == "COMPLETED" or run_result.get("audit"):
         s4_out = run_result.get("audit") or {
             "torque_nm": 45.2,
             "power_factor": 0.84,
@@ -648,7 +662,10 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "verdict": "APPROVED_VISCOUS_MELT",
             "delta_mass": 0.008,
         }
-    s4_telem = _calculate_step_telemetry(s4_in, s4_out, is_reflex=True)
+        s4_telem = _calculate_step_telemetry(s4_in, s4_out, is_reflex=True)
+    else:
+        s4_out = {}
+        s4_telem = {"tokens": 0, "cost_usd": 0.0, "cost_inr": 0.0}
 
     # Build Stage 5
     s5_in = {
@@ -661,13 +678,19 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
     if is_halted:
         s5_runtime = 0
         s5_out = {"status": "HALTED_DUE_TO_UPSTREAM_FRAUD", "reason": "Extruder physics failed validation. Forensic audit confirmed resistive heater fraud signature."}
+        s5_telem = _calculate_step_telemetry(s5_in, s5_out, is_reflex=False)
     elif is_hitl:
         s5_runtime = 460
         s5_out = {"hitl_required": True, "verdict": "HELD_FOR_REVIEW", "recommendation": "Compliance Officer manual sign-off required for mass balance discrepancy.", "hitl_resolution": run_result.get("hitl_resolution")}
-    else:
+        s5_telem = _calculate_step_telemetry(s5_in, s5_out, is_reflex=False)
+    elif s5_status == "COMPLETED":
         s5_runtime = 510
         s5_out = {"model": "gemini-3.8-flash", "confidence_pct": 98.4, "thermal_mass_balance_error_pct": 0.8, "anti_fraud_verdict": "GENUINE_HIGH_DENSITY_EXTRUSION", "reasoning": "3-phase induction motor power factor (0.84) and mechanical torque shear (45.2 Nm) strictly conform to verified HDPE recycling."}
-    s5_telem = _calculate_step_telemetry(s5_in, s5_out, is_reflex=False)
+        s5_telem = _calculate_step_telemetry(s5_in, s5_out, is_reflex=False)
+    else:
+        s5_runtime = 0
+        s5_out = {}
+        s5_telem = {"tokens": 0, "cost_usd": 0.0, "cost_inr": 0.0}
 
     # Build Stage 6
     s6_in = {
@@ -683,7 +706,8 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
     if is_halted or is_hitl:
         s6_runtime = 0
         s6_out = {"status": "BLOCKED", "reason": "Escrow release gate locked until audit exceptions are resolved."}
-    else:
+        s6_telem = _calculate_step_telemetry(s6_in, s6_out, is_reflex=False)
+    elif s6_status == "COMPLETED" or run_result.get("purchase_order"):
         s6_runtime = 145
         s6_out = run_result.get("purchase_order") or {
             "po_number": run_result.get("po_number") or f"PO-{row.run_id[:8]}",
@@ -692,7 +716,11 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "retention_20pct_inr": (volume_tons * clearing_price) * 0.2,
             "status": "ADVANCE_REMITTED",
         }
-    s6_telem = _calculate_step_telemetry(s6_in, s6_out, is_reflex=False)
+        s6_telem = _calculate_step_telemetry(s6_in, s6_out, is_reflex=False)
+    else:
+        s6_runtime = 0
+        s6_out = {}
+        s6_telem = {"tokens": 0, "cost_usd": 0.0, "cost_inr": 0.0}
 
     # Build Stage 7
     s7_in = {
@@ -706,7 +734,8 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
     if is_halted or is_hitl:
         s7_runtime = 0
         s7_out = {"status": "DISPATCH_BLOCKED", "reason": "Form-1 filing not dispatched due to upstream hold/halt."}
-    else:
+        s7_telem = _calculate_step_telemetry(s7_in, s7_out, is_reflex=False)
+    elif s7_status == "COMPLETED" or run_result.get("statutory_form1"):
         s7_runtime = 155
         s7_out = run_result.get("statutory_form1") or {
             "form1_id": run_result.get("form1_id") or f"FORM1-{row.run_id[:8]}",
@@ -715,7 +744,11 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "dsc_token": "X509-CERT-CPCB-PROD-VALID",
             "cpcb_portal_sync": "TRANSMITTED_AND_LOGGED",
         }
-    s7_telem = _calculate_step_telemetry(s7_in, s7_out, is_reflex=False)
+        s7_telem = _calculate_step_telemetry(s7_in, s7_out, is_reflex=False)
+    else:
+        s7_runtime = 0
+        s7_out = {}
+        s7_telem = {"tokens": 0, "cost_usd": 0.0, "cost_inr": 0.0}
 
     # Assemble events list with real incremental timestamps
     events = [
@@ -728,7 +761,7 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "system": "System 2 Reasoning",
             "status": s1_status,
             "timestamp": temporal_events_map.get("calculate_brand_liability_activity", {}).get("timestamp") or (base_dt + timedelta(milliseconds=0)).isoformat(),
-            "runtime_ms": 135 if s1_status != "QUEUED" else 0,
+            "runtime_ms": 135 if s1_status == "COMPLETED" else 0,
             **s1_telem,
             "input": s1_in,
             "output": s1_out,
@@ -743,7 +776,7 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "system": "System 2 Reasoning",
             "status": s2_status,
             "timestamp": temporal_events_map.get("parse_regulatory_rules_activity", {}).get("timestamp") or (base_dt + timedelta(milliseconds=140)).isoformat(),
-            "runtime_ms": 165 if s2_status != "QUEUED" else 0,
+            "runtime_ms": 165 if s2_status == "COMPLETED" else 0,
             **s2_telem,
             "input": s2_in,
             "output": s2_out,
@@ -758,7 +791,7 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "system": "System 2 Reasoning",
             "status": s3_status,
             "timestamp": temporal_events_map.get("execute_double_auction_activity", {}).get("timestamp") or (base_dt + timedelta(milliseconds=310)).isoformat(),
-            "runtime_ms": 115 if s3_status != "QUEUED" else 0,
+            "runtime_ms": 115 if s3_status == "COMPLETED" else 0,
             **s3_telem,
             "input": s3_in,
             "output": s3_out,
@@ -773,7 +806,7 @@ async def _build_run_events(row: WorkflowRun) -> dict[str, Any]:
             "system": "System 1 Reflex",
             "status": s4_status,
             "timestamp": temporal_events_map.get("audit_scada_telemetry_activity", {}).get("timestamp") or (base_dt + timedelta(milliseconds=430)).isoformat(),
-            "runtime_ms": 45,
+            "runtime_ms": 45 if s4_status == "COMPLETED" else 0,
             **s4_telem,
             "input": s4_in,
             "output": s4_out,

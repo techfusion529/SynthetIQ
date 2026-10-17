@@ -36,6 +36,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import HubIcon from "@mui/icons-material/Hub";
 
 import { useOrganization as useCompany } from "./lib/contexts/OrganizationContext";
+import { useNotification } from "./lib/contexts/NotificationContext";
 import {
   useComplianceService,
   useLiabilityService,
@@ -101,6 +102,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function ExecutiveOverviewPage() {
   const router = useRouter();
   const { companyId, company } = useCompany();
+  const { notify } = useNotification();
 
   // Service hooks
   const complianceSvc = useComplianceService();
@@ -236,6 +238,11 @@ export default function ExecutiveOverviewPage() {
       fetchRuns();
       fetchLiability();
       fetchMarketAndAudits();
+      notify.success(
+        `Autonomous compliance run ${result.run_id} initiated! Navigating to live Agent Orchestration canvas...`,
+        "Multi-Agent Workflow Started"
+      );
+      router.push(`/agents?run_id=${encodeURIComponent(result.run_id)}&live=true`);
     } catch (e) {
       setRunError(e instanceof ApiError ? e.message : "Compliance execution failed");
     } finally {
@@ -533,6 +540,16 @@ export default function ExecutiveOverviewPage() {
                   <OpenInNewIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
+              <Button
+                size="small"
+                variant="contained"
+                color="primary"
+                endIcon={<ArrowForwardIcon />}
+                onClick={() => router.push(`/agents?run_id=${encodeURIComponent(latestRun.run_id)}&live=true`)}
+                sx={{ ml: "auto", textTransform: "none", py: 0.3, px: 1.5, fontWeight: 700 }}
+              >
+                Watch Live in Agent Canvas
+              </Button>
             </Box>
 
             <Typography variant="body2" color="text.secondary" mb={2}>

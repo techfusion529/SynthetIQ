@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
@@ -16,6 +16,11 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Paper from "@mui/material/Paper";
 import Divider from "@mui/material/Divider";
 import Tooltip from "@mui/material/Tooltip";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import Switch from "@mui/material/Switch";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import SearchIcon from "@mui/icons-material/Search";
@@ -28,6 +33,7 @@ import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ErrorIcon from "@mui/icons-material/Error";
+import SyncIcon from "@mui/icons-material/Sync";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
 import AgentCanvasGraph from "@/components/agents/AgentCanvasGraph";
@@ -35,6 +41,8 @@ import AgentEventTimeline from "@/components/agents/AgentEventTimeline";
 import AgentNodeDetailPanel from "@/components/agents/AgentNodeDetailPanel";
 import { useComplianceService, useConfigService, useAuditService } from "../lib/hooks/useServices";
 import { useNotification } from "../lib/contexts/NotificationContext";
+import { useOrganization } from "../lib/contexts/OrganizationContext";
+import { useSession } from "../lib/contexts/SessionContext";
 import { ApiError } from "../lib/services/base.service";
 import type { E2ERunResult } from "../lib/types/compliance.types";
 import type { SystemConfig } from "../lib/types/config.types";
@@ -48,6 +56,8 @@ export default function AgentsPage() {
   const configSvc = useConfigService();
   const auditSvc = useAuditService();
   const { notify } = useNotification();
+  const { currentOrg } = useOrganization();
+  const { user } = useSession();
 
   const [runs, setRuns] = useState<E2ERunResult[]>([]);
   const [config, setConfig] = useState<SystemConfig | null>(null);
@@ -62,7 +72,46 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
+  // ── Polling & Real-Time Sync State ─────────────────────────────────────────
+  const [isPollingActive, setIsPollingActive] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const selectedRunRef = useRef<E2ERunResult | null>(null);
+  selectedRunRef.current = selectedRun;
+
+  // ── Trigger Autonomous Run Modal State ──────────────────────────────────────
+  const [triggerOpen, setTriggerOpen] = useState(false);
+  const [triggerCategory, setTriggerCategory] = useState("cat_i_rigid");
+  const [triggerVolume, setTriggerVolume] = useState("250");
+  const [triggerFiscalYear, setTriggerFiscalYear] = useState("2026-27");
+  const [triggerSimulateSpoof, setTriggerSimulateSpoof] = useState(false);
+  const [triggerLoading, setTriggerLoading] = useState(false);
+
+  // ── Load Single Run Details with Events ─────────────────────────────────────
+  const fetchRunDetails = useCallback(async (runId: string, fallback?: E2ERunResult | null): Promise<E2ERunResult | null> => {
+    try {
+      const [full, eventsData] = await Promise.all([
+        complianceSvc.getRun(runId).catch(() => fallback || null),
+        complianceSvc.getRunEvents(runId).catch(() => null),
+      ]);
+      if (full) {
+        return {
+          ...full,
+          steps: eventsData?.events && eventsData.events.length > 0 ? eventsData.events : full.steps || [],
+          total_runtime_ms: eventsData?.total_runtime_ms ?? full.total_runtime_ms,
+          total_tokens: eventsData?.total_tokens ?? full.total_tokens,
+          total_cost_usd: eventsData?.total_cost_usd ?? full.total_cost_usd,
+          total_cost_inr: eventsData?.total_cost_inr ?? full.total_cost_inr,
+        };
+      }
+      return fallback || null;
+    } catch {
+      return fallback || null;
+    }
+  }, [complianceSvc]);
+
+  // ── Initial Full Load ──────────────────────────────────────────────────────
+  const loadData = useCallback(async (preferredRunId?: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -75,23 +124,12 @@ export default function AgentsPage() {
       setConfig(cfg);
       setVerdicts(vList);
 
-      if (runsList.length > 0) {
-        const first = runsList[0];
-        try {
-          const [detailed, eventsData] = await Promise.all([
-            complianceSvc.getRun(first.run_id).catch(() => first),
-            complianceSvc.getRunEvents(first.run_id).catch(() => null),
-          ]);
-          setSelectedRun({
-            ...detailed,
-            steps: eventsData?.events || detailed.steps || [],
-            total_runtime_ms: eventsData?.total_runtime_ms ?? detailed.total_runtime_ms,
-            total_tokens: eventsData?.total_tokens ?? detailed.total_tokens,
-            total_cost_usd: eventsData?.total_cost_usd ?? detailed.total_cost_usd,
-            total_cost_inr: eventsData?.total_cost_inr ?? detailed.total_cost_inr,
-          });
-        } catch {
-          setSelectedRun(first);
+      const targetId = preferredRunId || (runsList.length > 0 ? runsList[0].run_id : null);
+      if (targetId) {
+        const found = runsList.find((r) => r.run_id === targetId) || (runsList.length > 0 ? runsList[0] : null);
+        const detailed = await fetchRunDetails(targetId, found);
+        if (detailed) {
+          setSelectedRun(detailed);
         }
       }
     } catch (e) {
@@ -99,33 +137,113 @@ export default function AgentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [complianceSvc, configSvc, auditSvc]);
+  }, [complianceSvc, configSvc, auditSvc, fetchRunDetails]);
 
+  // ── Background Polling Callback ────────────────────────────────────────────
+  const pollLatestRuns = useCallback(async () => {
+    if (!isPollingActive) return;
+    setIsSyncing(true);
+    try {
+      const runsList = await complianceSvc.listRuns().catch(() => []);
+      if (runsList && runsList.length > 0) {
+        setRuns(runsList);
+
+        const currentActive = selectedRunRef.current;
+        const targetId = currentActive?.run_id || runsList[0].run_id;
+
+        // Fetch fresh status and step events for the active run
+        const found = runsList.find((r) => r.run_id === targetId) || currentActive;
+        const detailed = await fetchRunDetails(targetId, found);
+        if (detailed) {
+          setSelectedRun(detailed);
+        }
+      }
+    } catch {
+      // Quiet background polling error
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [isPollingActive, complianceSvc, fetchRunDetails]);
+
+  // ── Deep-Linking Check on Mount (?run_id=...) ──────────────────────────────
   useEffect(() => {
-    loadData();
+    let deepLinkedId: string | null = null;
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      deepLinkedId = params.get("run_id");
+    }
+    loadData(deepLinkedId || undefined);
+    if (deepLinkedId) {
+      notify.info(`Inspecting live multi-agent execution: ${deepLinkedId}`, "Run Selected");
+    }
   }, [loadData]);
 
+  // ── Real-Time Auto-Polling Timer ───────────────────────────────────────────
+  useEffect(() => {
+    if (!isPollingActive) {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      return;
+    }
+
+    const currentStatus = (selectedRun?.status || "").toUpperCase();
+    const isRunActive = currentStatus === "RUNNING" || currentStatus === "PENDING" || currentStatus === "QUEUED";
+
+    // 2.0s polling during active execution, 5.0s during idle monitoring
+    const pollInterval = isRunActive ? 2000 : 5000;
+
+    pollTimerRef.current = setInterval(() => {
+      pollLatestRuns();
+    }, pollInterval);
+
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, [isPollingActive, selectedRun?.status, pollLatestRuns]);
+
+  // ── Manual Run Selection ───────────────────────────────────────────────────
   const handleSelectRun = async (runId: string) => {
     const found = runs.find((r) => r.run_id === runId);
     if (!found) return;
     setSelectedRun(found);
     setActiveNodeId(null);
+    const detailed = await fetchRunDetails(runId, found);
+    if (detailed) {
+      setSelectedRun(detailed);
+    }
+    notify.info(`Loaded run ${runId}`);
+  };
+
+  // ── Trigger Multi-Agent Run from Modal ──────────────────────────────────────
+  const handleLaunchAgentRun = async () => {
+    setTriggerLoading(true);
     try {
-      const [full, eventsData] = await Promise.all([
-        complianceSvc.getRun(runId).catch(() => found),
-        complianceSvc.getRunEvents(runId).catch(() => null),
-      ]);
-      setSelectedRun({
-        ...full,
-        steps: eventsData?.events || full.steps || [],
-        total_runtime_ms: eventsData?.total_runtime_ms ?? full.total_runtime_ms,
-        total_tokens: eventsData?.total_tokens ?? full.total_tokens,
-        total_cost_usd: eventsData?.total_cost_usd ?? full.total_cost_usd,
-        total_cost_inr: eventsData?.total_cost_inr ?? full.total_cost_inr,
+      const companyId = currentOrg?.id || (user as any)?.org_id || (config as any)?.company_id || "ORG-DEV-001";
+      const result = await complianceSvc.runE2E({
+        type: "e2e_compliance",
+        params: {
+          company_id: companyId,
+          fiscal_year: triggerFiscalYear,
+          category: triggerCategory,
+          volume_tons: parseFloat(triggerVolume) || 250.0,
+          simulate_spoof: triggerSimulateSpoof,
+        },
       });
-      notify.info(`Loaded run ${runId}`);
-    } catch {
-      // Retain basic record
+
+      notify.success(
+        `Autonomous multi-agent run ${result.run_id} launched! Streaming real-time flow...`,
+        "Temporal Pipeline Triggered"
+      );
+      setTriggerOpen(false);
+      setSelectedRun(result);
+      setActiveNodeId(null);
+      setIsPollingActive(true);
+
+      // Immediately poll to stream progress
+      await pollLatestRuns();
+    } catch (e: any) {
+      notify.error(e?.message || "Failed to trigger multi-agent compliance run", "Launch Failed");
+    } finally {
+      setTriggerLoading(false);
     }
   };
 
@@ -154,10 +272,10 @@ export default function AgentsPage() {
 
   const totalRuntime = selectedRun?.total_runtime_ms || Math.round((selectedRun?.duration_seconds || 1.28) * 1000);
   const totalTokens = selectedRun?.total_tokens || 4240;
-  const totalCostUsd = selectedRun?.total_cost_usd || 0.0058;
   const totalCostInr = selectedRun?.total_cost_inr || 0.49;
   const isCompliant = selectedRun?.status === "SUCCESS_FULLY_COMPLIANT";
   const isHitl = selectedRun?.hitl_required || (selectedRun?.status || "").includes("HITL");
+  const isRunning = (selectedRun?.status || "").toUpperCase() === "RUNNING" || (selectedRun?.status || "").toUpperCase() === "PENDING";
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
@@ -166,7 +284,7 @@ export default function AgentsPage() {
         icon={<SmartToyIcon fontSize="medium" />}
         description="Zero-trust state machine coordinating System 2 LLM reasoning, TypeSafe Jev physics reflexes, and ERP transactions."
         actions={
-          <Box sx={{ display: "flex", gap: 1.5 }}>
+          <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
             <Button
               variant="outlined"
               size="small"
@@ -178,8 +296,8 @@ export default function AgentsPage() {
             <Button
               variant="outlined"
               size="small"
-              startIcon={<RefreshIcon />}
-              onClick={loadData}
+              startIcon={isSyncing ? <CircularProgress size={14} /> : <RefreshIcon />}
+              onClick={() => pollLatestRuns()}
               disabled={loading}
             >
               Refresh
@@ -187,10 +305,12 @@ export default function AgentsPage() {
             <Button
               variant="contained"
               size="small"
+              color="primary"
               startIcon={<PlayArrowIcon />}
-              onClick={() => router.push("/dispatch")}
+              onClick={() => setTriggerOpen(true)}
+              sx={{ fontWeight: 700 }}
             >
-              Launch Run
+              Trigger Multi-Agent Run
             </Button>
           </Box>
         }
@@ -235,7 +355,7 @@ export default function AgentsPage() {
       {/* Unified Compact Orchestration Run Toolbar */}
       <Card variant="outlined" sx={{ p: 1.5, bgcolor: "background.paper", borderRadius: 2 }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
-          {/* Controls: Run Selector + Datetime + Search */}
+          {/* Controls: Run Selector + Datetime + Search + Polling indicator */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", flex: 1, minWidth: 300 }}>
             <TextField
               select
@@ -254,6 +374,7 @@ export default function AgentsPage() {
                 filteredRuns.map((r) => {
                   const isRunSuccess = r.status === "SUCCESS_FULLY_COMPLIANT";
                   const isRunHitl = r.hitl_required || r.status.includes("HITL");
+                  const isRunActive = r.status === "RUNNING" || r.status === "PENDING";
                   return (
                     <MenuItem key={r.run_id} value={r.run_id}>
                       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: 2 }}>
@@ -267,7 +388,7 @@ export default function AgentsPage() {
                           <Chip
                             size="small"
                             label={r.status}
-                            color={isRunSuccess ? "success" : isRunHitl ? "warning" : "error"}
+                            color={isRunSuccess ? "success" : isRunActive ? "info" : isRunHitl ? "warning" : "error"}
                             sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
                           />
                         </Box>
@@ -293,7 +414,7 @@ export default function AgentsPage() {
             </TextField>
 
             <TextField
-              placeholder="Search..."
+              placeholder="Search runs..."
               size="small"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -306,6 +427,40 @@ export default function AgentsPage() {
               }}
               sx={{ minWidth: 130 }}
             />
+
+            {/* Live Polling Status Indicator */}
+            <Tooltip title={isPollingActive ? "Real-time live telemetry active. Click to pause." : "Polling paused. Click to resume."}>
+              <Chip
+                size="small"
+                icon={
+                  <Box
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      bgcolor: isPollingActive ? "#10B981" : "text.disabled",
+                      boxShadow: isPollingActive ? "0 0 8px #10B981" : "none",
+                      animation: isPollingActive ? "pulse 2s infinite" : "none",
+                      "@keyframes pulse": {
+                        "0%": { opacity: 0.6 },
+                        "50%": { opacity: 1 },
+                        "100%": { opacity: 0.6 },
+                      },
+                    }}
+                  />
+                }
+                label={isPollingActive ? (isRunning ? "Live Polling (2s)" : "Live Polling (5s)") : "Polling Paused"}
+                onClick={() => setIsPollingActive(!isPollingActive)}
+                variant="outlined"
+                color={isPollingActive ? "success" : "default"}
+                sx={{
+                  fontWeight: 700,
+                  fontSize: "0.72rem",
+                  cursor: "pointer",
+                  "& .MuiChip-icon": { ml: 0.5 },
+                }}
+              />
+            </Tooltip>
           </Box>
 
           {/* Active Run Executive Summary Ribbon */}
@@ -313,7 +468,7 @@ export default function AgentsPage() {
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
               <Chip
                 label={selectedRun.status}
-                color={isCompliant ? "success" : isHitl ? "warning" : "error"}
+                color={isCompliant ? "success" : isRunning ? "info" : isHitl ? "warning" : "error"}
                 sx={{ fontWeight: 800, height: 26, fontSize: "0.75rem" }}
               />
               <Chip
@@ -390,6 +545,106 @@ export default function AgentsPage() {
           </Grid>
         )}
       </Grid>
+
+      {/* ── Chronological Multi-Agent Timeline & Event Stream ──────────────── */}
+      <AgentEventTimeline
+        selectedRun={selectedRun}
+        activeNodeId={activeNodeId}
+        onSelectNode={(nodeId) => setActiveNodeId((prev) => (prev === nodeId ? null : nodeId))}
+      />
+
+      {/* ── Trigger Autonomous Multi-Agent Pipeline Modal ───────────────────── */}
+      <Dialog open={triggerOpen} onClose={() => setTriggerOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5, pb: 1 }}>
+          <SmartToyIcon color="primary" />
+          <Box>
+            <Typography variant="h6" fontWeight={800} fontSize="1.05rem">
+              Trigger Autonomous Multi-Agent Run
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Zero-trust orchestration: Gemini System 2 reasoning, SCADA physics reflex, and CDA matching.
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 2.5 }}>
+          <TextField
+            select
+            fullWidth
+            size="small"
+            label="Plastic Category"
+            value={triggerCategory}
+            onChange={(e) => setTriggerCategory(e.target.value)}
+          >
+            <MenuItem value="cat_i_rigid">Category I — Rigid Plastic</MenuItem>
+            <MenuItem value="cat_ii_flexible">Category II — Flexible Plastic</MenuItem>
+            <MenuItem value="cat_iii_mlp">Category III — Multi-Layered Plastic (MLP)</MenuItem>
+            <MenuItem value="cat_iv_compostable">Category IV — Compostable Plastic</MenuItem>
+          </TextField>
+
+          <TextField
+            fullWidth
+            size="small"
+            label="Target Volume (Metric Tons)"
+            type="number"
+            value={triggerVolume}
+            onChange={(e) => setTriggerVolume(e.target.value)}
+          />
+
+          <TextField
+            fullWidth
+            size="small"
+            label="Fiscal Year"
+            value={triggerFiscalYear}
+            onChange={(e) => setTriggerFiscalYear(e.target.value)}
+          />
+
+          <Box
+            sx={{
+              p: 1.5,
+              borderRadius: 1.5,
+              border: 1,
+              borderColor: triggerSimulateSpoof ? "error.main" : "divider",
+              bgcolor: triggerSimulateSpoof
+                ? (t) => (t.palette.mode === "dark" ? "rgba(239, 68, 68, 0.12)" : "#FEF2F2")
+                : (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "#F8FAFC"),
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Box>
+              <Typography variant="body2" fontWeight={700} color={triggerSimulateSpoof ? "error.main" : "text.primary"}>
+                Simulate SCADA Sensor Fraud Injection
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Injects pure resistive space-heater load (PF 0.99, torque &lt; 2 Nm) to test instant halt reflex.
+              </Typography>
+            </Box>
+            <Switch
+              checked={triggerSimulateSpoof}
+              onChange={(e) => setTriggerSimulateSpoof(e.target.checked)}
+              color="error"
+            />
+          </Box>
+        </DialogContent>
+        <Divider />
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setTriggerOpen(false)} color="inherit" disabled={triggerLoading}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color={triggerSimulateSpoof ? "error" : "primary"}
+            startIcon={triggerLoading ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+            onClick={handleLaunchAgentRun}
+            disabled={triggerLoading}
+            sx={{ fontWeight: 700 }}
+          >
+            {triggerLoading ? "Dispatching Temporal Run…" : "Launch Run & Watch Live Flow"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

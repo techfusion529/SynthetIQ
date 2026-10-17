@@ -153,7 +153,8 @@ export default function AgentCanvasGraph({
     if (step) {
       const st = step.status.toUpperCase();
       let status: NodeTelemetry["status"] = "COMPLETED";
-      if (st.includes("HITL") || st.includes("REVIEW")) status = "HITL";
+      if (st.includes("RUNNING") || st.includes("PROGRESS") || st.includes("ACTIVE")) status = "RUNNING";
+      else if (st.includes("HITL") || st.includes("REVIEW")) status = "HITL";
       else if (st.includes("HALT") || st.includes("FAIL") || st.includes("FRAUD")) status = "HALTED";
       else if (st.includes("QUEUE")) status = "QUEUED";
       else if (st.includes("SKIP")) status = "SKIPPED";
@@ -165,9 +166,11 @@ export default function AgentCanvasGraph({
       } else if (node.id === "regulatory_watchdog") {
         metric = out.mandated_target_pct ? `${out.mandated_target_pct}% Mandate` : "100% Mandate";
       } else if (node.id === "auction") {
-        metric = out.clearing_price ? `₹${out.clearing_price.toLocaleString()}/MT Cleared` : "₹4,150/MT Cleared";
+        metric = status === "RUNNING" ? "⚡ Matching Orders..." : (out.clearing_price ? `₹${out.clearing_price.toLocaleString()}/MT Cleared` : "₹4,150/MT Cleared");
       } else if (node.id === "scada_auditor") {
-        if (status === "HALTED") {
+        if (status === "RUNNING") {
+          metric = "⚡ Sampling Sensors...";
+        } else if (status === "HALTED") {
           metric = out.is_spoofed ? "PF 0.99 (Resistive Spoof)" : "Halted: Physics Anomaly";
         } else if (status === "HITL") {
           metric = "Δ Variance Exceeded";
@@ -175,11 +178,11 @@ export default function AgentCanvasGraph({
           metric = out.torque_nm ? `${out.torque_nm} Nm · PF ${out.power_factor || 0.84}` : "45.2 Nm · PF 0.84";
         }
       } else if (node.id === "forensic_auditor") {
-        metric = status === "HALTED" ? "Halted: Upstream Fraud" : (status === "HITL" ? "Requires Officer Approval" : (out.confidence_pct ? `${out.confidence_pct}% Confidence` : "98.4% Confidence"));
+        metric = status === "RUNNING" ? "⚡ Reasoning Anti-Fraud..." : (status === "HALTED" ? "Halted: Upstream Fraud" : (status === "HITL" ? "Requires Officer Approval" : (out.confidence_pct ? `${out.confidence_pct}% Confidence` : "98.4% Confidence")));
       } else if (node.id === "escrow") {
-        metric = status === "HALTED" || status === "SKIPPED" ? "Payment Halted" : (status === "QUEUED" ? "Gate Locked" : (out.status ? out.status.replace("_", " ") : "80/20 PO Disbursed"));
+        metric = status === "RUNNING" ? "⚡ Authorizing Gate..." : (status === "HALTED" || status === "SKIPPED" ? "Payment Halted" : (status === "QUEUED" ? "Gate Locked" : (out.status ? out.status.replace("_", " ") : "80/20 PO Disbursed")));
       } else if (node.id === "cpcb_dispatch") {
-        metric = status === "HALTED" || status === "SKIPPED" ? "Filing Blocked" : (status === "QUEUED" ? "Awaiting Escrow" : (out.portal_ack_number ? "DSC Form-1 Signed" : "DSC Form-1 Signed"));
+        metric = status === "RUNNING" ? "⚡ Signing DSC X.509..." : (status === "HALTED" || status === "SKIPPED" ? "Filing Blocked" : (status === "QUEUED" ? "Awaiting Escrow" : (out.portal_ack_number ? "DSC Form-1 Signed" : "DSC Form-1 Signed")));
       }
 
       return {
@@ -190,6 +193,17 @@ export default function AgentCanvasGraph({
         cost_usd: step.cost_usd ?? (node.systemType.includes("Reflex") ? 0 : 0.0009),
         cost_inr: step.cost_inr ?? (node.systemType.includes("Reflex") ? 0 : 0.08),
       };
+    }
+
+    // Active in-progress execution fallback
+    if (runStatus === "RUNNING" || runStatus === "PENDING") {
+      if (node.stepNumber <= 2) {
+        return { status: "COMPLETED", metric: "Completed", runtime_ms: 110, tokens: 680, cost_usd: 0.0009, cost_inr: 0.08 };
+      }
+      if (node.stepNumber === 3) {
+        return { status: "RUNNING", metric: "⚡ Matching CDA Corridor...", runtime_ms: 60, tokens: 350, cost_usd: 0.0004, cost_inr: 0.03 };
+      }
+      return { status: "QUEUED", metric: "Queued", runtime_ms: 0, tokens: 0, cost_usd: 0, cost_inr: 0 };
     }
 
     // Deterministic fallback based on run conditions
@@ -228,6 +242,8 @@ export default function AgentCanvasGraph({
     switch (status) {
       case "COMPLETED":
         return { border: "#10B981", bg: "rgba(16, 185, 129, 0.08)", text: "#10B981", badge: "success" as const };
+      case "RUNNING":
+        return { border: "#3B82F6", bg: "rgba(59, 130, 246, 0.16)", text: "#3B82F6", badge: "info" as const };
       case "HITL":
         return { border: "#F59E0B", bg: "rgba(245, 158, 11, 0.12)", text: "#F59E0B", badge: "warning" as const };
       case "HALTED":
@@ -443,6 +459,24 @@ export default function AgentCanvasGraph({
                 onClick={() => onSelectNode(node.id)}
                 style={{ cursor: "pointer" }}
               >
+                {/* Running Pulse Animation Ring */}
+                {telemetry.status === "RUNNING" && (
+                  <rect
+                    x="-6"
+                    y="-6"
+                    width="242"
+                    height="102"
+                    rx="10"
+                    fill="none"
+                    stroke="#3B82F6"
+                    strokeWidth="2.5"
+                    strokeDasharray="6 4"
+                    filter="url(#glow)"
+                  >
+                    <animate attributeName="stroke-dashoffset" values="0;20" dur="1s" repeatCount="indefinite" />
+                  </rect>
+                )}
+
                 {/* Outer Glow / Active Selection Ring */}
                 {isSelected && (
                   <rect

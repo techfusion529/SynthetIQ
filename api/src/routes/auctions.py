@@ -222,12 +222,10 @@ async def list_auction_bids(
     tenant_ctx: TenantCtx = Depends(get_tenant_ctx),
     _: Any = Depends(require_permission("workflows:read")),
 ) -> list[dict[str, Any]]:
-    # platform_admin and brand_owner see all bids; recycler sees only their own
-    if tenant_ctx.is_platform_admin or tenant_ctx.role == "brand_owner":
+    # platform_admin, brand_owner, and all non-recycler auditors/admins see all bids
+    # recycler sees only their own organization's bids
+    if tenant_ctx.is_platform_admin or tenant_ctx.role != "recycler":
         return await _get_bids(auction_id)
-    elif tenant_ctx.role == "recycler":
-        return await _get_bids(auction_id, org_id=tenant_ctx.org_id)
-    # fallback: return own bids only
     return await _get_bids(auction_id, org_id=tenant_ctx.org_id)
 
 

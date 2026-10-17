@@ -40,6 +40,23 @@ SEC_MATERIAL_CONSTANTS: dict[str, float] = {
 DEFAULT_MOTOR_EFFICIENCY = 0.92  # eta_motor (IE3 industrial 3-phase induction motor)
 
 
+def _to_py(val: Any) -> Any:
+    """Recursively convert NumPy data types to standard Python primitives."""
+    if isinstance(val, (np.bool_, bool)):
+        return bool(val)
+    if isinstance(val, (np.integer, int)):
+        return int(val)
+    if isinstance(val, (np.floating, float)):
+        return float(val)
+    if isinstance(val, np.ndarray):
+        return [_to_py(x) for x in val.tolist()]
+    if isinstance(val, dict):
+        return {str(k): _to_py(v) for k, v in val.items()}
+    if isinstance(val, (list, tuple)):
+        return [_to_py(x) for x in val]
+    return val
+
+
 class JevSystem1Auditor:
     """Production ML-powered SCADA fraud detection system."""
 
@@ -214,16 +231,16 @@ class JevSystem1Auditor:
 
             # Convert score to confidence (invert and normalize)
             # Typical scores range from -0.5 to 0.5
-            confidence = min(1.0, max(0.0, (score + 0.5) / 1.0))
+            confidence = float(min(1.0, max(0.0, (float(score) + 0.5) / 1.0)))
 
-            is_spoofed = prediction == -1
+            is_spoofed = bool(prediction == -1)
             flags = []
 
             if is_spoofed:
-                flags.append(f"ML_ANOMALY_DETECTED: Anomaly score={score:.3f}")
-                confidence = 1.0 - confidence  # Invert for fraud cases
+                flags.append(f"ML_ANOMALY_DETECTED: Anomaly score={float(score):.3f}")
+                confidence = float(1.0 - confidence)  # Invert for fraud cases
 
-            return is_spoofed, confidence, flags
+            return bool(is_spoofed), float(confidence), flags
 
         except Exception as e:
             logger.error(f"ML evaluation failed: {e}")
@@ -274,19 +291,37 @@ class JevSystem1Auditor:
         if self.mode == "NIMBLE_PRIMARY":
             try:
                 import asyncio
+                import concurrent.futures
                 from services.nimble_service import get_nimble_service
                 nimble = get_nimble_service()
-                loop = asyncio.get_event_loop()
-                result = loop.run_until_complete(
-                    nimble.evaluate_scada_signature(
-                        torque_nm=torque_nm,
-                        power_factor=power_factor,
-                        active_power_kw=active_power_kw,
-                        vfd_frequency_hz=vfd_frequency_hz,
-                        melt_rate_kg_h=melt_rate_kg_h,
-                        reported_volume_tons=reported_volume_tons,
+                try:
+                    running_loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    running_loop = None
+
+                if running_loop and running_loop.is_running():
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        result = pool.submit(
+                            lambda: asyncio.run(nimble.evaluate_scada_signature(
+                                torque_nm=torque_nm,
+                                power_factor=power_factor,
+                                active_power_kw=active_power_kw,
+                                vfd_frequency_hz=vfd_frequency_hz,
+                                melt_rate_kg_h=melt_rate_kg_h,
+                                reported_volume_tons=reported_volume_tons,
+                            ))
+                        ).result(timeout=5.0)
+                else:
+                    result = asyncio.run(
+                        nimble.evaluate_scada_signature(
+                            torque_nm=torque_nm,
+                            power_factor=power_factor,
+                            active_power_kw=active_power_kw,
+                            vfd_frequency_hz=vfd_frequency_hz,
+                            melt_rate_kg_h=melt_rate_kg_h,
+                            reported_volume_tons=reported_volume_tons,
+                        )
                     )
-                )
                 logger.info(
                     f"Nimble verdict: {result.get('verdict')}, "
                     f"confidence={result.get('confidence_score')}"
@@ -303,8 +338,8 @@ class JevSystem1Auditor:
                     result["theoretical_volume_tons"] = round(m_theo_kg / 1000.0, 3)
                     result["sec_kwh_per_kg"] = sec
                     result["energy_total_kwh"] = round(e_tot, 2)
-                    result["requires_hitl"] = result["delta_mass"] > 0.02 or result.get("is_spoofed", False)
-                return result
+                    result["requires_hitl"] = bool(result["delta_mass"] > 0.02 or result.get("is_spoofed", False))
+                return _to_py(result)
             except Exception as exc:
                 logger.warning(f"Nimble unavailable ({exc}); falling back to HYBRID_ENSEMBLE")
                 # Fall through to hybrid below
@@ -434,7 +469,7 @@ class JevSystem1Auditor:
             f"Audit result: {verdict}, confidence={confidence:.3f}, "
             f"delta_mass={delta_mass:.2%}, fraud_risk={fraud_risk_score:.2f}, hash={chained_frame.frame_hash[:12]}..."
         )
-        return result
+        return _to_py(result)
 
 
 # Global auditor instance (initialized by worker)

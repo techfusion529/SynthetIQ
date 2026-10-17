@@ -162,27 +162,72 @@ async def seed_database() -> None:
     await init_db()
 
     async with get_db_session() as session:
-        # 1. Seed or update default Organization
-        org_id = "ORG-DEV-001"
-        res = await session.execute(select(Organization).where(Organization.org_id == org_id))
-        org = res.scalar_one_or_none()
-        if not org:
-            org = Organization(
-                org_id=org_id,
-                name="Hindustan Consumer Goods Ltd",
-                industry_sector="FMCG",
-                gstin="27AAACH1234F1Z5",
-                country="IN",
-                annual_plastic_footprint_tons=18500.0,
-                is_active=True,
-                settings={"env": "development", "timezone": "Asia/Kolkata"},
-            )
-            session.add(org)
-            logger.info(f"Seeded Organization: {org.name} ({org_id})")
-        else:
-            logger.info(f"Organization {org_id} already exists")
+        # 1. Seed or update default Organizations
+        demo_orgs = [
+            {
+                "org_id": "ORG-DEV-001",
+                "name": "Hindustan Consumer Goods Ltd",
+                "industry_sector": "FMCG",
+                "gstin": "27AAACH1234F1Z5",
+                "country": "IN",
+                "annual_plastic_footprint_tons": 18500.0,
+                "org_type": "brand_owner",
+                "settings": {"env": "development", "timezone": "Asia/Kolkata"},
+            },
+            {
+                "org_id": "RECYC-DELHI-01",
+                "name": "Delhi Clean Plastics Ltd",
+                "industry_sector": "Plastics Recycling",
+                "gstin": "07AABCR1234F1Z8",
+                "country": "IN",
+                "annual_plastic_footprint_tons": 12000.0,
+                "org_type": "recycler",
+                "settings": {"env": "development", "plant_id": "PLANT-OKHLA-2"},
+            },
+            {
+                "org_id": "RECYC-SURAT-02",
+                "name": "Surat EcoPolymer Ltd",
+                "industry_sector": "Plastics Recycling",
+                "gstin": "24AABCS5678F1Z2",
+                "country": "IN",
+                "annual_plastic_footprint_tons": 15000.0,
+                "org_type": "recycler",
+                "settings": {"env": "development", "plant_id": "PLANT-GIDC-3"},
+            },
+            {
+                "org_id": "RECYC-NOIDA-03",
+                "name": "Noida Green Polymers Ltd",
+                "industry_sector": "Plastics Recycling",
+                "gstin": "09AABCN9012F1Z4",
+                "country": "IN",
+                "annual_plastic_footprint_tons": 8500.0,
+                "org_type": "recycler",
+                "settings": {"env": "development", "plant_id": "PLANT-SEC62-1"},
+            },
+        ]
 
-        # 2. Seed Default Users (Admin, Auditor, Executive Viewer, and Developer/Sayantika)
+        for odata in demo_orgs:
+            res = await session.execute(select(Organization).where(Organization.org_id == odata["org_id"]))
+            existing_org = res.scalar_one_or_none()
+            if not existing_org:
+                new_org = Organization(
+                    org_id=odata["org_id"],
+                    name=odata["name"],
+                    industry_sector=odata["industry_sector"],
+                    gstin=odata["gstin"],
+                    country=odata["country"],
+                    annual_plastic_footprint_tons=odata["annual_plastic_footprint_tons"],
+                    org_type=odata.get("org_type", "brand_owner"),
+                    is_active=True,
+                    settings=odata.get("settings", {}),
+                )
+                session.add(new_org)
+                logger.info(f"Seeded Organization: {odata['name']} ({odata['org_id']})")
+            else:
+                if not existing_org.org_type and "org_type" in odata:
+                    existing_org.org_type = odata["org_type"]
+
+        # 2. Seed Default Users (Admin, Auditor, Executive Viewer, Sayantika, and Recycler Users)
         seed_pass = hash_password(_get_seed_password())
         demo_users = [
             {
@@ -191,6 +236,7 @@ async def seed_database() -> None:
                 "display_name": "Dev Compliance Officer",
                 "role": "admin",
                 "platform_admin": True,
+                "org_id": "ORG-DEV-001",
             },
             {
                 "user_id": "USR-AUDIT-001",
@@ -198,6 +244,7 @@ async def seed_database() -> None:
                 "display_name": "Senior Lead Auditor",
                 "role": "auditor",
                 "platform_admin": False,
+                "org_id": "ORG-DEV-001",
             },
             {
                 "user_id": "USR-VIEW-001",
@@ -205,6 +252,7 @@ async def seed_database() -> None:
                 "display_name": "Executive Board Viewer",
                 "role": "viewer",
                 "platform_admin": False,
+                "org_id": "ORG-DEV-001",
             },
             {
                 "user_id": "USR-DEV-001",
@@ -212,6 +260,7 @@ async def seed_database() -> None:
                 "display_name": "Sayantika Bose",
                 "role": "admin",
                 "platform_admin": True,
+                "org_id": "ORG-DEV-001",
             },
             {
                 "user_id": "USR-DEV-002",
@@ -219,6 +268,39 @@ async def seed_database() -> None:
                 "display_name": "Sayantika Bose",
                 "role": "admin",
                 "platform_admin": True,
+                "org_id": "ORG-DEV-001",
+            },
+            {
+                "user_id": "USR-RECYC-DELHI",
+                "email": "recycler_delhi@synthetiq.ai",
+                "display_name": "Delhi Recycler Lead",
+                "role": "recycler",
+                "platform_admin": False,
+                "org_id": "RECYC-DELHI-01",
+            },
+            {
+                "user_id": "USR-RECYC-SURAT",
+                "email": "recycler_surat@synthetiq.ai",
+                "display_name": "Surat Recycler Lead",
+                "role": "recycler",
+                "platform_admin": False,
+                "org_id": "RECYC-SURAT-02",
+            },
+            {
+                "user_id": "USR-RECYC-NOIDA",
+                "email": "recycler_noida@synthetiq.ai",
+                "display_name": "Noida Recycler Lead",
+                "role": "recycler",
+                "platform_admin": False,
+                "org_id": "RECYC-NOIDA-03",
+            },
+            {
+                "user_id": "USR-RECYC-001",
+                "email": "recycler@synthetiq.ai",
+                "display_name": "Primary Recycler Operator",
+                "role": "recycler",
+                "platform_admin": False,
+                "org_id": "RECYC-DELHI-01",
             },
         ]
         for udata in demo_users:
@@ -232,7 +314,7 @@ async def seed_database() -> None:
                     display_name=udata["display_name"],
                     role=udata["role"],
                     platform_admin=udata.get("platform_admin", False),
-                    org_id=org_id,
+                    org_id=udata["org_id"],
                     is_active=True,
                 )
                 session.add(u)

@@ -94,26 +94,44 @@ def evaluate_scada_signature(
     """
     try:
         import asyncio
+        import concurrent.futures
         from services.nimble_service import get_nimble_service
+        from services.jev_auditor import _to_py
         nimble = get_nimble_service()
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(
-            nimble.evaluate_scada_signature(
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+
+        if running_loop and running_loop.is_running():
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                res = pool.submit(
+                    lambda: asyncio.run(nimble.evaluate_scada_signature(
+                        torque_nm=torque_nm,
+                        power_factor=power_factor,
+                        active_power_kw=active_power_kw,
+                        vfd_frequency_hz=vfd_frequency_hz,
+                        melt_rate_kg_h=melt_rate_kg_h,
+                        reported_volume_tons=reported_volume_tons,
+                    ))
+                ).result(timeout=5.0)
+        else:
+            res = asyncio.run(nimble.evaluate_scada_signature(
                 torque_nm=torque_nm,
                 power_factor=power_factor,
                 active_power_kw=active_power_kw,
                 vfd_frequency_hz=vfd_frequency_hz,
                 melt_rate_kg_h=melt_rate_kg_h,
                 reported_volume_tons=reported_volume_tons,
-            )
-        )
+            ))
+        return _to_py(res)
     except Exception:
         pass  # Fall through to Jev ensemble
 
     # Jev ensemble fallback
-    from services.jev_auditor import get_jev_auditor
+    from services.jev_auditor import get_jev_auditor, _to_py
     jev = get_jev_auditor()
-    return jev.evaluate_signature(
+    res = jev.evaluate_signature(
         torque_nm=torque_nm,
         power_factor=power_factor,
         active_power_kw=active_power_kw,
@@ -123,6 +141,7 @@ def evaluate_scada_signature(
         category=category,
         energy_total_kwh=energy_total_kwh,
     )
+    return _to_py(res)
 
 
 # ---------------------------------------------------------------------------

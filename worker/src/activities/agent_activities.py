@@ -51,6 +51,32 @@ async def _log_llm_usage(
         logger.debug(f"[Activity] LlmUsageLog write failed ({_exc}); continuing")
 
 
+def _sanitize_primitives(val: Any) -> Any:
+    """Recursively convert NumPy data types and non-standard objects to Python primitives."""
+    if val is None:
+        return None
+    type_name = type(val).__name__
+    module_name = type(val).__module__
+    if "numpy" in module_name or type_name in ("bool_", "int64", "int32", "float64", "float32", "ndarray"):
+        if hasattr(val, "item"):
+            return _sanitize_primitives(val.item())
+        if hasattr(val, "tolist"):
+            return _sanitize_primitives(val.tolist())
+    if isinstance(val, bool):
+        return bool(val)
+    if isinstance(val, int):
+        return int(val)
+    if isinstance(val, float):
+        return float(val)
+    if isinstance(val, str):
+        return str(val)
+    if isinstance(val, dict):
+        return {str(k): _sanitize_primitives(v) for k, v in val.items()}
+    if isinstance(val, (list, tuple, set)):
+        return [_sanitize_primitives(x) for x in val]
+    return val
+
+
 # ---------------------------------------------------------------------------
 # C2 — Activity result models
 # ---------------------------------------------------------------------------
@@ -196,7 +222,7 @@ async def calculate_brand_liability_activity(
 
     # C3: fail-closed gate
     _require(result, "net_liability_tons", "liability")
-    return LiabilityResult(**result).model_dump(mode="json")
+    return LiabilityResult(**_sanitize_primitives(result)).model_dump(mode="json")
 
 
 # ---------------------------------------------------------------------------
@@ -392,7 +418,7 @@ async def execute_double_auction_activity(
     # C3: fail-closed gates — no hardcoded winner default
     _require(result, "clearing_price", "auction")
     _require(result, "winner_org_id", "auction")
-    return AuctionResult(**result).model_dump(mode="json")
+    return AuctionResult(**_sanitize_primitives(result)).model_dump(mode="json")
 
 
 # ---------------------------------------------------------------------------
@@ -665,7 +691,8 @@ async def audit_scada_telemetry_activity(
         logger.warning(f"[Activity] AuditRecord DB persistence failed ({db_exc}); continuing")
 
     result["org_id"] = org_id
-    return AuditResult(**result).model_dump(mode="json")
+    sanitized_result = _sanitize_primitives(result)
+    return AuditResult(**sanitized_result).model_dump(mode="json")
 
 
 # ---------------------------------------------------------------------------
@@ -790,7 +817,7 @@ async def create_escrow_split_po_activity(
     result["advance_amount"] = advance_amount
     result["holdback_amount"] = holdback_amount
     result["org_id"] = org_id
-    return POResult(**result).model_dump(mode="json")
+    return POResult(**_sanitize_primitives(result)).model_dump(mode="json")
 
 
 # ---------------------------------------------------------------------------
@@ -963,7 +990,7 @@ async def generate_and_dispatch_form1_activity(
 
     logger.info(f"[Activity] Form-1 ACK: {result['ack_number']}, pdf={pdf_path!r}")
     result["org_id"] = org_id
-    return Form1Result(**result).model_dump(mode="json")
+    return Form1Result(**_sanitize_primitives(result)).model_dump(mode="json")
 
 
 # ---------------------------------------------------------------------------

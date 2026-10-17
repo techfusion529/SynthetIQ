@@ -55,6 +55,7 @@ import type { EscrowPO } from "./lib/types/settlement.types";
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, Cell } from "recharts";
 import StatCard from "@/components/ui/StatCard";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { PoweredByGemini } from "@/components/icons/GoogleIcons";
 
 // ─── Stage Execution Badge ───────────────────────────────────────────────────
 function StageBadge({ step }: { step: E2EStep }) {
@@ -276,49 +277,6 @@ export default function ExecutiveOverviewPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
-      {/* ── Top System Engine Status Strip ──────────────────────────────────── */}
-      <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider" }}>
-        <CardContent sx={{ py: "10px !important", px: 2 }}>
-          <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
-              <Chip
-                icon={<SecurityIcon fontSize="small" />}
-                label="Zero-Trust Architecture"
-                size="small"
-                color="primary"
-                sx={{ fontWeight: 700, borderRadius: "2px", height: 22 }}
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                System 2: <Typography component="span" variant="caption" fontWeight={700} color="text.primary">{config?.gemini?.model ?? "Gemini 3.8 Flash"}</Typography>
-              </Typography>
-              <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
-              <Typography variant="caption" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                System 1: <Typography component="span" variant="caption" fontWeight={700} color="primary.main">{config?.jev_mode?.mode ?? "Physics Ensemble"}</Typography>
-              </Typography>
-              <Divider orientation="vertical" flexItem sx={{ height: 14, my: "auto" }} />
-              <Typography variant="caption" color="text.secondary">
-                Torque Cutoff: ≥ {config?.jev_mode?.torque_threshold_nm ?? 8.0} Nm
-              </Typography>
-            </Box>
-
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Box
-                sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  bgcolor: "success.main",
-                  boxShadow: "0 0 6px #10b981",
-                }}
-              />
-              <Typography variant="caption" color="success.main" fontWeight={600} fontFamily="monospace">
-                Temporal: {config?.endpoints?.temporal_host ?? "Connected (temporal-server:7233)"}
-              </Typography>
-            </Box>
-          </Box>
-        </CardContent>
-      </Card>
-
       {/* ── Enterprise Hero & Autonomous Run Orchestration Cockpit ──────────── */}
       <Card
         sx={{
@@ -331,7 +289,7 @@ export default function ExecutiveOverviewPage() {
           <Grid container spacing={3} alignItems="flex-start">
             {/* Title & Organization Info */}
             <Grid item xs={12} lg={6}>
-              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1.5 }}>
+              <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
                 <Chip label={company?.name ?? "Enterprise PIBO Portal"} color="primary" size="small" sx={{ fontWeight: 700, borderRadius: "2px" }} />
                 {company?.gstin && (
                   <Chip label={`GSTIN: ${company.gstin}`} size="small" variant="outlined" sx={{ fontFamily: "monospace", borderRadius: "2px" }} />
@@ -339,6 +297,7 @@ export default function ExecutiveOverviewPage() {
                 {company?.industry_sector && (
                   <Chip label={company.industry_sector} size="small" variant="outlined" sx={{ borderRadius: "2px" }} />
                 )}
+                <PoweredByGemini variant="pill" showCloud />
               </Box>
 
               <Typography variant="h4" fontWeight={800} letterSpacing="-0.02em" color="text.primary">

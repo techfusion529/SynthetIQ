@@ -16,6 +16,7 @@ import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "../app/lib/contexts/SessionContext";
 import { HEADER_H, NAV, RAIL_MINI, RAIL_W, findNav } from "./nav";
+import { PoweredByGemini } from "./icons/GoogleIcons";
 
 function NavList({ mini, onNavigate }: { mini: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -109,9 +110,12 @@ function NavList({ mini, onNavigate }: { mini: boolean; onNavigate?: () => void 
         })}
       </Box>
       {!mini && (
-        <Typography sx={{ p: 2, fontSize: "0.75rem", color: railMuted, borderTop: `1px solid ${railLine}` }}>
-          SynthetIQ v0.2.0
-        </Typography>
+        <Box sx={{ p: 2, borderTop: `1px solid ${railLine}`, display: "flex", flexDirection: "column", gap: 1 }}>
+          <PoweredByGemini variant="subtle" showCloud />
+          <Typography sx={{ fontSize: "0.7rem", color: railMuted }}>
+            SynthetIQ v0.2.0
+          </Typography>
+        </Box>
       )}
     </Box>
   );

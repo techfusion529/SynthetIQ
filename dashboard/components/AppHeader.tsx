@@ -29,6 +29,7 @@ import type { HITLRun } from "../app/lib/types/hitl.types";
 import UserMenu from "./UserMenu";
 import HumanApprovalModal from "./HumanApprovalModal";
 import { findNav } from "./nav";
+import { PoweredByGemini } from "./icons/GoogleIcons";
 
 export const APP_HEADER_H = 64;
 
@@ -162,6 +163,11 @@ export default function AppHeader({ onMenuClick }: { onMenuClick: () => void }) 
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
+
+          {/* Powered by Google Gemini & Cloud */}
+          <Box sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center" }}>
+            <PoweredByGemini variant="pill" showCloud />
+          </Box>
 
           {/* Notification bell with Human Approvals popover */}
           <Tooltip title={pendingRuns.length > 0 ? `${pendingRuns.length} Pending Human Approvals` : "Notifications"}>

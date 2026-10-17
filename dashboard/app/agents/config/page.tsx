@@ -48,6 +48,7 @@ import TerminalIcon from "@mui/icons-material/Terminal";
 
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
+import { PoweredByGemini, GeminiIcon, GoogleCloudIcon } from "@/components/icons/GoogleIcons";
 import { useSession } from "../../lib/contexts/SessionContext";
 import { useNotification } from "../../lib/contexts/NotificationContext";
 
@@ -837,28 +838,31 @@ export default function AgentConfigStudioPage() {
         icon={<SmartToyIcon fontSize="medium" />}
         description="Tune Gemini prompts & domain hyperparameters on the left, then run dynamic physics simulations and reverse auctions in the real-time playground on the right."
         actions={
-          <Button
-            variant="contained"
-            color="success"
-            size="small"
-            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
-            onClick={handleSave}
-            disabled={saving || !currentConfig}
-            sx={{
-              fontWeight: 700,
-              px: 2,
-              py: 0.8,
-              borderRadius: 1.5,
-              background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
-              boxShadow: "0 4px 14px rgba(16, 185, 129, 0.35)",
-              "&:hover": {
-                background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
-                boxShadow: "0 6px 18px rgba(16, 185, 129, 0.45)",
-              },
-            }}
-          >
-            {saving ? "Saving Changes..." : "Save Configuration"}
-          </Button>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+            <PoweredByGemini variant="pill" showCloud />
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+              onClick={handleSave}
+              disabled={saving || !currentConfig}
+              sx={{
+                fontWeight: 700,
+                px: 2,
+                py: 0.8,
+                borderRadius: 1.5,
+                background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+                boxShadow: "0 4px 14px rgba(16, 185, 129, 0.35)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                  boxShadow: "0 6px 18px rgba(16, 185, 129, 0.45)",
+                },
+              }}
+            >
+              {saving ? "Saving Changes..." : "Save Configuration"}
+            </Button>
+          </Box>
         }
       />
 
@@ -923,88 +927,6 @@ export default function AgentConfigStudioPage() {
 
       {currentConfig && (
         <>
-          {/* Agent Identity & Health Banner */}
-          <Card
-            variant="outlined"
-            sx={{
-              p: 2.25,
-              borderRadius: 2,
-              background: (t) =>
-                t.palette.mode === "dark"
-                  ? "linear-gradient(135deg, rgba(139, 92, 246, 0.14) 0%, rgba(15, 23, 42, 0.7) 100%)"
-                  : "linear-gradient(135deg, rgba(124, 58, 237, 0.07) 0%, rgba(248, 250, 252, 0.95) 100%)",
-              borderColor: (t) => (t.palette.mode === "dark" ? "rgba(139, 92, 246, 0.25)" : "rgba(124, 58, 237, 0.2)"),
-              boxShadow: (t) => (t.palette.mode === "dark" ? "0 4px 20px rgba(0,0,0,0.3)" : "0 4px 16px rgba(0,0,0,0.04)"),
-            }}
-          >
-            <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 2 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.75 }}>
-                <Box
-                  sx={{
-                    p: 1.25,
-                    borderRadius: 2,
-                    bgcolor: "primary.main",
-                    color: "#fff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    boxShadow: "0 4px 14px rgba(124, 58, 237, 0.4)",
-                  }}
-                >
-                  <SmartToyIcon sx={{ fontSize: 26 }} />
-                </Box>
-                <Box>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                    <Typography variant="h6" fontWeight={800} sx={{ letterSpacing: "-0.01em" }}>
-                      {agentMeta?.label}
-                    </Typography>
-                    <Chip
-                      label={agentMeta?.role?.includes("System 1") ? "⚡ System 1 Reflex" : "🧠 System 2 Reasoning"}
-                      size="small"
-                      color={agentMeta?.role?.includes("System 1") ? "secondary" : "primary"}
-                      sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
-                    />
-                    <Chip
-                      label="Autonomous Agent Active"
-                      size="small"
-                      color="success"
-                      variant="outlined"
-                      sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
-                    />
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4 }}>
-                    {agentMeta?.role}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                <Chip
-                  icon={<StorageIcon sx={{ fontSize: 14 }} />}
-                  label={currentConfig.data_source_id ? `Source: ${currentConfig.data_source_id}` : "Default Engine Simulator"}
-                  size="small"
-                  variant="outlined"
-                  sx={{ fontSize: "0.72rem", height: 24 }}
-                />
-                <Chip
-                  icon={<AutoAwesomeIcon sx={{ fontSize: 14 }} />}
-                  label={currentConfig.model_name || "gemini-3.8-flash"}
-                  size="small"
-                  color="primary"
-                  variant="outlined"
-                  sx={{ fontSize: "0.72rem", fontWeight: 700, height: 24 }}
-                />
-                <Chip
-                  icon={<SpeedIcon sx={{ fontSize: 14 }} />}
-                  label={`Temp ${currentConfig.temperature}`}
-                  size="small"
-                  variant="outlined"
-                  sx={{ fontSize: "0.72rem", height: 24 }}
-                />
-              </Box>
-            </Box>
-          </Card>
-
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "5fr 7fr" }, gap: 3, alignItems: "start" }}>
             {/* ========================================================= */}
             {/* LEFT COLUMN: Configuration + Simulation Controls (Inputs) */}
@@ -1055,8 +977,18 @@ export default function AgentConfigStudioPage() {
                       value={currentConfig.model_name || "gemini-3.8-flash"}
                       onChange={(e) => setCurrentConfig({ ...currentConfig, model_name: e.target.value })}
                     >
-                      <MenuItem value="gemini-3.8-flash">Gemini 3.8 Flash (Vertex AI Model Garden)</MenuItem>
-                      <MenuItem value="gpt-oss:20b-cloud">gpt-oss:20b (Ollama Local)</MenuItem>
+                      <MenuItem value="gemini-3.8-flash">
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <GeminiIcon size={16} />
+                          <span>Gemini 3.8 Flash (Vertex AI Model Garden)</span>
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="gpt-oss:20b-cloud">
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <SmartToyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                          <span>gpt-oss:20b (Ollama Local)</span>
+                        </Box>
+                      </MenuItem>
                     </TextField>
 
                     <Box>
@@ -1239,13 +1171,22 @@ export default function AgentConfigStudioPage() {
                       fullWidth
                     >
                       <MenuItem value="auto">
-                        ⚡ Auto (Google Gemini Cloud → Fallback to Local Ollama)
-                      </MenuItem>
-                      <MenuItem value="ollama">
-                        💻 Local Ollama (gpt-oss:20b-cloud - Free & Unlimited)
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <GeminiIcon size={16} />
+                          <span>Auto (Google Gemini Cloud → Fallback to Local Ollama)</span>
+                        </Box>
                       </MenuItem>
                       <MenuItem value="gemini">
-                        ☁️ Google Gemini Cloud (gemini-3.8-flash)
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <GeminiIcon size={16} />
+                          <span>Google Gemini Cloud (gemini-3.8-flash)</span>
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="ollama">
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <SmartToyIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                          <span>Local Ollama (gpt-oss:20b-cloud - Free &amp; Unlimited)</span>
+                        </Box>
                       </MenuItem>
                     </TextField>
                   </Box>
@@ -1455,7 +1396,7 @@ export default function AgentConfigStudioPage() {
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                             {testResult.live_inference ? (
                               <Chip
-                                icon={<AutoAwesomeIcon sx={{ fontSize: 14 }} />}
+                                icon={<GeminiIcon size={14} />}
                                 label={testResult.llm_telemetry?.provider || `Live LLM API Connected • ${testResult.model_used || "gemini-3.8-flash"}`}
                                 color="success"
                                 size="small"

@@ -36,6 +36,7 @@ import ErrorIcon from "@mui/icons-material/Error";
 import SyncIcon from "@mui/icons-material/Sync";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
+import { PoweredByGemini, GeminiIcon } from "@/components/icons/GoogleIcons";
 import AgentCanvasGraph from "@/components/agents/AgentCanvasGraph";
 import AgentEventTimeline from "@/components/agents/AgentEventTimeline";
 import AgentNodeDetailPanel from "@/components/agents/AgentNodeDetailPanel";
@@ -285,6 +286,7 @@ export default function AgentsPage() {
         description="Zero-trust state machine coordinating System 2 LLM reasoning, TypeSafe Jev physics reflexes, and ERP transactions."
         actions={
           <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
+            <PoweredByGemini variant="pill" showCloud />
             <Button
               variant="outlined"
               size="small"
@@ -321,7 +323,7 @@ export default function AgentsPage() {
       {/* System Architecture Inline Badges */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
         <Chip
-          icon={<SmartToyIcon sx={{ fontSize: 14 }} />}
+          icon={<GeminiIcon size={14} />}
           label={`System 2: ${config?.gemini?.model || "gemini-3.8-flash"}`}
           size="small"
           color="primary"

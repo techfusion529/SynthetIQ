@@ -280,7 +280,7 @@ export default function AgentsPage() {
   const isRunning = (selectedRun?.status || "").toUpperCase() === "RUNNING" || (selectedRun?.status || "").toUpperCase() === "PENDING";
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pb: 4 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.75, pb: 2 }}>
       <PageHeader
         title="Multi-Agent Orchestration & Telemetry"
         icon={<SmartToyIcon fontSize="medium" />}
@@ -356,7 +356,7 @@ export default function AgentsPage() {
       {error && <Alert severity="error">{error}</Alert>}
 
       {/* System Architecture Inline Badges */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
         <Chip
           icon={<GeminiIcon size={14} />}
           label={`System 2: ${config?.gemini?.model || "gemini-3.8-flash"}`}
@@ -390,10 +390,10 @@ export default function AgentsPage() {
       </Box>
 
       {/* Unified Compact Orchestration Run Toolbar */}
-      <Card variant="outlined" sx={{ p: 1.5, bgcolor: "background.paper", borderRadius: 2 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
+      <Card variant="outlined" sx={{ p: 1.25, bgcolor: "background.paper", borderRadius: 2 }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
           {/* Controls: Run Selector + Datetime + Search + Polling indicator */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", flex: 1, minWidth: 300 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap", flex: 1, minWidth: 300 }}>
             <TextField
               select
               label="Select Compliance Run"
@@ -425,6 +425,7 @@ export default function AgentsPage() {
                           <Chip
                             size="small"
                             label={r.status}
+                            variant="outlined"
                             color={isRunSuccess ? "success" : isRunActive ? "info" : isRunHitl ? "warning" : "error"}
                             sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
                           />
@@ -505,6 +506,7 @@ export default function AgentsPage() {
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
               <Chip
                 label={selectedRun.status}
+                variant="outlined"
                 color={isCompliant ? "success" : isRunning ? "info" : isHitl ? "warning" : "error"}
                 sx={{ fontWeight: 800, height: 26, fontSize: "0.75rem" }}
               />
@@ -556,7 +558,7 @@ export default function AgentsPage() {
       </Card>
 
       {/* Main Orchestration Workspace: Full Width Canvas or Shrunk Canvas + Right Detail Panel */}
-      <Grid container spacing={2} alignItems="stretch">
+      <Grid container spacing={1.5} alignItems="stretch">
         {/* Visual Interactive Agent Graph Canvas */}
         <Grid
           item

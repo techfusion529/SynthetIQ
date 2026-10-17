@@ -30,16 +30,17 @@ import UserMenu from "./UserMenu";
 import HumanApprovalModal from "./HumanApprovalModal";
 import { findNav } from "./nav";
 import { PoweredByGemini } from "./icons/GoogleIcons";
+import { SynthetIQLogo } from "./icons/SynthetIQLogo";
 
 export const APP_HEADER_H = 64;
 
 export default function AppHeader({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname() || "/";
   const { user } = useSession();
-  const { company } = useOrganization();
+  const { company, currentOrg } = useOrganization();
   const hitlSvc = useHitlService();
 
-  const org = company?.name || user?.organization_name || user?.org_id || "";
+  const tenantName = company?.name || currentOrg?.name || user?.organization_name || user?.org_id || "Enterprise Tenant";
   const navHit = findNav(pathname);
 
   // HITL notifications state
@@ -100,52 +101,62 @@ export default function AppHeader({ onMenuClick }: { onMenuClick: () => void }) 
             </IconButton>
           </Tooltip>
 
-          {/* Logo mark */}
-          <Box
-            aria-hidden
+          {/* SynthetIQ Brand Logo (replaces avatar and name) */}
+          <Link
+            component={NextLink}
+            href="/"
+            aria-label="SynthetIQ Home"
             sx={{
-              width: 30,
-              height: 30,
-              bgcolor: "primary.main",
-              color: "#fff",
-              display: "grid",
-              placeItems: "center",
-              fontWeight: 800,
-              fontSize: "0.95rem",
-              borderRadius: 1,
+              display: "flex",
+              alignItems: "center",
+              textDecoration: "none",
               flexShrink: 0,
+              cursor: "pointer",
+              transition: "opacity 0.2s ease-in-out",
+              "&:hover": { opacity: 0.88 },
             }}
           >
-            S
-          </Box>
+            <SynthetIQLogo height={32} />
+          </Link>
 
-          {/* Title and Breadcrumbs stacked */}
-          <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, py: 0.5 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography sx={{ fontWeight: 800, fontSize: "0.98rem", lineHeight: 1.2, letterSpacing: "-0.01em" }}>
-                SynthetIQ
-              </Typography>
-              {org && (
-                <>
-                  <Typography sx={{ color: "text.disabled", fontSize: "0.8rem", lineHeight: 1 }}>/</Typography>
-                  <Typography
-                    noWrap
-                    sx={{
-                      fontSize: "0.86rem",
-                      fontWeight: 600,
-                      color: "text.secondary",
-                      maxWidth: { xs: 160, sm: 280, md: 400 },
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {org}
-                  </Typography>
-                </>
-              )}
-            </Box>
+          {/* Vertical Divider */}
+          <Divider
+            orientation="vertical"
+            flexItem
+            sx={{
+              height: 28,
+              my: "auto",
+              mx: { xs: 0.5, sm: 1 },
+              borderColor: "divider",
+            }}
+          />
 
-            {/* Breadcrumb moved below company name in the header */}
-            <Breadcrumbs separator="/" aria-label="Breadcrumb" sx={{ mt: 0.25, "& .MuiBreadcrumbs-separator": { mx: 0.5 } }}>
+          {/* Tenant Name and Breadcrumbs stacked */}
+          <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, py: 0.25, justifyContent: "center" }}>
+            {/* Tenant Name */}
+            <Typography
+              noWrap
+              sx={{
+                fontWeight: 700,
+                fontSize: "0.88rem",
+                lineHeight: 1.25,
+                color: "text.primary",
+                maxWidth: { xs: 150, sm: 260, md: 400 },
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {tenantName}
+            </Typography>
+
+            {/* Breadcrumb moved below tenant name */}
+            <Breadcrumbs
+              separator="/"
+              aria-label="Breadcrumb"
+              sx={{
+                mt: 0.2,
+                "& .MuiBreadcrumbs-separator": { mx: 0.5, fontSize: "0.68rem", color: "text.disabled" },
+              }}
+            >
               <Link component={NextLink} href="/" underline="hover" color="text.secondary" sx={breadcrumbStyle}>
                 Home
               </Link>
@@ -155,7 +166,7 @@ export default function AppHeader({ onMenuClick }: { onMenuClick: () => void }) 
                 </Typography>
               )}
               {navHit && (
-                <Typography color="text.primary" sx={{ ...breadcrumbStyle, fontWeight: 700 }}>
+                <Typography color="text.primary" sx={{ ...breadcrumbStyle, fontWeight: 600 }}>
                   {navHit.item.label}
                 </Typography>
               )}

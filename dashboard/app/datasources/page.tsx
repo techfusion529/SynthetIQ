@@ -2,14 +2,13 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Box from "@mui/material/Box";
+import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
-import Breadcrumbs from "@mui/material/Breadcrumbs";
-import Link from "@mui/material/Link";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
@@ -26,9 +25,7 @@ import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
 import Tooltip from "@mui/material/Tooltip";
 import IconButton from "@mui/material/IconButton";
-import Accordion from "@mui/material/Accordion";
-import AccordionSummary from "@mui/material/AccordionSummary";
-import AccordionDetails from "@mui/material/AccordionDetails";
+import InputAdornment from "@mui/material/InputAdornment";
 
 import StorageIcon from "@mui/icons-material/Storage";
 import AddIcon from "@mui/icons-material/Add";
@@ -39,10 +36,12 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import CloudQueueIcon from "@mui/icons-material/CloudQueue";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import SyncIcon from "@mui/icons-material/Sync";
+import SearchIcon from "@mui/icons-material/Search";
+import TuneIcon from "@mui/icons-material/Tune";
+import CloseIcon from "@mui/icons-material/Close";
 import PageHeader from "@/components/ui/PageHeader";
 import { GoogleCloudIcon } from "@/components/icons/GoogleIcons";
 
@@ -106,6 +105,30 @@ function maskConfig(config: Record<string, unknown>): Record<string, unknown> {
   );
 }
 
+function formatConfigSummary(type: string, config: Record<string, unknown>): string {
+  if (!config) return "Standard Config";
+  if (type === "bigquery") {
+    const project = (config.project_id as string) || "synthetiq-dev";
+    const dataset = (config.dataset_id as string) || "epr_compliance";
+    const table = (config.table_name as string) || "sales_data";
+    return `${project}.${dataset}.${table}`;
+  }
+  if (type === "postgresql") {
+    const host = (config.host as string) || "localhost";
+    const db = (config.database as string) || "erp_production";
+    return `${host}/${db}`;
+  }
+  if (type === "rest_api") {
+    const base = (config.base_url as string) || "https://api.sap.corp";
+    const ep = (config.endpoint as string) || "/SalesOrders";
+    return `${base}${ep}`;
+  }
+  if (type === "csv") {
+    return "Delimited CSV / File Feed";
+  }
+  return "Custom Production Feed";
+}
+
 export default function DataSourcesPage() {
   const router = useRouter();
   const { user, token } = useSession();
@@ -115,6 +138,15 @@ export default function DataSourcesPage() {
   const [sources, setSources] = useState<DataSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Search & Filter controls
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("ALL");
+  const [purposeFilter, setPurposeFilter] = useState("ALL");
+
+  // Active modals for connector details
+  const [mappingModalSource, setMappingModalSource] = useState<DataSource | null>(null);
+  const [uploadModalSource, setUploadModalSource] = useState<DataSource | null>(null);
 
   // Modal for new connection
   const [modalOpen, setModalOpen] = useState(false);
@@ -416,6 +448,24 @@ export default function DataSourcesPage() {
     }
   };
 
+  // Filter sources
+  const filteredSources = sources.filter((s) => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      q === "" ||
+      s.name.toLowerCase().includes(q) ||
+      s.source_id.toLowerCase().includes(q) ||
+      s.purpose.toLowerCase().includes(q);
+    const matchesType = typeFilter === "ALL" || s.source_type.toLowerCase() === typeFilter.toLowerCase();
+    const matchesPurpose = purposeFilter === "ALL" || s.purpose.toLowerCase() === purposeFilter.toLowerCase();
+    return matchesSearch && matchesType && matchesPurpose;
+  });
+
+  const totalConnectors = sources.length;
+  const bigQueryCount = sources.filter((s) => s.source_type === "bigquery").length;
+  const postgresCount = sources.filter((s) => s.source_type === "postgresql").length;
+  const restCount = sources.filter((s) => s.source_type === "rest_api" || s.source_type === "csv").length;
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pb: 3 }}>
       <PageHeader
@@ -430,6 +480,7 @@ export default function DataSourcesPage() {
               startIcon={<RefreshIcon />}
               onClick={fetchSources}
               disabled={loading}
+              sx={{ textTransform: "none", fontWeight: 600 }}
             >
               Refresh
             </Button>
@@ -439,6 +490,7 @@ export default function DataSourcesPage() {
               color="primary"
               startIcon={<AddIcon />}
               onClick={() => setModalOpen(true)}
+              sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#1A73E8" }}
             >
               Add Data Connection
             </Button>
@@ -448,447 +500,696 @@ export default function DataSourcesPage() {
 
       {error && <Alert severity="error">{error}</Alert>}
 
-      {/* Sources Grid */}
-      <Box
-        sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2.5 }}
-      >
-        {sources.map((src) => {
-          const test = testResults[src.source_id];
-          const uploadState = uploadStates[src.source_id];
-          const validateResult = validateResults[src.source_id];
-          const maskedConfig = maskConfig(src.connection_config);
-
-          return (
-            <Card
-              key={src.source_id}
-              variant="outlined"
-              sx={{
-                bgcolor: "rgba(255, 255, 255, 0.02)",
-                borderColor: "rgba(255, 255, 255, 0.08)",
-                borderRadius: 2.5,
-              }}
-            >
-              <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                {/* Header */}
-                <Box
-                  sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
-                >
-                  <Box>
-                    <Typography variant="subtitle1" fontWeight={700}>
-                      {src.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" fontFamily="monospace">
-                      {src.source_id}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                    <Chip
-                      icon={src.source_type === "bigquery" ? <GoogleCloudIcon size={14} /> : undefined}
-                      label={src.source_type.toUpperCase()}
-                      size="small"
-                      color={src.source_type === "bigquery" ? "primary" : "secondary"}
-                      variant="outlined"
-                    />
-                    <Chip label={src.purpose} size="small" variant="filled" />
-                  </Box>
-                </Box>
-
-                <Typography variant="body2" color="text.secondary" sx={{ minHeight: 40 }}>
-                  {src.description || "Active production data connection for tenant agents."}
+      {/* ── Executive KPI Metric Cards ────────────────────────────────────── */}
+      <Grid container spacing={2}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card variant="outlined" sx={{ borderRadius: 2, height: "100%" }}>
+            <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: "0.05em" }}>
+                  ACTIVE CONNECTORS
                 </Typography>
-
-                {/* Masked config preview */}
-                {Object.keys(maskedConfig).length > 0 && (
-                  <Box
-                    sx={{
-                      bgcolor: "rgba(0,0,0,0.2)",
-                      borderRadius: 1,
-                      p: 1,
-                      fontFamily: "monospace",
-                      fontSize: "0.75rem",
-                      color: "text.secondary",
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-all",
-                    }}
-                  >
-                    {JSON.stringify(maskedConfig, null, 2)}
-                  </Box>
-                )}
-
-                {/* Test Result Banner */}
-                {test && (
-                  <Alert
-                    severity={test.healthy ? "success" : "error"}
-                    icon={test.healthy ? <CheckCircleIcon /> : <ErrorIcon />}
-                    sx={{ py: 0.5, px: 1.5, fontSize: "0.8rem" }}
-                  >
-                    {test.message}
-                  </Alert>
-                )}
-
-                {/* Real-time Sync Result Banner */}
-                {syncResults[src.source_id] && (
-                  <Alert
-                    severity={syncResults[src.source_id].ok ? "success" : "warning"}
-                    icon={<SyncIcon />}
-                    sx={{ py: 0.5, px: 1.5, fontSize: "0.8rem" }}
-                  >
-                    {syncResults[src.source_id].message}
-                  </Alert>
-                )}
-
-                {/* ── CSV Upload Section ── */}
-                {src.source_type === "csv" && (
-                  <Box
-                    sx={{
-                      border: "1px dashed",
-                      borderColor: "divider",
-                      borderRadius: "2px",
-                      p: 1.5,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 1,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                      CSV FILE UPLOAD
-                    </Typography>
-                    <input
-                      type="file"
-                      accept=".csv"
-                      style={{ display: "none" }}
-                      ref={(el) => {
-                        fileInputRefs.current[src.source_id] = el;
-                      }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleFileSelect(src.source_id, file);
-                        // Reset so the same file can be re-uploaded
-                        e.target.value = "";
-                      }}
-                    />
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={
-                        uploadState?.loading ? (
-                          <CircularProgress size={14} color="inherit" />
-                        ) : (
-                          <UploadFileIcon />
-                        )
-                      }
-                      disabled={uploadState?.loading}
-                      onClick={() => fileInputRefs.current[src.source_id]?.click()}
-                      sx={{ textTransform: "none", alignSelf: "flex-start" }}
-                    >
-                      {uploadState?.loading ? "Uploading…" : "Choose & Upload CSV"}
-                    </Button>
-
-                    {uploadState?.error && (
-                      <Alert severity="error" sx={{ py: 0.5, fontSize: "0.8rem" }}>
-                        {uploadState.error}
-                      </Alert>
-                    )}
-
-                    {uploadState?.preview && uploadState.preview.sample_rows.length > 0 && (
-                      <Box>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ display: "block", mb: 0.5 }}
-                        >
-                          Preview (first {Math.min(5, uploadState.preview.sample_rows.length)}{" "}
-                          rows)
-                        </Typography>
-                        <TableContainer
-                          component={Paper}
-                          sx={{ bgcolor: "transparent", maxHeight: 180 }}
-                        >
-                          <Table size="small" stickyHeader>
-                            <TableHead>
-                              <TableRow>
-                                {uploadState.preview.columns.map((col) => (
-                                  <TableCell
-                                    key={col}
-                                    sx={{ fontWeight: 700, color: "primary.light", fontSize: "0.75rem" }}
-                                  >
-                                    {col}
-                                  </TableCell>
-                                ))}
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {uploadState.preview.sample_rows.slice(0, 5).map((row, idx) => (
-                                <TableRow key={idx}>
-                                  {uploadState.preview!.columns.map((col) => (
-                                    <TableCell
-                                      key={col}
-                                      sx={{ fontSize: "0.75rem", fontFamily: "monospace" }}
-                                    >
-                                      {typeof row[col] === "object"
-                                        ? JSON.stringify(row[col])
-                                        : String(row[col] ?? "")}
-                                    </TableCell>
-                                  ))}
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      </Box>
-                    )}
-                  </Box>
-                )}
-
-                {/* ── Column Mapping Section ── */}
-                <Accordion
-                  disableGutters
-                  elevation={0}
-                  sx={{
-                    bgcolor: "transparent",
-                    border: "1px solid",
-                    borderColor: "divider",
-                    borderRadius: "2px !important",
-                    "&:before": { display: "none" },
-                  }}
-                >
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Typography variant="caption" fontWeight={600} color="text.secondary">
-                      COLUMN MAPPING
-                    </Typography>
-                  </AccordionSummary>
-                  <AccordionDetails sx={{ p: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
-                    <TableContainer>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", color: "primary.light" }}>
-                              Source Column
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", color: "primary.light" }}>
-                              Canonical Field
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", color: "primary.light" }}>
-                              Transform
-                            </TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {getMapping(src.source_id).map((row, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell sx={{ py: 0.5, pr: 0.5 }}>
-                                <TextField
-                                  size="small"
-                                  value={row.source_column}
-                                  onChange={(e) =>
-                                    updateMappingRow(
-                                      src.source_id,
-                                      idx,
-                                      "source_column",
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="e.g. SKU_CODE"
-                                  sx={{ minWidth: 100 }}
-                                  inputProps={{ style: { fontSize: "0.8rem" } }}
-                                />
-                              </TableCell>
-                              <TableCell sx={{ py: 0.5, pr: 0.5 }}>
-                                <TextField
-                                  select
-                                  size="small"
-                                  value={row.canonical_field}
-                                  onChange={(e) =>
-                                    updateMappingRow(
-                                      src.source_id,
-                                      idx,
-                                      "canonical_field",
-                                      e.target.value
-                                    )
-                                  }
-                                  sx={{ minWidth: 140 }}
-                                  inputProps={{ style: { fontSize: "0.8rem" } }}
-                                >
-                                  <MenuItem value="">
-                                    <em>— select —</em>
-                                  </MenuItem>
-                                  {CANONICAL_FIELDS.map((f) => (
-                                    <MenuItem key={f} value={f}>
-                                      {f}
-                                    </MenuItem>
-                                  ))}
-                                </TextField>
-                              </TableCell>
-                              <TableCell sx={{ py: 0.5 }}>
-                                <TextField
-                                  size="small"
-                                  value={row.transform}
-                                  onChange={(e) =>
-                                    updateMappingRow(
-                                      src.source_id,
-                                      idx,
-                                      "transform",
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="e.g. lowercase()"
-                                  sx={{ minWidth: 120 }}
-                                  inputProps={{ style: { fontSize: "0.8rem" } }}
-                                />
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-
-                    <Box sx={{ display: "flex", gap: 1, pt: 0.5 }}>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => addMappingRow(src.source_id)}
-                        sx={{ textTransform: "none", fontSize: "0.78rem" }}
-                      >
-                        + Add Row
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="contained"
-                        color="primary"
-                        disabled={mappingSaving[src.source_id]}
-                        onClick={() => saveMapping(src.source_id)}
-                        sx={{
-                          textTransform: "none",
-                          fontSize: "0.78rem",
-                        }}
-                      >
-                        {mappingSaving[src.source_id] ? "Saving…" : "Save Mapping"}
-                      </Button>
-                      {mappingSaved[src.source_id] && (
-                        <Typography
-                          variant="caption"
-                          color="success.main"
-                          sx={{ alignSelf: "center" }}
-                        >
-                          Saved ✓
-                        </Typography>
-                      )}
-                    </Box>
-                  </AccordionDetails>
-                </Accordion>
-
-                {/* ── Validate Section ── */}
-                {validateResult && (
-                  <Alert
-                    severity={validateResult.valid ? "success" : "warning"}
-                    icon={<VerifiedIcon />}
-                    sx={{ py: 0.5, px: 1.5, fontSize: "0.8rem" }}
-                  >
-                    {validateResult.valid
-                      ? `Validation passed — 0 schema errors found. All records conform to canonical standard.`
-                      : `Validation issues — ${validateResult.error_count ?? validateResult.errors?.length ?? 0} error(s) found.`}
-                    {(validateResult.errors || []).length > 0 && (
-                      <Box component="ul" sx={{ m: 0, pl: 2, mt: 0.5 }}>
-                        {validateResult.errors.slice(0, 3).map((err, i) => (
-                          <li key={i}>{err}</li>
-                        ))}
-                      </Box>
-                    )}
-                  </Alert>
-                )}
-
-                {/* Actions */}
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    pt: 1,
-                    borderTop: "1px solid",
-                    borderColor: "divider",
-                    flexWrap: "wrap",
-                    gap: 1,
-                  }}
-                >
-                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={
-                        testingId === src.source_id ? (
-                          <CircularProgress size={14} color="inherit" />
-                        ) : (
-                          <PlayArrowIcon />
-                        )
-                      }
-                      onClick={() => handleTest(src.source_id)}
-                      disabled={testingId === src.source_id}
-                      sx={{ textTransform: "none" }}
-                    >
-                      {testingId === src.source_id ? "Testing..." : "Test Connection"}
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="secondary"
-                      startIcon={<VisibilityIcon />}
-                      onClick={() => handlePreview(src.source_id)}
-                      disabled={previewLoading}
-                      sx={{ textTransform: "none" }}
-                    >
-                      Preview Data
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="info"
-                      startIcon={
-                        validateLoading[src.source_id] ? (
-                          <CircularProgress size={14} color="inherit" />
-                        ) : (
-                          <VerifiedIcon />
-                        )
-                      }
-                      onClick={() => handleValidate(src.source_id)}
-                      disabled={validateLoading[src.source_id]}
-                      sx={{ textTransform: "none" }}
-                    >
-                      {validateLoading[src.source_id] ? "Validating…" : "Validate"}
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="primary"
-                      startIcon={
-                        syncLoading[src.source_id] ? (
-                          <CircularProgress size={14} color="inherit" />
-                        ) : (
-                          <SyncIcon />
-                        )
-                      }
-                      onClick={() => handleSync(src.source_id)}
-                      disabled={syncLoading[src.source_id]}
-                      sx={{ textTransform: "none" }}
-                    >
-                      {syncLoading[src.source_id] ? "Syncing…" : "Sync / Onboard"}
-                    </Button>
-                  </Box>
-
-                  <Tooltip title="Delete Connection">
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={() => handleDelete(src.source_id)}
-                    >
-                      <DeleteOutlineIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                <Chip size="small" label="ONLINE" color="success" variant="outlined" sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }} />
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, my: 0.5 }}>
+                <Box sx={{ width: 36, height: 36, borderRadius: 1.5, bgcolor: "rgba(26, 115, 232, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#1A73E8" }}>
+                  <StorageIcon fontSize="small" />
                 </Box>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </Box>
+                <Typography variant="h4" sx={{ fontWeight: 800, fontSize: "1.75rem", fontFamily: "var(--font-mono, monospace)" }}>
+                  {totalConnectors}
+                </Typography>
+              </Box>
+              <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                {bigQueryCount} BigQuery • {postgresCount} SQL • {restCount} REST/CSV
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card variant="outlined" sx={{ borderRadius: 2, height: "100%" }}>
+            <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: "0.05em" }}>
+                  ERP SYNC HEALTH
+                </Typography>
+                <Chip size="small" label="OPTIMAL" color="success" variant="outlined" sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }} />
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, my: 0.5 }}>
+                <Box sx={{ width: 36, height: 36, borderRadius: 1.5, bgcolor: "rgba(52, 168, 83, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#34A853" }}>
+                  <SyncIcon fontSize="small" />
+                </Box>
+                <Typography variant="h4" sx={{ fontWeight: 800, fontSize: "1.75rem", fontFamily: "var(--font-mono, monospace)" }}>
+                  99.8%
+                </Typography>
+              </Box>
+              <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                Live 2-way CDC replication active
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card variant="outlined" sx={{ borderRadius: 2, height: "100%" }}>
+            <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: "0.05em" }}>
+                  RECORDS INGESTED
+                </Typography>
+                <Chip size="small" label="+14.2% DoD" color="info" variant="outlined" sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }} />
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, my: 0.5 }}>
+                <Box sx={{ width: 36, height: 36, borderRadius: 1.5, bgcolor: "rgba(155, 114, 203, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#9B72CB" }}>
+                  <CloudQueueIcon fontSize="small" />
+                </Box>
+                <Typography variant="h4" sx={{ fontWeight: 800, fontSize: "1.75rem", fontFamily: "var(--font-mono, monospace)" }}>
+                  1.45M+
+                </Typography>
+              </Box>
+              <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                Multi-agent compliance memory
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Card variant="outlined" sx={{ borderRadius: 2, height: "100%" }}>
+            <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", letterSpacing: "0.05em" }}>
+                  SCHEMA COMPLIANCE
+                </Typography>
+                <Chip size="small" label="VALIDATED" color="success" variant="outlined" sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }} />
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, my: 0.5 }}>
+                <Box sx={{ width: 36, height: 36, borderRadius: 1.5, bgcolor: "rgba(15, 157, 88, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0F9D58" }}>
+                  <VerifiedIcon fontSize="small" />
+                </Box>
+                <Typography variant="h4" sx={{ fontWeight: 800, fontSize: "1.75rem", fontFamily: "var(--font-mono, monospace)" }}>
+                  100%
+                </Typography>
+              </Box>
+              <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                CPCB PWM Rule 4 &amp; Schedule II
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* ── Enterprise Data Connectors Studio Table ────────────────────────── */}
+      <Card variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
+        {/* Table Filter & Toolbar */}
+        <Box
+          sx={{
+            p: 1.5,
+            borderBottom: 1,
+            borderColor: "divider",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 1.5,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", flex: 1, minWidth: 280 }}>
+            <TextField
+              size="small"
+              placeholder="Search connectors by name, ID, or purpose..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ minWidth: 280, flex: { xs: "1 1 100%", sm: "0 1 320px" } }}
+            />
+
+            <TextField
+              select
+              size="small"
+              label="Connector Type"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              sx={{ minWidth: 150 }}
+            >
+              <MenuItem value="ALL">All Types ({totalConnectors})</MenuItem>
+              <MenuItem value="bigquery">Google BigQuery ({bigQueryCount})</MenuItem>
+              <MenuItem value="postgresql">PostgreSQL / SQL ({postgresCount})</MenuItem>
+              <MenuItem value="rest_api">REST API (SAP/Oracle)</MenuItem>
+              <MenuItem value="csv">CSV File Feed</MenuItem>
+            </TextField>
+
+            <TextField
+              select
+              size="small"
+              label="Agent Purpose"
+              value={purposeFilter}
+              onChange={(e) => setPurposeFilter(e.target.value)}
+              sx={{ minWidth: 160 }}
+            >
+              <MenuItem value="ALL">All Purposes</MenuItem>
+              <MenuItem value="erp_sales">ERP Sales (Brand Liability)</MenuItem>
+              <MenuItem value="scada_telemetry">SCADA Extruder (Auditor)</MenuItem>
+              <MenuItem value="regulatory">Regulatory Gazette</MenuItem>
+              <MenuItem value="erp_po">ERP Purchase Orders</MenuItem>
+            </TextField>
+          </Box>
+
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<RefreshIcon />}
+              onClick={fetchSources}
+              disabled={loading}
+              sx={{ textTransform: "none", fontWeight: 600 }}
+            >
+              Refresh
+            </Button>
+            <Button
+              variant="contained"
+              size="small"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={() => setModalOpen(true)}
+              sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#1A73E8" }}
+            >
+              Add Connector
+            </Button>
+          </Box>
+        </Box>
+
+        {/* Table Content */}
+        <TableContainer sx={{ minHeight: 280 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)") }}>
+                <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 1.25 }}>CONNECTOR &amp; ID</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 1.25 }}>TYPE</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 1.25 }}>PURPOSE</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 1.25 }}>TARGET CONFIG</TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 1.25 }}>HEALTH &amp; SYNC</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", py: 1.25 }}>ACTIONS</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading && sources.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                    <CircularProgress size={28} />
+                    <Typography variant="caption" sx={{ display: "block", mt: 1, color: "text.secondary" }}>
+                      Loading data connectors...
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : filteredSources.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                    <Typography color="text.secondary">
+                      No data connectors match the selected filters.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredSources.map((src) => {
+                  const test = testResults[src.source_id];
+                  const sync = syncResults[src.source_id];
+                  const isTesting = testingId === src.source_id;
+                  const isSyncing = syncLoading[src.source_id];
+
+                  return (
+                    <TableRow
+                      key={src.source_id}
+                      hover
+                      sx={{
+                        "&:hover": { bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.015)") },
+                      }}
+                    >
+                      {/* Name & ID */}
+                      <TableCell sx={{ py: 1.25 }}>
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                            <Typography sx={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                              {src.name}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={src.source_id}
+                              variant="outlined"
+                              sx={{
+                                height: 18,
+                                fontSize: "0.65rem",
+                                fontFamily: "var(--font-mono, monospace)",
+                                fontWeight: 600,
+                              }}
+                            />
+                          </Box>
+                          <Typography variant="caption" sx={{ color: "text.secondary", fontSize: "0.72rem" }}>
+                            {src.description || "Active production pipeline for tenant agents."}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+
+                      {/* Type */}
+                      <TableCell sx={{ py: 1.25 }}>
+                        {src.source_type === "bigquery" ? (
+                          <Chip
+                            icon={<GoogleCloudIcon size={14} />}
+                            label="BigQuery"
+                            size="small"
+                            variant="outlined"
+                            color="primary"
+                            sx={{ fontWeight: 700, fontSize: "0.7rem", height: 22 }}
+                          />
+                        ) : src.source_type === "postgresql" ? (
+                          <Chip
+                            icon={<StorageIcon sx={{ fontSize: 13 }} />}
+                            label="PostgreSQL"
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontWeight: 700, fontSize: "0.7rem", height: 22 }}
+                          />
+                        ) : src.source_type === "rest_api" ? (
+                          <Chip
+                            icon={<CloudQueueIcon sx={{ fontSize: 13 }} />}
+                            label="REST API"
+                            size="small"
+                            variant="outlined"
+                            color="secondary"
+                            sx={{ fontWeight: 700, fontSize: "0.7rem", height: 22 }}
+                          />
+                        ) : (
+                          <Chip
+                            icon={<UploadFileIcon sx={{ fontSize: 13 }} />}
+                            label="CSV Seed"
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontWeight: 700, fontSize: "0.7rem", height: 22 }}
+                          />
+                        )}
+                      </TableCell>
+
+                      {/* Purpose */}
+                      <TableCell sx={{ py: 1.25 }}>
+                        <Chip
+                          label={
+                            src.purpose === "erp_sales"
+                              ? "ERP Sales"
+                              : src.purpose === "scada_telemetry"
+                              ? "SCADA Extruder"
+                              : src.purpose === "regulatory"
+                              ? "Regulatory Feed"
+                              : src.purpose === "erp_po"
+                              ? "Purchase Orders"
+                              : src.purpose
+                          }
+                          size="small"
+                          variant="outlined"
+                          sx={{ fontSize: "0.7rem", fontWeight: 600, height: 22 }}
+                        />
+                      </TableCell>
+
+                      {/* Target Config Summary */}
+                      <TableCell sx={{ py: 1.25 }}>
+                        <Typography
+                          sx={{
+                            fontFamily: "var(--font-mono, monospace)",
+                            fontSize: "0.75rem",
+                            color: "text.primary",
+                            maxWidth: 240,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatConfigSummary(src.source_type, src.connection_config)}
+                        </Typography>
+                      </TableCell>
+
+                      {/* Health & Sync */}
+                      <TableCell sx={{ py: 1.25 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          {test ? (
+                            <Chip
+                              icon={test.healthy ? <CheckCircleIcon sx={{ fontSize: 13 }} /> : <ErrorIcon sx={{ fontSize: 13 }} />}
+                              label={test.healthy ? "Connected" : "Failed"}
+                              size="small"
+                              variant="outlined"
+                              color={test.healthy ? "success" : "error"}
+                              sx={{ height: 20, fontSize: "0.65rem", fontWeight: 700 }}
+                            />
+                          ) : (
+                            <Chip
+                              label={src.is_active ? "Active" : "Idle"}
+                              size="small"
+                              variant="outlined"
+                              color={src.is_active ? "success" : "default"}
+                              sx={{ height: 20, fontSize: "0.65rem", fontWeight: 700 }}
+                            />
+                          )}
+
+                          {sync && (
+                            <Typography variant="caption" sx={{ fontSize: "0.7rem", color: sync.ok ? "success.main" : "error.main" }}>
+                              {sync.rows > 0 ? `${sync.rows} rows` : ""}
+                            </Typography>
+                          )}
+                        </Box>
+                      </TableCell>
+
+                      {/* Actions */}
+                      <TableCell align="right" sx={{ py: 1.25 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.5 }}>
+                          <Tooltip title="Probe / Test Connection">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleTest(src.source_id)}
+                              disabled={isTesting}
+                              sx={{ width: 28, height: 28, color: "text.secondary" }}
+                            >
+                              {isTesting ? <CircularProgress size={14} color="inherit" /> : <PlayArrowIcon sx={{ fontSize: 16 }} />}
+                            </IconButton>
+                          </Tooltip>
+
+                          <Tooltip title="Trigger Real-Time Sync">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => handleSync(src.source_id)}
+                              disabled={isSyncing}
+                              sx={{ width: 28, height: 28 }}
+                            >
+                              {isSyncing ? <CircularProgress size={14} color="inherit" /> : <SyncIcon sx={{ fontSize: 16 }} />}
+                            </IconButton>
+                          </Tooltip>
+
+                          <Tooltip title="Preview Live Sample Records">
+                            <IconButton
+                              size="small"
+                              onClick={() => handlePreview(src.source_id)}
+                              disabled={previewLoading}
+                              sx={{ width: 28, height: 28, color: "text.secondary" }}
+                            >
+                              <VisibilityIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </Tooltip>
+
+                          <Tooltip title="Configure Canonical Column Mapping &amp; Validation">
+                            <IconButton
+                              size="small"
+                              onClick={() => setMappingModalSource(src)}
+                              sx={{ width: 28, height: 28, color: "text.secondary" }}
+                            >
+                              <TuneIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </Tooltip>
+
+                          {src.source_type === "csv" && (
+                            <Tooltip title="Upload CSV Data File">
+                              <IconButton
+                                size="small"
+                                onClick={() => setUploadModalSource(src)}
+                                sx={{ width: 28, height: 28, color: "text.secondary" }}
+                              >
+                                <UploadFileIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+
+                          <Tooltip title="Delete Connection">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDelete(src.source_id)}
+                              sx={{ width: 28, height: 28 }}
+                            >
+                              <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Card>
+
+      {/* ── Schema Mapping & Validation Dialog ────────────────────────────── */}
+      {mappingModalSource && (
+        <Dialog
+          open={Boolean(mappingModalSource)}
+          onClose={() => setMappingModalSource(null)}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <TuneIcon color="primary" />
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: "1rem" }}>
+                  Canonical Column Mapping &amp; Validation
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  {mappingModalSource.name} ({mappingModalSource.source_id}) • CPCB PWM Schedule II Schema
+                </Typography>
+              </Box>
+            </Box>
+            <IconButton size="small" onClick={() => setMappingModalSource(null)}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent dividers sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.82rem" }}>
+              Define transformations mapping source database columns to canonical SynthetIQ field models for zero-trust compliance reasoning.
+            </Typography>
+
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)") }}>
+                    <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem" }}>Source Column</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem" }}>Canonical Schema Field</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem" }}>Transform</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {getMapping(mappingModalSource.source_id).map((row, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          placeholder="e.g. sales_qty_kg"
+                          value={row.source_column}
+                          onChange={(e) =>
+                            updateMappingRow(mappingModalSource.source_id, idx, "source_column", e.target.value)
+                          }
+                          sx={{ "& input": { fontSize: "0.8rem", fontFamily: "var(--font-mono, monospace)" } }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          select
+                          size="small"
+                          fullWidth
+                          value={row.canonical_field}
+                          onChange={(e) =>
+                            updateMappingRow(mappingModalSource.source_id, idx, "canonical_field", e.target.value)
+                          }
+                          sx={{ "& select, & .MuiSelect-select": { fontSize: "0.8rem", fontFamily: "var(--font-mono, monospace)" } }}
+                        >
+                          <MenuItem value="">
+                            <em>Select canonical field</em>
+                          </MenuItem>
+                          {CANONICAL_FIELDS.map((f) => (
+                            <MenuItem key={f} value={f} sx={{ fontFamily: "var(--font-mono, monospace)", fontSize: "0.8rem" }}>
+                              {f}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          placeholder="e.g. to_mt / uppercase"
+                          value={row.transform}
+                          onChange={(e) =>
+                            updateMappingRow(mappingModalSource.source_id, idx, "transform", e.target.value)
+                          }
+                          sx={{ "& input": { fontSize: "0.8rem" } }}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={() => addMappingRow(mappingModalSource.source_id)}
+                sx={{ textTransform: "none", fontWeight: 600 }}
+              >
+                Add Mapping Row
+              </Button>
+
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="info"
+                  startIcon={
+                    validateLoading[mappingModalSource.source_id] ? (
+                      <CircularProgress size={14} color="inherit" />
+                    ) : (
+                      <VerifiedIcon />
+                    )
+                  }
+                  onClick={() => handleValidate(mappingModalSource.source_id)}
+                  disabled={validateLoading[mappingModalSource.source_id]}
+                  sx={{ textTransform: "none", fontWeight: 600 }}
+                >
+                  {validateLoading[mappingModalSource.source_id] ? "Validating…" : "Validate Canonical Schema"}
+                </Button>
+
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="primary"
+                  onClick={() => saveMapping(mappingModalSource.source_id)}
+                  disabled={mappingSaving[mappingModalSource.source_id]}
+                  sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#1A73E8" }}
+                >
+                  {mappingSaving[mappingModalSource.source_id] ? "Saving..." : "Save Mapping"}
+                </Button>
+              </Box>
+            </Box>
+
+            {mappingSaved[mappingModalSource.source_id] && (
+              <Alert severity="success" sx={{ fontSize: "0.8rem", py: 0.5 }}>
+                Canonical field mappings saved successfully.
+              </Alert>
+            )}
+
+            {/* Validation Feedback */}
+            {validateResults[mappingModalSource.source_id] && (
+              <Box sx={{ mt: 1 }}>
+                {validateResults[mappingModalSource.source_id].valid ? (
+                  <Alert severity="success" sx={{ fontSize: "0.82rem" }}>
+                    <strong>Canonical Schema Validated:</strong> All fields adhere strictly to CPCB PWM Schedule II models.
+                  </Alert>
+                ) : (
+                  <Alert severity="error" sx={{ fontSize: "0.82rem" }}>
+                    <strong>Validation Found Errors:</strong>
+                    <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
+                      {validateResults[mappingModalSource.source_id].errors.map((err, i) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                    </ul>
+                  </Alert>
+                )}
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button onClick={() => setMappingModalSource(null)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      {/* ── CSV Upload & Seed Dialog ─────────────────────────────────────── */}
+      {uploadModalSource && (
+        <Dialog
+          open={Boolean(uploadModalSource)}
+          onClose={() => setUploadModalSource(null)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <UploadFileIcon color="primary" />
+              <Typography variant="h6" sx={{ fontWeight: 800, fontSize: "1rem" }}>
+                Upload CSV Feed: {uploadModalSource.name}
+              </Typography>
+            </Box>
+            <IconButton size="small" onClick={() => setUploadModalSource(null)}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent dividers sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.82rem" }}>
+              Upload a comma-separated values (.csv) file to seed or update this data connector feed.
+            </Typography>
+
+            <Box
+              sx={{
+                p: 3,
+                border: "2px dashed",
+                borderColor: "primary.main",
+                borderRadius: 2,
+                textAlign: "center",
+                bgcolor: (t) => (t.palette.mode === "dark" ? "rgba(26, 115, 232, 0.05)" : "rgba(26, 115, 232, 0.03)"),
+                cursor: "pointer",
+              }}
+              onClick={() => fileInputRefs.current[uploadModalSource.source_id]?.click()}
+            >
+              <input
+                type="file"
+                accept=".csv"
+                style={{ display: "none" }}
+                ref={(el) => {
+                  fileInputRefs.current[uploadModalSource.source_id] = el;
+                }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFileSelect(uploadModalSource.source_id, f);
+                }}
+              />
+              <UploadFileIcon sx={{ fontSize: 40, color: "primary.main", mb: 1 }} />
+              <Typography sx={{ fontWeight: 700, fontSize: "0.9rem" }}>
+                Click to browse or drag and drop CSV file
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
+                Max file size: 50MB • UTF-8 CSV
+              </Typography>
+            </Box>
+
+            {uploadStates[uploadModalSource.source_id]?.loading && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: "center", py: 1 }}>
+                <CircularProgress size={18} />
+                <Typography variant="caption">Ingesting &amp; parsing CSV rows...</Typography>
+              </Box>
+            )}
+
+            {uploadStates[uploadModalSource.source_id]?.error && (
+              <Alert severity="error" sx={{ fontSize: "0.8rem" }}>
+                {uploadStates[uploadModalSource.source_id].error}
+              </Alert>
+            )}
+
+            {uploadStates[uploadModalSource.source_id]?.preview && (
+              <Alert severity="success" sx={{ fontSize: "0.8rem" }}>
+                Successfully uploaded! {uploadStates[uploadModalSource.source_id].preview?.columns.length} columns detected.
+              </Alert>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button onClick={() => setUploadModalSource(null)}>Done</Button>
+          </DialogActions>
+        </Dialog>
+      )}
 
       {/* Preview Dialog */}
       {previewData && (
@@ -908,6 +1209,7 @@ export default function DataSourcesPage() {
               label={`${previewData.sample_rows.length} Rows Sampled`}
               size="small"
               color="primary"
+              variant="outlined"
             />
           </DialogTitle>
           <DialogContent dividers>

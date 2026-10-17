@@ -415,6 +415,7 @@ export default function AgentNodeDetailPanel({
               <Chip
                 label={`Step ${bp.step}`}
                 size="small"
+                variant="outlined"
                 sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
               />
             </Box>
@@ -429,13 +430,13 @@ export default function AgentNodeDetailPanel({
             <Chip
               size="small"
               label="SCADA Reflex"
+              variant="outlined"
               sx={{
                 height: 22,
                 fontSize: "0.68rem",
                 fontWeight: 700,
-                bgcolor: "rgba(16, 185, 129, 0.15)",
                 color: "#34D399",
-                border: "1px solid rgba(16, 185, 129, 0.3)",
+                borderColor: "rgba(16, 185, 129, 0.3)",
               }}
             />
           ) : (
@@ -443,18 +444,19 @@ export default function AgentNodeDetailPanel({
               icon={<GeminiIcon size={12} />}
               size="small"
               label="Gemini 3.8 Flash"
+              variant="outlined"
               sx={{
                 height: 22,
                 fontSize: "0.68rem",
                 fontWeight: 700,
-                bgcolor: "rgba(66, 133, 244, 0.12)",
                 color: "#1A73E8",
-                border: "1px solid rgba(66, 133, 244, 0.3)",
+                borderColor: "rgba(66, 133, 244, 0.3)",
               }}
             />
           )}
           <Chip
             label={nodeStatus}
+            variant="outlined"
             color={nodeStatus === "COMPLETED" ? "success" : nodeStatus === "HITL" ? "warning" : "error"}
             size="small"
             sx={{ height: 22, fontSize: "0.68rem", fontWeight: 800 }}

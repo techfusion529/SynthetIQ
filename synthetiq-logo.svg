@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 385 100" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Adaptive Blue-Slate for "Synthet" (High contrast on both #FFF and #0F1216) -->
+    <linearGradient id="adaptiveStem" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#64748B" />
+      <stop offset="100%" stop-color="#475569" />
+    </linearGradient>
+
+    <!-- Vibrant Google Blue Gradient for "IQ" & Icon -->
+    <linearGradient id="gBlueCore" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#4285F4" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+
+    <linearGradient id="gBlueRight" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4285F4" />
+      <stop offset="100%" stop-color="#1E40AF" />
+    </linearGradient>
+  </defs>
+
+  <!-- LEFT: GEOMETRIC RECYCLE + AI ICON -->
+  <g transform="translate(4, 2) scale(0.80)">
+    <!-- Top Arrow -->
+    <path d="M30 50 L50 18 C54.5 11 65.5 11 70 18 L84 40" stroke="url(#gBlueCore)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M72 39 L85 42 L87 29" stroke="#2563EB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Bottom-Right Arrow -->
+    <path d="M92 54 L103 72 C107.5 79.5 102 89 93 89 H66" stroke="url(#gBlueRight)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M74 80 L64 89 L74 98" stroke="#1D4ED8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Bottom-Left Arrow -->
+    <path d="M48 89 H27 C18 89 12.5 79.5 17 72 L25 59" stroke="url(#gBlueCore)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M15 64 L26 57 L31 69" stroke="#38BDF8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Center AI Star -->
+    <path d="M60 35 C60 53 60 53 78 53 C60 53 60 53 60 71 C60 53 60 53 42 53 C60 53 60 53 60 35 Z" transform="translate(0, 6)" fill="url(#gBlueCore)" />
+
+    <!-- Mini AI Sparkle -->
+    <path d="M76 34 C76 39.5 76 39.5 81.5 39.5 C76 39.5 76 39.5 76 45 C76 39.5 76 39.5 70.5 39.5 C76 39.5 76 39.5 76 34 Z" fill="#38BDF8" />
+  </g>
+
+  <!-- RIGHT: ALIGNED BRAND TYPOGRAPHY BLOCK (Exact 242px Width) -->
+  <g transform="translate(114, 0)">
+    <!-- Heading: SynthetIQ (Spans x=0 to x=242) -->
+    <text x="0" y="58" font-family="&#39;Google Sans&#39;, &#39;IBM Plex Sans&#39;, &#39;Inter&#39;, -apple-system, sans-serif" font-size="48" font-weight="700">
+      <tspan fill="#64748B">Synthet</tspan><tspan fill="url(#gBlueCore)" font-weight="800">IQ</tspan>
+    </text>
+
+    <!-- AI Sparkle Accent above Q -->
+    <path d="M248 14 C248 19.5 248 19.5 253.5 19.5 C248 19.5 248 19.5 248 25 C248 19.5 248 19.5 242.5 19.5 C248 19.5 248 19.5 248 14 Z" fill="#38BDF8" />
+
+    <!-- Structural Divider Hairline (Exact 242px Width — Never Overflows) -->
+    <rect x="2" y="67" width="240" height="2" rx="1" fill="#3B82F6" opacity="0.45" />
+    <rect x="2" y="67" width="64" height="2" rx="1" fill="#4285F4" />
+
+    <!-- 4-Word Subtitle (Exact 240px Width via textLength — Flush Left & Right with Heading) -->
+    <text x="2" y="81" font-family="&#39;IBM Plex Mono&#39;, &#39;Inter&#39;, monospace" font-size="8.5" font-weight="600" fill="#3B82F6">
+      AUTONOMOUS CIRCULAR COMPLIANCE ECOSYSTEM
+    </text>
+  </g>
+</svg>

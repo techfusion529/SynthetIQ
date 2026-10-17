@@ -16,6 +16,7 @@ import DescriptionIcon from "@mui/icons-material/DescriptionOutlined";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import { GeminiIcon } from "@/components/icons/GoogleIcons";
+import { useTheme } from "@mui/material/styles";
 import type { E2ERunResult } from "../../app/lib/types/compliance.types";
 
 export interface AgentNodeDef {
@@ -140,6 +141,8 @@ export default function AgentCanvasGraph({
 }: AgentCanvasGraphProps) {
   const runStatus = (selectedRun?.status || "").toUpperCase();
   const isRunning = runStatus.includes("RUNNING") || runStatus.includes("PENDING");
+  const theme = useTheme();
+  const isLight = theme.palette.mode === "light";
 
   // Track run_id to avoid resetting simulation during periodic background polling
   const prevRunIdRef = useRef<string | null>(null);
@@ -197,7 +200,52 @@ export default function AgentCanvasGraph({
     const isHitl = Boolean(selectedRun.hitl_required || runStatus.includes("HITL"));
     const isHalted = runStatus.includes("HALT") || runStatus.includes("FRAUD");
 
-    // Check if the step is recorded in the actual run result or events
+    // If workflow is actively running, determine state sequentially so canvas never contradicts timeline
+    if (isRunning) {
+      const runningStep = selectedRun.steps?.find(
+        (s) =>
+          s.status?.toUpperCase().includes("RUNNING") ||
+          s.status?.toUpperCase().includes("PROGRESS")
+      );
+      const currentActiveStep = runningStep ? runningStep.step : (simulatedActiveStep > 0 ? simulatedActiveStep : 3);
+
+      if (node.stepNumber < currentActiveStep) {
+        return {
+          status: "COMPLETED",
+          metric: node.stepNumber === 1 ? `${selectedRun.volume_tons || 250} MT Net` : "Passed",
+          runtime_ms: 110 + node.stepNumber * 15,
+          tokens: node.systemType.includes("Reflex") ? 0 : 680,
+          cost_usd: 0.0008,
+          cost_inr: 0.07,
+        };
+      }
+      if (node.stepNumber === currentActiveStep) {
+        return {
+          status: "RUNNING",
+          metric:
+            node.id === "brand_liability"
+              ? "Querying ERP Debt..."
+              : node.id === "regulatory_watchdog"
+              ? "Parsing Gazette..."
+              : node.id === "auction"
+              ? "Matching Orders..."
+              : node.id === "scada_auditor"
+              ? "Sampling SCADA Feed..."
+              : node.id === "forensic_auditor"
+              ? "Gemini Heat Balance..."
+              : node.id === "escrow"
+              ? "Authorizing 80/20 PO..."
+              : "Signing Form-1...",
+          runtime_ms: 65,
+          tokens: 340,
+          cost_usd: 0.0004,
+          cost_inr: 0.03,
+        };
+      }
+      return { status: "QUEUED", metric: "Queued", runtime_ms: 0, tokens: 0, cost_usd: 0, cost_inr: 0 };
+    }
+
+    // Check if the step is recorded in the actual run result or events when NOT actively running
     const step = selectedRun.steps?.find(
       (s) =>
         s.step === node.stepNumber ||
@@ -240,44 +288,6 @@ export default function AgentCanvasGraph({
         cost_usd: step.cost_usd ?? (node.systemType.includes("Reflex") ? 0 : 0.0009),
         cost_inr: step.cost_inr ?? (node.systemType.includes("Reflex") ? 0 : 0.08),
       };
-    }
-
-    // If workflow is actively running, determine state sequentially
-    if (isRunning) {
-      if (node.stepNumber < simulatedActiveStep) {
-        return {
-          status: "COMPLETED",
-          metric: node.stepNumber === 1 ? `${selectedRun.volume_tons || 250} MT Net` : "Passed",
-          runtime_ms: 110 + node.stepNumber * 15,
-          tokens: node.systemType.includes("Reflex") ? 0 : 680,
-          cost_usd: 0.0008,
-          cost_inr: 0.07,
-        };
-      }
-      if (node.stepNumber === simulatedActiveStep) {
-        return {
-          status: "RUNNING",
-          metric:
-            node.id === "brand_liability"
-              ? "Querying ERP Debt..."
-              : node.id === "regulatory_watchdog"
-              ? "Parsing Gazette..."
-              : node.id === "auction"
-              ? "Matching Orders..."
-              : node.id === "scada_auditor"
-              ? "Sampling SCADA Feed..."
-              : node.id === "forensic_auditor"
-              ? "Gemini Heat Balance..."
-              : node.id === "escrow"
-              ? "Authorizing 80/20 PO..."
-              : "Signing Form-1...",
-          runtime_ms: 65,
-          tokens: 340,
-          cost_usd: 0.0004,
-          cost_inr: 0.03,
-        };
-      }
-      return { status: "QUEUED", metric: "Queued", runtime_ms: 0, tokens: 0, cost_usd: 0, cost_inr: 0 };
     }
 
     // Terminal run condition fallbacks
@@ -460,31 +470,31 @@ export default function AgentCanvasGraph({
     <Box
       sx={{
         width: "100%",
-        height: { xs: "auto", lg: 500 },
-        bgcolor: "#11141C",
+        height: { xs: "auto", lg: 390 },
+        bgcolor: isLight ? "#F8FAFC" : "#11141C",
         border: "1px solid",
-        borderColor: "rgba(255, 255, 255, 0.08)",
+        borderColor: isLight ? "#E2E8F0" : "rgba(255, 255, 255, 0.08)",
         borderRadius: 2.5,
         position: "relative",
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
+        boxShadow: isLight ? "0 2px 12px rgba(0,0,0,0.06)" : "0 4px 24px rgba(0,0,0,0.35)",
       }}
     >
       {/* Canvas Top Header Strip */}
       <Box
         sx={{
           px: 2,
-          py: 1.2,
+          py: 1,
           borderBottom: "1px solid",
-          borderColor: "rgba(255,255,255,0.06)",
+          borderColor: isLight ? "#E2E8F0" : "rgba(255,255,255,0.06)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
           gap: 1.5,
-          bgcolor: "rgba(19, 22, 31, 0.95)",
+          bgcolor: isLight ? "rgba(255, 255, 255, 0.94)" : "rgba(19, 22, 31, 0.95)",
           backdropFilter: "blur(10px)",
           zIndex: 10,
         }}
@@ -496,11 +506,11 @@ export default function AgentCanvasGraph({
                 width: 8,
                 height: 8,
                 borderRadius: "50%",
-                bgcolor: isRunning ? "#8AB4F8" : "#34A853",
-                boxShadow: isRunning ? "0 0 8px #8AB4F8" : "0 0 6px #34A853",
+                bgcolor: isRunning ? "#1A73E8" : "#34A853",
+                boxShadow: isRunning ? "0 0 8px #1A73E8" : "0 0 6px #34A853",
               }}
             />
-            <Typography sx={{ fontWeight: 700, fontSize: "0.86rem", color: "#E3E3E3", letterSpacing: "-0.01em" }}>
+            <Typography sx={{ fontWeight: 700, fontSize: "0.85rem", color: isLight ? "#0F172A" : "#E3E3E3", letterSpacing: "-0.01em" }}>
               Autonomous Agent Orchestration
             </Typography>
           </Box>
@@ -508,15 +518,15 @@ export default function AgentCanvasGraph({
           {selectedRun && (
             <Chip
               size="small"
+              variant="outlined"
               label={`Run: ${selectedRun.run_id}`}
               sx={{
                 fontFamily: "var(--font-mono, monospace)",
                 fontWeight: 600,
                 height: 22,
                 fontSize: "0.72rem",
-                bgcolor: "rgba(255,255,255,0.05)",
-                color: "#C4C7C5",
-                border: "1px solid rgba(255,255,255,0.08)",
+                color: isLight ? "#475569" : "#C4C7C5",
+                borderColor: isLight ? "#CBD5E1" : "rgba(255,255,255,0.12)",
               }}
             />
           )}
@@ -524,13 +534,14 @@ export default function AgentCanvasGraph({
           {activeNodeId ? (
             <Chip
               size="small"
+              variant="outlined"
               color="primary"
               label="Node Selected"
               onDelete={() => onSelectNode(activeNodeId)}
               sx={{ height: 22, fontSize: "0.68rem", fontWeight: 700 }}
             />
           ) : (
-            <Typography sx={{ fontSize: "0.72rem", color: "#80868B" }}>
+            <Typography sx={{ fontSize: "0.72rem", color: isLight ? "#64748B" : "#80868B" }}>
               Click node to view arguments &amp; outputs
             </Typography>
           )}
@@ -541,8 +552,8 @@ export default function AgentCanvasGraph({
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
             <Tooltip title="Execution Runtime">
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <SpeedIcon sx={{ fontSize: 14, color: "#8AB4F8" }} />
-                <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, fontFamily: "var(--font-mono, monospace)", color: "#E3E3E3" }}>
+                <SpeedIcon sx={{ fontSize: 14, color: isLight ? "#1A73E8" : "#8AB4F8" }} />
+                <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, fontFamily: "var(--font-mono, monospace)", color: isLight ? "#0F172A" : "#E3E3E3" }}>
                   {totalRuntime} ms
                 </Typography>
               </Box>
@@ -550,8 +561,8 @@ export default function AgentCanvasGraph({
 
             <Tooltip title="Model Tokens">
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <TollIcon sx={{ fontSize: 14, color: "#D7AEFB" }} />
-                <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, fontFamily: "var(--font-mono, monospace)", color: "#E3E3E3" }}>
+                <TollIcon sx={{ fontSize: 14, color: isLight ? "#9333EA" : "#D7AEFB" }} />
+                <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, fontFamily: "var(--font-mono, monospace)", color: isLight ? "#0F172A" : "#E3E3E3" }}>
                   {totalTokens.toLocaleString()} tok
                 </Typography>
               </Box>
@@ -559,8 +570,8 @@ export default function AgentCanvasGraph({
 
             <Tooltip title="Execution Compute Cost">
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <AttachMoneyIcon sx={{ fontSize: 14, color: "#81C995" }} />
-                <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, fontFamily: "var(--font-mono, monospace)", color: "#E3E3E3" }}>
+                <AttachMoneyIcon sx={{ fontSize: 14, color: isLight ? "#059669" : "#81C995" }} />
+                <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, fontFamily: "var(--font-mono, monospace)", color: isLight ? "#0F172A" : "#E3E3E3" }}>
                   ${totalCostUsd.toFixed(4)} (₹{totalCostInr.toFixed(2)})
                 </Typography>
               </Box>
@@ -579,8 +590,14 @@ export default function AgentCanvasGraph({
           <defs>
             {/* Subtle Clean Dot Grid Pattern */}
             <pattern id="geminiGrid" width="22" height="22" patternUnits="userSpaceOnUse">
-              <circle cx="11" cy="11" r="1" fill="#2A3042" opacity="0.6" />
+              <circle cx="11" cy="11" r="1" fill={isLight ? "#CBD5E1" : "#2A3042"} opacity={isLight ? 0.9 : 0.6} />
             </pattern>
+
+            <linearGradient id="geminiSparkleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#4285F4" />
+              <stop offset="50%" stopColor="#9B72CB" />
+              <stop offset="100%" stopColor="#D96570" />
+            </linearGradient>
 
             {/* Wire Gradients */}
             <linearGradient id="edgeGradRunning" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -595,13 +612,13 @@ export default function AgentCanvasGraph({
             </linearGradient>
 
             <linearGradient id="edgeGradDefault" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#2D3342" />
-              <stop offset="100%" stopColor="#2D3342" />
+              <stop offset="0%" stopColor={isLight ? "#E2E8F0" : "#2D3342"} />
+              <stop offset="100%" stopColor={isLight ? "#E2E8F0" : "#2D3342"} />
             </linearGradient>
 
             {/* Node Shadows & Glow Filters */}
             <filter id="nodeShadow" x="-10%" y="-10%" width="120%" height="130%">
-              <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000000" floodOpacity="0.45" />
+              <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#000000" floodOpacity={isLight ? "0.08" : "0.45"} />
             </filter>
 
             <filter id="particleGlow" x="-50%" y="-50%" width="200%" height="200%">
@@ -622,7 +639,7 @@ export default function AgentCanvasGraph({
           </defs>
 
           {/* Background Canvas & Dot Grid */}
-          <rect width="100%" height="100%" fill="#11141C" />
+          <rect width="100%" height="100%" fill={isLight ? "#F8FAFC" : "#11141C"} />
           <rect width="100%" height="100%" fill="url(#geminiGrid)" />
 
           {/* S-Curve Bezier Connection Wires */}
@@ -672,8 +689,8 @@ export default function AgentCanvasGraph({
           })}
 
           {/* Node 6 to 7 Vertical Port Markers */}
-          <circle cx="1058" cy="152" r="4" fill="#34A853" stroke="#141824" strokeWidth="2" />
-          <circle cx="1058" cy="260" r="4" fill="#34A853" stroke="#141824" strokeWidth="2" />
+          <circle cx="1058" cy="152" r="4" fill="#34A853" stroke={isLight ? "#FFFFFF" : "#141824"} strokeWidth="2" />
+          <circle cx="1058" cy="260" r="4" fill="#34A853" stroke={isLight ? "#FFFFFF" : "#141824"} strokeWidth="2" />
 
           {/* Render Agent Node Cards */}
           {AGENT_NODES.map((node) => {
@@ -719,7 +736,7 @@ export default function AgentCanvasGraph({
                     height={98}
                     rx={14}
                     fill="none"
-                    stroke="#8AB4F8"
+                    stroke="#1A73E8"
                     strokeWidth="2"
                     strokeDasharray="4 3"
                     filter="url(#particleGlow)"
@@ -733,8 +750,8 @@ export default function AgentCanvasGraph({
                   width={246}
                   height={92}
                   rx={12}
-                  fill="#181B26"
-                  stroke={isSelected ? "#8AB4F8" : visuals.border}
+                  fill={isLight ? "#FFFFFF" : "#181B26"}
+                  stroke={isSelected ? "#1A73E8" : isLight ? (telemetry.status === "COMPLETED" ? "#34A853" : telemetry.status === "RUNNING" ? "#1A73E8" : "#E2E8F0") : visuals.border}
                   strokeWidth={isSelected ? "1.8" : isNodeRunning ? "1.8" : "1.2"}
                   filter="url(#nodeShadow)"
                   style={{ transition: "stroke 0.2s ease" }}
@@ -746,7 +763,7 @@ export default function AgentCanvasGraph({
                   cy={node.y + 46}
                   r={4.5}
                   fill={visuals.portColor}
-                  stroke="#181B26"
+                  stroke={isLight ? "#FFFFFF" : "#181B26"}
                   strokeWidth="2"
                 />
 
@@ -756,7 +773,7 @@ export default function AgentCanvasGraph({
                   cy={node.y + 46}
                   r={4.5}
                   fill={visuals.portColor}
-                  stroke="#181B26"
+                  stroke={isLight ? "#FFFFFF" : "#181B26"}
                   strokeWidth="2"
                 />
 
@@ -772,7 +789,7 @@ export default function AgentCanvasGraph({
                       alignItems: "center",
                       justifyContent: "center",
                       color: "#FFFFFF",
-                      boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+                      boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
                     }}
                   >
                     {node.icon}
@@ -783,7 +800,7 @@ export default function AgentCanvasGraph({
                 <text
                   x={node.x + 58}
                   y={node.y + 27}
-                  fill="#F1F3F4"
+                  fill={isLight ? "#0F172A" : "#F1F3F4"}
                   fontSize="11.5"
                   fontWeight="700"
                   fontFamily="system-ui, -apple-system, sans-serif"
@@ -795,7 +812,7 @@ export default function AgentCanvasGraph({
                 <text
                   x={node.x + 58}
                   y={node.y + 42}
-                  fill="#9AA0A6"
+                  fill={isLight ? "#64748B" : "#9AA0A6"}
                   fontSize="9"
                   fontWeight="500"
                   fontFamily="system-ui, -apple-system, sans-serif"
@@ -803,41 +820,31 @@ export default function AgentCanvasGraph({
                   {node.role}
                 </text>
 
-                {/* Top-Right Execution Status Badge */}
-                <g transform={`translate(${node.x + 172}, ${node.y + 11})`}>
-                  <rect
-                    x="0"
-                    y="0"
-                    width="64"
-                    height="19"
-                    rx="9.5"
-                    fill={visuals.pillBg}
-                    stroke={visuals.pillBorder}
-                    strokeWidth="1"
-                  />
+                {/* Top-Right Execution Status (No background box) */}
+                <g transform={`translate(${node.x + 234}, ${node.y + 24})`}>
                   {isNodeRunning ? (
-                    <>
-                      <circle cx="11" cy="9.5" r="3" fill="#8AB4F8">
+                    <g transform="translate(-48, 0)">
+                      <circle cx="0" cy="-3.5" r="3" fill={isLight ? "#1A73E8" : "#8AB4F8"}>
                         <animate attributeName="opacity" values="0.3;1;0.3" dur="1s" repeatCount="indefinite" />
                       </circle>
                       <text
-                        x="20"
-                        y="12.5"
-                        fill="#A8C7FA"
-                        fontSize="7.5"
+                        x="7"
+                        y="0"
+                        fill={isLight ? "#1A73E8" : "#A8C7FA"}
+                        fontSize="8"
                         fontWeight="700"
                         fontFamily="system-ui, -apple-system, sans-serif"
                       >
                         Running
                       </text>
-                    </>
+                    </g>
                   ) : telemetry.status === "COMPLETED" ? (
                     <text
-                      x="32"
-                      y="12.5"
-                      textAnchor="middle"
-                      fill="#81C995"
-                      fontSize="8"
+                      x="0"
+                      y="0"
+                      textAnchor="end"
+                      fill={isLight ? "#059669" : "#81C995"}
+                      fontSize="8.5"
                       fontWeight="700"
                       fontFamily="var(--font-mono, monospace)"
                     >
@@ -845,11 +852,11 @@ export default function AgentCanvasGraph({
                     </text>
                   ) : (
                     <text
-                      x="32"
-                      y="12.5"
-                      textAnchor="middle"
-                      fill={visuals.text}
-                      fontSize="7.5"
+                      x="0"
+                      y="0"
+                      textAnchor="end"
+                      fill={isLight ? "#64748B" : visuals.text}
+                      fontSize="8"
                       fontWeight="600"
                       fontFamily="system-ui, -apple-system, sans-serif"
                     >
@@ -861,55 +868,40 @@ export default function AgentCanvasGraph({
                 {/* Divider Line */}
                 <line
                   x1={node.x + 12}
-                  y1={node.y + 59}
+                  y1={node.y + 57}
                   x2={node.x + 234}
-                  y2={node.y + 59}
-                  stroke="#262B3A"
+                  y2={node.y + 57}
+                  stroke={isLight ? "#F1F5F9" : "#262B3A"}
                   strokeWidth="1"
                 />
 
-                {/* Bottom Bar: Model Pill on Left + Metric on Right */}
+                {/* Bottom Bar: Model on Left + Metric on Right (No background box) */}
                 {node.systemType.includes("Reflex") ? (
-                  <g transform={`translate(${node.x + 12}, ${node.y + 66})`}>
-                    <rect
+                  <g transform={`translate(${node.x + 14}, ${node.y + 77})`}>
+                    <text
                       x="0"
                       y="0"
-                      width="88"
-                      height="17"
-                      rx="4"
-                      fill="rgba(52, 168, 83, 0.1)"
-                      stroke="rgba(52, 168, 83, 0.3)"
-                      strokeWidth="0.8"
-                    />
-                    <text
-                      x="6"
-                      y="11.5"
-                      fill="#81C995"
-                      fontSize="7.5"
-                      fontWeight="700"
+                      fill={isLight ? "#059669" : "#81C995"}
+                      fontSize="8"
+                      fontWeight="600"
                       fontFamily="system-ui, -apple-system, sans-serif"
                     >
                       SCADA Reflex
                     </text>
                   </g>
                 ) : (
-                  <g transform={`translate(${node.x + 12}, ${node.y + 66})`}>
-                    <rect
-                      x="0"
-                      y="0"
-                      width="106"
-                      height="17"
-                      rx="4"
-                      fill="rgba(66, 133, 244, 0.12)"
-                      stroke="rgba(66, 133, 244, 0.3)"
-                      strokeWidth="0.8"
+                  <g transform={`translate(${node.x + 14}, ${node.y + 70})`}>
+                    {/* Gemini 4-Point Sparkle Icon Prefix */}
+                    <path
+                      d="M 4 0 C 4 2.2, 2.2 4, 0 4 C 2.2 4, 4 5.8, 4 8 C 4 5.8, 5.8 4, 8 4 C 5.8 4, 4 2.2, 4 0 Z"
+                      fill="url(#geminiSparkleGrad)"
                     />
                     <text
-                      x="6"
-                      y="11.5"
-                      fill="#A8C7FA"
-                      fontSize="7.5"
-                      fontWeight="700"
+                      x="13"
+                      y="7"
+                      fill={isLight ? "#1A73E8" : "#8AB4F8"}
+                      fontSize="8"
+                      fontWeight="600"
                       fontFamily="system-ui, -apple-system, sans-serif"
                     >
                       gemini-3.8-flash
@@ -920,9 +912,9 @@ export default function AgentCanvasGraph({
                 {/* Domain Metric Value on Right */}
                 <text
                   x={node.x + 234}
-                  y={node.y + 78}
+                  y={node.y + 77}
                   textAnchor="end"
-                  fill={visuals.text}
+                  fill={isLight ? (telemetry.status === "COMPLETED" ? "#047857" : telemetry.status === "RUNNING" ? "#1D4ED8" : "#64748B") : visuals.text}
                   fontSize="8.5"
                   fontWeight="600"
                   fontFamily="var(--font-mono, monospace)"

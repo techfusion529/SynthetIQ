@@ -110,18 +110,41 @@ export default function AgentEventTimeline({
 
     // If selectedRun already has rich steps with responses, merge with blueprint
     if (selectedRun.steps && selectedRun.steps.length > 0) {
+      const runningStep = selectedRun.steps.find(
+        (step) => step.status?.toUpperCase().includes("RUNNING") || step.status?.toUpperCase().includes("PROGRESS")
+      );
+      const activeStep = runningStep ? runningStep.step : 3;
+
       return selectedRun.steps.map((s) => {
         const bp = DEFAULT_STAGE_BLUEPRINT.find((b) => b.step === s.step || b.service === s.service);
-        const out = (s as any).output || s.response || s.data || {};
         let summary = "";
-        if (s.step === 1 || s.service === "brand_liability") {
+        let stepStatus = s.status || "COMPLETED";
+        let runtime_ms = s.runtime_ms ?? (s.service === "scada_auditor" ? 45 : 120);
+
+        if (isRunning) {
+          if (s.step < activeStep) {
+            stepStatus = "COMPLETED";
+          } else if (s.step === activeStep) {
+            stepStatus = "RUNNING";
+            runtime_ms = 65;
+          } else {
+            stepStatus = "QUEUED";
+            runtime_ms = 0;
+          }
+        }
+
+        if (stepStatus === "QUEUED") {
+          summary = "Awaiting upstream workflow completion.";
+        } else if (s.step === 1 || s.service === "brand_liability") {
           summary = `Gross liability: ${(selectedRun.volume_tons || 1000).toLocaleString()} MT • Net deficit amortized under Section 4 PWM rules.`;
         } else if (s.step === 2 || s.service === "regulatory_watchdog") {
           summary = `CPCB PWM Schedule II compliance target: 100% verified for ${selectedRun.category || "Rigid Plastic"}.`;
         } else if (s.step === 3 || s.service === "auction") {
-          summary = `Matched ${(selectedRun.volume_tons || 250).toLocaleString()} MT @ ₹4,150/MT via Continuous Double Auction clearing corridor.`;
+          summary = stepStatus === "RUNNING"
+            ? "Executing Continuous Double Auction order book matching..."
+            : `Matched ${(selectedRun.volume_tons || 250).toLocaleString()} MT @ ₹4,150/MT via Continuous Double Auction clearing corridor.`;
         } else if (s.step === 4 || s.service === "scada_auditor") {
-          if (s.status.includes("HALT") || s.status.includes("FRAUD")) {
+          if (stepStatus.includes("HALT") || stepStatus.includes("FRAUD")) {
             summary = "HALTED: Unity PF (0.99) & 1.2 Nm torque proves resistive space heater spoofing.";
           } else {
             summary = "SCADA physics validated: Viscous torque 45.2 Nm (≥8 Nm) • Motor power factor 0.84 verified.";
@@ -136,13 +159,14 @@ export default function AgentEventTimeline({
 
         return {
           ...s,
+          status: stepStatus,
           role: bp?.role || "Agent Execution Step",
           system: bp?.system || "System 2 Reasoning",
           summary,
-          runtime_ms: s.runtime_ms ?? (s.service === "scada_auditor" ? 45 : 120),
-          tokens: s.tokens ?? (s.service === "scada_auditor" ? 0 : 720),
-          cost_usd: s.cost_usd ?? (s.service === "scada_auditor" ? 0 : 0.0009),
-          cost_inr: s.cost_inr ?? (s.service === "scada_auditor" ? 0 : 0.08),
+          runtime_ms,
+          tokens: stepStatus === "QUEUED" ? 0 : s.tokens ?? (s.service === "scada_auditor" ? 0 : 720),
+          cost_usd: stepStatus === "QUEUED" ? 0 : s.cost_usd ?? (s.service === "scada_auditor" ? 0 : 0.0009),
+          cost_inr: stepStatus === "QUEUED" ? 0 : s.cost_inr ?? (s.service === "scada_auditor" ? 0 : 0.08),
           response: s.response || s.data || {},
         };
       });
@@ -316,12 +340,12 @@ export default function AgentEventTimeline({
             <Chip
               size="small"
               label="Live"
+              variant="outlined"
               color="primary"
               sx={{
                 fontWeight: 700,
                 height: 18,
                 fontSize: "0.62rem",
-                bgcolor: "#1A73E8",
                 animation: "pulse 1.5s infinite",
                 "@keyframes pulse": {
                   "0%": { opacity: 0.6 },
@@ -392,7 +416,7 @@ export default function AgentEventTimeline({
       <Box
         sx={{
           p: 1.5,
-          maxHeight: maxHeight || 520,
+          maxHeight: maxHeight || 400,
           overflowY: "auto",
           display: "flex",
           flexDirection: "column",
@@ -410,7 +434,7 @@ export default function AgentEventTimeline({
           const currentTab = activeTabByStep[step.step] || 0;
 
           const isCompleted = step.status === "COMPLETED";
-          const isStepRunning = step.status === "RUNNING" || (isRunning && step.step === 3);
+          const isStepRunning = step.status === "RUNNING";
           const isHitl = step.status.includes("HITL") || step.status.includes("REVIEW");
           const isHalted = step.status.includes("HALT") || step.status.includes("FRAUD") || step.status.includes("FAIL");
           const isQueued = step.status === "QUEUED" || step.status === "SKIPPED";
@@ -447,14 +471,31 @@ export default function AgentEventTimeline({
                 borderColor: isSelected
                   ? "#1A73E8"
                   : isStepRunning
-                  ? "rgba(66, 133, 244, 0.5)"
+                  ? "transparent"
                   : isHalted
                   ? "rgba(234, 67, 53, 0.4)"
                   : "divider",
                 borderWidth: isSelected || isStepRunning ? 1.5 : 1,
-                bgcolor: isSelected
-                  ? (t) => (t.palette.mode === "dark" ? "rgba(66, 133, 244, 0.08)" : "rgba(66, 133, 244, 0.04)")
-                  : "background.paper",
+                ...(isStepRunning
+                  ? {
+                      position: "relative",
+                      background: (t) =>
+                        t.palette.mode === "dark"
+                          ? "linear-gradient(#181B26, #181B26) padding-box, linear-gradient(90deg, #4285F4, #9B72CB, #D96570, #1A73E8, #4285F4) border-box"
+                          : "linear-gradient(#FFFFFF, #FFFFFF) padding-box, linear-gradient(90deg, #4285F4, #9B72CB, #D96570, #1A73E8, #4285F4) border-box",
+                      border: "1.5px solid transparent",
+                      backgroundSize: "100% 100%, 200% 100%",
+                      animation: "geminiBorderRotate 3s linear infinite",
+                      "@keyframes geminiBorderRotate": {
+                        "0%": { backgroundPosition: "0% 0%, 0% 0%" },
+                        "100%": { backgroundPosition: "0% 0%, 200% 0%" },
+                      },
+                    }
+                  : {
+                      bgcolor: isSelected
+                        ? (t) => (t.palette.mode === "dark" ? "rgba(66, 133, 244, 0.08)" : "rgba(66, 133, 244, 0.04)")
+                        : "background.paper",
+                    }),
                 transition: "all 0.15s ease",
                 overflow: "hidden",
               }}
@@ -605,8 +646,27 @@ export default function AgentEventTimeline({
                   <Chip
                     size="small"
                     label={statusText}
-                    color={statusChipColor}
-                    sx={{ height: 18, fontSize: "0.62rem", fontWeight: 700 }}
+                    variant="outlined"
+                    color={isStepRunning ? undefined : statusChipColor}
+                    sx={{
+                      height: 18,
+                      fontSize: "0.62rem",
+                      fontWeight: 700,
+                      ...(isStepRunning
+                        ? {
+                            color: "#FFFFFF",
+                            border: "none",
+                            background: "linear-gradient(90deg, #4285F4, #9B72CB, #D96570, #1A73E8, #4285F4)",
+                            backgroundSize: "200% auto",
+                            animation: "geminiShimmer 2.5s linear infinite",
+                            boxShadow: "0 0 10px rgba(66, 133, 244, 0.4)",
+                            "@keyframes geminiShimmer": {
+                              "0%": { backgroundPosition: "0% center" },
+                              "100%": { backgroundPosition: "200% center" },
+                            },
+                          }
+                        : {}),
+                    }}
                   />
 
                   {/* Icon Actions with Tooltips */}

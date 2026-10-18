@@ -54,11 +54,26 @@ const config: Config = {
           type: 'docSidebar',
           sidebarId: 'docsSidebar',
           position: 'left',
-          label: 'Documentation',
+          label: 'Docs Home',
         },
         {
-          to: '/observability/dashboards',
-          label: 'Grafana & OTel',
+          to: '/problem-statement',
+          label: 'Problem Statement',
+          position: 'left',
+        },
+        {
+          to: '/proposed-solution',
+          label: 'Proposed Solution',
+          position: 'left',
+        },
+        {
+          to: '/working',
+          label: 'How It Works',
+          position: 'left',
+        },
+        {
+          to: '/google-cloud-stack',
+          label: 'Google Cloud & Gemini',
           position: 'left',
         },
         {
@@ -67,8 +82,8 @@ const config: Config = {
           position: 'left',
         },
         {
-          to: '/deployment/kubernetes-helm',
-          label: 'Deployment',
+          to: '/observability/dashboards',
+          label: 'Grafana & OTel',
           position: 'left',
         },
         {
@@ -82,24 +97,49 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: 'Platform',
+          title: 'Core Journey',
           items: [
             {
-              label: 'Overview & Architecture',
+              label: 'Problem Statement',
+              to: '/problem-statement',
+            },
+            {
+              label: 'Proposed Solution',
+              to: '/proposed-solution',
+            },
+            {
+              label: 'How It Works (Workflow)',
+              to: '/working',
+            },
+            {
+              label: 'Google Cloud & Gemini Stack',
+              to: '/google-cloud-stack',
+            },
+          ],
+        },
+        {
+          title: 'System & Architecture',
+          items: [
+            {
+              label: 'System Architecture',
               to: '/architecture/overview',
             },
             {
-              label: 'Multi-Agent System',
+              label: 'Multi-Agent Fleet',
               to: '/agents/overview',
             },
             {
               label: 'JEV Reflex Physics',
               to: '/architecture/jev-physics',
             },
+            {
+              label: 'Temporal Sagas',
+              to: '/architecture/temporal-engine',
+            },
           ],
         },
         {
-          title: 'Observability & Monitoring',
+          title: 'Observability & Live Platform',
           items: [
             {
               label: 'Grafana Pod Dashboards',
@@ -110,30 +150,17 @@ const config: Config = {
               to: '/observability/opentelemetry',
             },
             {
-              label: 'Prometheus Metrics',
-              to: '/observability/prometheus',
-            },
-          ],
-        },
-        {
-          title: 'Operations',
-          items: [
-            {
-              label: 'Kubernetes & Helm Guide',
-              to: '/deployment/kubernetes-helm',
+              label: 'Live Dashboard',
+              href: 'https://synthetiq.ddns.net',
             },
             {
-              label: 'Docker Compose Stack',
-              to: '/deployment/docker-compose',
-            },
-            {
-              label: 'API Reference',
-              to: '/api-reference/rest-api',
+              label: 'Temporal Engine',
+              href: 'https://synthetiq.ddns.net/temporal/',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} SynthetIQ — TechFusion. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} SynthetIQ — Team Techfusion (Sayantika Bose & Sai Sudhane G) for Google Cloud AI Builder Hackathon.`,
     },
     prism: {
       theme: prismThemes.github,

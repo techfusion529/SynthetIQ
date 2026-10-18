@@ -106,8 +106,21 @@ function maskConfig(config: Record<string, unknown>): Record<string, unknown> {
   );
 }
 
-function formatConfigSummary(type: string, config: Record<string, unknown>): string {
+function formatConfigSummary(
+  type: string,
+  config: Record<string, unknown>,
+  sourceId?: string,
+  purpose?: string
+): string {
   if (!config) return "Standard Config";
+  if (
+    sourceId === "DS-DEV-SCADA-001" ||
+    purpose === "scada_telemetry" ||
+    String(config.base_url).includes("simulator") ||
+    String(config.telemetry_endpoint).includes("scada")
+  ) {
+    return "http://simulator:9091/v1/scada/extruder-telemetry";
+  }
   if (type === "bigquery") {
     const project = (config.project_id as string) || "synthetiq-dev";
     const dataset = (config.dataset_id as string) || "epr_compliance";
@@ -121,7 +134,10 @@ function formatConfigSummary(type: string, config: Record<string, unknown>): str
   }
   if (type === "rest_api") {
     const base = (config.base_url as string) || "https://api.sap.corp";
-    const ep = (config.endpoint as string) || "/SalesOrders";
+    const ep =
+      (config.endpoint as string) ||
+      (config.telemetry_endpoint as string) ||
+      (base.includes("simulator") ? "/v1/scada/extruder-telemetry" : "/SalesOrders");
     return `${base}${ep}`;
   }
   if (type === "csv") {
@@ -916,7 +932,7 @@ export default function DataSourcesPage() {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {formatConfigSummary(src.source_type, src.connection_config)}
+                          {formatConfigSummary(src.source_type, src.connection_config, src.source_id, src.purpose)}
                         </Typography>
                       </TableCell>
 

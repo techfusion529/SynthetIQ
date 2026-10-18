@@ -2,7 +2,31 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 
 const sidebars: SidebarsConfig = {
   docsSidebar: [
-    'intro',
+    {
+      type: 'doc',
+      id: 'intro',
+      label: 'Overview',
+    },
+    {
+      type: 'doc',
+      id: 'problem-statement',
+      label: 'Problem Statement',
+    },
+    {
+      type: 'doc',
+      id: 'proposed-solution',
+      label: 'Proposed Solution',
+    },
+    {
+      type: 'doc',
+      id: 'working',
+      label: 'How It Works (Workflow)',
+    },
+    {
+      type: 'doc',
+      id: 'google-cloud-stack',
+      label: 'Google Cloud & Gemini Stack',
+    },
     {
       type: 'category',
       label: 'System Architecture',
@@ -11,17 +35,6 @@ const sidebars: SidebarsConfig = {
         'architecture/overview',
         'architecture/temporal-engine',
         'architecture/jev-physics',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Observability & Monitoring',
-      collapsed: false,
-      items: [
-        'observability/overview',
-        'observability/dashboards',
-        'observability/opentelemetry',
-        'observability/prometheus',
       ],
     },
     {
@@ -35,11 +48,12 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Deployment & Operations',
+      label: 'Observability & Metrics',
       collapsed: false,
       items: [
-        'deployment/kubernetes-helm',
-        'deployment/docker-compose',
+        'observability/overview',
+        'observability/dashboards',
+        'observability/opentelemetry',
       ],
     },
     {

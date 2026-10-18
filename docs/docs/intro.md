@@ -4,56 +4,99 @@ title: Welcome to SynthetIQ
 sidebar_position: 1
 ---
 
-# SynthetIQ Platform Documentation
+# Welcome to SynthetIQ
+
+<div className="gcp-badge">
+  <img src="/docs/img/google-cloud.svg" width="16" height="16" alt="GCP" />
+  Google Cloud AI Builder Hackathon
+</div>
+<div className="gemini-badge">
+  <img src="/docs/img/gemini.svg" width="16" height="16" alt="Gemini" />
+  Theme: Sustainability & Social Impact
+</div>
+
+---
+
+## Autonomous EPR Compliance & Multi-Agent Anti-Fraud Engine
 
 **SynthetIQ** is an autonomous, multi-agent Extended Producer Responsibility (EPR) compliance, anti-fraud audit, and Continuous Double Auction (CDA) credit exchange engine designed for Indian regulatory compliance (Central Pollution Control Board - CPCB Form-1).
 
-```
-                      +-----------------------------+
-                      | Next.js Executive Dashboard |
-                      |    (Port 3000 / Ingress /)  |
-                      +--------------+--------------+
-                                     |
-                                     v
-                      +-----------------------------+
-                      |     FastAPI API Gateway     |
-                      |   (Port 8000 / Ingress /api)|
-                      +--------------+--------------+
-                                     |
-                    +----------------+----------------+
-                    |                                 |
-                    v                                 v
-     +-----------------------------+   +-----------------------------+
-     |   Temporal Workflow Engine  |   |    MCP Tool Execution Gate  |
-     | (Port 7233 / Port 8080 UI)  |   |    (Model Context Protocol) |
-     +--------------+--------------+   +-----------------------------+
-                    |
-                    v
-     +-----------------------------+
-     |  SynthetIQ Temporal Worker  |
-     | - Google ADK / Vertex AI    |
-     | - Gemini 3.8 Flash Engine   |
-     | - JEV Reflex Physics Engine |
-     | - Nimble System 1 Fraud     |
-     +-----------------------------+
-```
+SynthetIQ eliminates the trust deficit in plastic waste recycling by establishing a mathematical, physics-verified chain of custody between **factory SCADA sensor machinery**, **financial GST records**, and **Google Cloud AI analytics**.
+
+Developed by **Team Techfusion**:
+- **Sayantika Bose** (Team Leader)
+- **Sai Sudhane G** (Developer)
 
 ---
 
-## Core Capabilities
+## Live Production Endpoints
 
-1. **Autonomous Multi-Agent Audit**: 8 specialized Google ADK agents running over Temporal.io workflows verifying plastic recycling compliance.
-2. **JEV Reflex Physics & SCADA Verification**: Sub-second motor drive analysis verifying extruder VFD torque curves, power factors, and thermodynamic energy balances.
-3. **Continuous Double Auction (CDA)**: Real-time dynamic order book with 80/20 escrow retention and automated statutory price corridors (30% to 100%).
-4. **CPCB Form-1 Compliance Reporting**: Automated generation of digitally signed statutory inspection dossiers and PDF audit certificates.
-5. **Full-Stack Observability**: End-to-end OpenTelemetry (OTel) distributed tracing, Prometheus metrics collection, and customized Grafana dashboards.
+| Platform Service | Live URL | Description |
+| :--- | :--- | :--- |
+| **Executive Dashboard** | [`synthetiq.ddns.net`](https://synthetiq.ddns.net) | Real-time compliance monitoring, live CDA trading desk & audit dossiers |
+| **Documentation Portal** | [`synthetiq.ddns.net/docs/`](https://synthetiq.ddns.net/docs/) | Comprehensive system documentation, problem statement, and architecture |
+| **Grafana Dashboards** | [`synthetiq.ddns.net/grafana/`](https://synthetiq.ddns.net/grafana/) | 18-panel GKE pod health metrics, OTel APM, and SCADA telemetry |
+| **Temporal Workflow UI** | [`synthetiq.ddns.net/temporal/`](https://synthetiq.ddns.net/temporal/) | Live visualization of distributed saga workflows and HITL approvals |
+| **FastAPI Swagger API** | [`synthetiq.ddns.net/api/docs`](https://synthetiq.ddns.net/api/docs) | OpenAPI interactive documentation for all gateway endpoints |
 
 ---
 
-## Quick Navigation
+## Core Documentation Navigation
 
-- **[System Architecture](architecture/overview)**: Microservices topology, data flows, and state management.
-- **[Grafana Dashboards](observability/dashboards)**: Guide to Pod health, SCADA telemetry, and workflow monitoring.
-- **[OpenTelemetry APM](observability/opentelemetry)**: Distributed tracing pipeline, OTLP collector, and metric pushers.
-- **[Kubernetes & Helm](deployment/kubernetes-helm)**: Complete deployment manual for Kubernetes clusters.
-- **[API Reference](api-reference/rest-api)**: FastAPI endpoints, authentication, and HITL exception routing.
+<div className="tech-grid">
+
+  <div className="tech-card">
+    <div className="tech-card-header">
+      <img src="/docs/img/google-cloud.svg" alt="Problem Statement" />
+      <div>
+        <h4><a href="/docs/problem-statement">1. Problem Statement</a></h4>
+        <small>The EPR Crisis in India</small>
+      </div>
+    </div>
+    <p>Exposing systemic phantom recycling, paper round-tripping, lack of physics verification, and manual inspection bottlenecks.</p>
+  </div>
+
+  <div className="tech-card">
+    <div className="tech-card-header">
+      <img src="/docs/img/gemini.svg" alt="Proposed Solution" />
+      <div>
+        <h4><a href="/docs/proposed-solution">2. Proposed Solution</a></h4>
+        <small>SynthetIQ Anti-Fraud Engine</small>
+      </div>
+    </div>
+    <p>Physics-grounded verification, Google Gemini multimodal auditing, BigQuery mass-balance, and CDA market with 80/20 escrow.</p>
+  </div>
+
+  <div className="tech-card">
+    <div className="tech-card-header">
+      <img src="/docs/img/vertex-ai.svg" alt="Architecture" />
+      <div>
+        <h4><a href="/docs/architecture/overview">3. System Architecture</a></h4>
+        <small>GKE & Google Cloud Ecosystem</small>
+      </div>
+    </div>
+    <p>Detailed microservices topology across GKE, Vertex AI, BigQuery, Pub/Sub, Cloud Storage, and OpenTelemetry APM.</p>
+  </div>
+
+  <div className="tech-card">
+    <div className="tech-card-header">
+      <img src="/docs/img/bigquery.svg" alt="How It Works" />
+      <div>
+        <h4><a href="/docs/working">4. How It Works</a></h4>
+        <small>6-Stage End-to-End Lifecycle</small>
+      </div>
+    </div>
+    <p>Step-by-step lifecycle from SCADA telemetry and JEV Reflex physics to Gemini agent synthesis, CDA matching, and CPCB Form-1 filing.</p>
+  </div>
+
+</div>
+
+---
+
+## Google Cloud Technology Highlights
+
+- <img src="/docs/img/gemini.svg" width="18" height="18" style={{verticalAlign: 'middle', marginRight: '6px'}} /> **Google Gemini 2.5 Flash on Vertex AI**: Powers 8 autonomous agents performing multimodal forensic inspection of GST invoices, weighbridge optical slips, and satellite footprints.
+- <img src="/docs/img/bigquery.svg" width="18" height="18" style={{verticalAlign: 'middle', marginRight: '6px'}} /> **Google BigQuery**: High-throughput compliance lakehouse executing real-time mass-balance reconciliation queries across supply chain transactions.
+- <img src="/docs/img/google-cloud.svg" width="18" height="18" style={{verticalAlign: 'middle', marginRight: '6px'}} /> **Cloud Pub/Sub**: Real-time event streaming bus ingesting high-frequency motor torque and energy telemetry from industrial extruders.
+- <img src="/docs/img/google-cloud.svg" width="18" height="18" style={{verticalAlign: 'middle', marginRight: '6px'}} /> **Google Cloud Storage (GCS)**: Tamper-evident immutable storage vault for digitally signed CPCB Form-1 compliance inspection dossiers.
+- <img src="/docs/img/google-cloud.svg" width="18" height="18" style={{verticalAlign: 'middle', marginRight: '6px'}} /> **Google Kubernetes Engine (GKE)**: Mission-critical microservices cluster hosting 13 interconnected services with automated health recovery and zero downtime.

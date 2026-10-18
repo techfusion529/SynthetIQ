@@ -358,7 +358,8 @@ async def seed_database() -> None:
                 description="High-frequency extruder telemetry (motor torque, power factor, melt rate)",
                 connection_config={
                     "base_url": "http://simulator:9091",
-                    "telemetry_endpoint": "/telemetry/genuine",
+                    "endpoint": "/v1/scada/extruder-telemetry",
+                    "telemetry_endpoint": "/v1/scada/extruder-telemetry",
                 },
                 is_active=True,
             )

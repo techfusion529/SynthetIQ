@@ -15,6 +15,7 @@ on:
           - simulator
           - grafana
           - temporal-ui
+          - docs
       image_tag:
         description: "Image tag (defaults to latest)"
         required: false
@@ -62,6 +63,8 @@ jobs:
             --set temporalUi.enabled=false \
             --set grafana.enabled=false \
             --set prometheus.enabled=false \
+            --set docs.enabled=false \
+            --set otelCollector.enabled=false \
             --set ingress.enabled=false \
             --set ${{ github.event.inputs.pod }}.enabled=true \
             --atomic \

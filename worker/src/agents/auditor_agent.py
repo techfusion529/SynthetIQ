@@ -170,7 +170,8 @@ Red flags (resistive-heater spoofing):
 
 Mandatory JSON output keys:
   recycler_id, plant_id, reported_volume_tons, physical_melt_verified,
-  confidence_score, is_spoofed, verdict, flags, verified_tons, detection_mode
+  confidence_score, is_spoofed, verdict, flags, verified_tons, detection_mode,
+  delta_percent, delta_mass, energy_total_kwh, fraud_risk_score, requires_hitl
 """
 
 
@@ -210,6 +211,18 @@ async def run_auditor_agent(
     Returns:
         Audit verdict dict
     """
+    # Deterministic physics baseline evaluation (guarantees mathematical consistency)
+    physics_eval = evaluate_scada_signature(
+        torque_nm=torque_nm,
+        power_factor=power_factor,
+        active_power_kw=active_power_kw,
+        vfd_frequency_hz=vfd_frequency_hz,
+        melt_rate_kg_h=melt_rate_kg_h,
+        reported_volume_tons=reported_volume_tons,
+        category=category,
+    )
+    physics_eval.setdefault("threshold", threshold)
+
     agent = create_llm_agent(
         name="auditor_agent",
         instruction=AUDITOR_INSTRUCTION,
@@ -246,20 +259,19 @@ async def run_auditor_agent(
         elif "```" in text:
             text = text.split("```")[1].split("```")[0]
         data = json.loads(text.strip())
-        if isinstance(data, dict) and "verdict" in data:
-            return data
-    except Exception as exc:
-        logger.warning(f"Auditor agent LLM execution failed ({exc}); evaluating physics deterministically")
 
-    # High-reliability fallback: deterministic evaluation
-    fallback = evaluate_scada_signature(
-        torque_nm=torque_nm,
-        power_factor=power_factor,
-        active_power_kw=active_power_kw,
-        vfd_frequency_hz=vfd_frequency_hz,
-        melt_rate_kg_h=melt_rate_kg_h,
-        reported_volume_tons=reported_volume_tons,
-        category=category,
-    )
-    fallback.setdefault("threshold", threshold)
-    return fallback
+        if isinstance(data, dict):
+            # Merge LLM interpretation on top of deterministic physics evaluation
+            merged = dict(physics_eval)
+            merged.update(data)
+            # Ensure critical physics metrics are strictly preserved
+            for p_key in ("delta_mass", "energy_total_kwh", "theoretical_volume_tons", "cryptographic_hash", "chain_index"):
+                if p_key in physics_eval and (p_key not in merged or merged[p_key] is None):
+                    merged[p_key] = physics_eval[p_key]
+            merged["delta_percent"] = merged.get("delta_percent") or merged.get("delta_mass", 0.0)
+            return merged
+    except Exception as exc:
+        logger.warning(f"Auditor agent LLM execution failed ({exc}); using deterministic physics baseline")
+
+    physics_eval["delta_percent"] = physics_eval.get("delta_percent") or physics_eval.get("delta_mass", 0.0)
+    return physics_eval

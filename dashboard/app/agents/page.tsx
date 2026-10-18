@@ -104,11 +104,15 @@ export default function AgentsPage() {
         const allCompleted = rawSteps.length === 7 && rawSteps.every((s: any) => (s.status || "").toUpperCase() === "COMPLETED");
 
         let resolvedStatus = eventsData?.status || full.status;
-        if (allCompleted && (resolvedStatus === "RUNNING" || resolvedStatus === "PENDING")) {
+        if (allCompleted && (resolvedStatus === "RUNNING" || resolvedStatus === "PENDING" || resolvedStatus.includes("HITL"))) {
           resolvedStatus = "SUCCESS_FULLY_COMPLIANT";
         }
 
-        const isHitlRequired = Boolean((eventsData as any)?.hitl_required ?? full.hitl_required ?? resolvedStatus.includes("HITL"));
+        const isTerminalStatus = ["SUCCESS_FULLY_COMPLIANT", "COMPLETED", "FAILED", "HALTED", "CANCELLED"].includes(
+          (resolvedStatus || "").toUpperCase()
+        );
+
+        const isHitlRequired = !isTerminalStatus && Boolean((eventsData as any)?.hitl_required ?? full.hitl_required ?? resolvedStatus.includes("HITL"));
 
         return {
           ...full,
@@ -298,7 +302,10 @@ export default function AgentsPage() {
   const totalTokens = selectedRun?.total_tokens || 4240;
   const totalCostInr = selectedRun?.total_cost_inr || 0.49;
   const isCompliant = selectedRun?.status === "SUCCESS_FULLY_COMPLIANT" || selectedRun?.status === "COMPLETED";
-  const isHitl = Boolean(selectedRun?.hitl_required || (selectedRun?.status || "").includes("HITL"));
+  const isTerminal = ["SUCCESS_FULLY_COMPLIANT", "COMPLETED", "FAILED", "HALTED", "CANCELLED"].includes(
+    (selectedRun?.status || "").toUpperCase()
+  );
+  const isHitl = !isTerminal && Boolean(selectedRun?.hitl_required || (selectedRun?.status || "").includes("HITL"));
   const allStepsCompleted = Boolean(
     selectedRun?.steps &&
     selectedRun.steps.length === 7 &&
@@ -700,7 +707,21 @@ export default function AgentsPage() {
         open={hitlModalOpen}
         runId={selectedRun?.run_id || null}
         onClose={() => setHitlModalOpen(false)}
-        onResolved={pollLatestRuns}
+        onResolved={async () => {
+          if (selectedRun?.run_id) {
+            setSelectedRun((prev) =>
+              prev ? { ...prev, hitl_required: false, status: "RUNNING" } : null
+            );
+            setRuns((prev) =>
+              prev.map((r) =>
+                r.run_id === selectedRun.run_id
+                  ? { ...r, hitl_required: false, status: "RUNNING" }
+                  : r
+              )
+            );
+          }
+          await pollLatestRuns();
+        }}
       />
     </Box>
   );

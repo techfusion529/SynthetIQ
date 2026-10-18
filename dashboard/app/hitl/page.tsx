@@ -124,7 +124,7 @@ export default function HitlPage() {
       .finally(() => setDetailLoading(false));
   }, [selectedRunId, hitlSvc]);
 
-  const handleResolve = async () => {
+  const handleResolve = async (decision: "APPROVE" | "REJECT" = "APPROVE") => {
     if (!selectedRun || !user) return;
     setResolving(true);
     setResolveError(null);
@@ -132,7 +132,8 @@ export default function HitlPage() {
 
     // Extract audit_id from input_params if available
     const auditId =
-      (selectedRun.input_params?.audit_id as string | undefined) ?? "";
+      (selectedRun.input_params?.audit_id as string | undefined) ??
+      `AUD-${selectedRun.run_id}`;
 
     try {
       await hitlSvc.resolveHitl({
@@ -140,10 +141,16 @@ export default function HitlPage() {
         audit_id: auditId,
         reason_code: reasonCode,
         override_tons: overrideTons ? parseFloat(overrideTons) : undefined,
-        notes,
-        resolver_id: user.user_id,
+        notes: notes || `${decision} recorded by ${user.email}`,
+        resolver_id: user.user_id || user.email,
+        decision,
+        approved: decision === "APPROVE",
       });
-      setResolveSuccess("Resolution submitted successfully.");
+      setResolveSuccess(
+        decision === "APPROVE"
+          ? "Resolution approved. Pipeline resumed."
+          : "Exception rejected. Pipeline halted."
+      );
       // Refresh list
       loadRuns();
     } catch (e) {
@@ -563,20 +570,32 @@ export default function HitlPage() {
                       <Alert severity="success">{resolveSuccess}</Alert>
                     )}
 
-                    <Button
-                      variant="contained"
-                      color="warning"
-                      onClick={handleResolve}
-                      disabled={resolving || !reasonCode}
-                      startIcon={
-                        resolving ? (
-                          <CircularProgress size={14} color="inherit" />
-                        ) : undefined
-                      }
-                      sx={{ py: 1.2, fontWeight: 700, alignSelf: "flex-start" }}
-                    >
-                      {resolving ? "Submitting Resolution…" : "Submit Resolution"}
-                    </Button>
+                    <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", mt: 1 }}>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        onClick={() => handleResolve("APPROVE")}
+                        disabled={resolving || !reasonCode}
+                        startIcon={
+                          resolving ? (
+                            <CircularProgress size={14} color="inherit" />
+                          ) : undefined
+                        }
+                        sx={{ py: 1.2, px: 2.5, fontWeight: 700 }}
+                      >
+                        {resolving ? "Authorizing…" : "Authorize & Resume"}
+                      </Button>
+
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        onClick={() => handleResolve("REJECT")}
+                        disabled={resolving || !reasonCode}
+                        sx={{ py: 1.2, px: 2.5, fontWeight: 700 }}
+                      >
+                        Halt Pipeline (Reject)
+                      </Button>
+                    </Box>
                   </Box>
                 )}
               </CardContent>

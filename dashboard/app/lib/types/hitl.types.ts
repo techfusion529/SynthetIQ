@@ -25,6 +25,8 @@ export interface HITLResolvePayload {
   override_tons?: number;
   notes: string;
   resolver_id: string;
+  decision?: "APPROVE" | "REJECT";
+  approved?: boolean;
 }
 
 export const REASON_CODES = [

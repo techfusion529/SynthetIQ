@@ -193,7 +193,10 @@ export default function AgentCanvasGraph({
       };
     }
 
-    const isHitl = Boolean(selectedRun.hitl_required || runStatus.includes("HITL"));
+    const isTerminal = ["SUCCESS_FULLY_COMPLIANT", "COMPLETED", "FAILED", "HALTED", "CANCELLED"].includes(
+      runStatus.toUpperCase()
+    );
+    const isHitl = !isTerminal && Boolean(selectedRun.hitl_required || runStatus.includes("HITL"));
     const isHalted = runStatus.includes("HALT") || runStatus.includes("FRAUD");
 
     // If workflow is actively running, determine state sequentially in lockstep with timeline

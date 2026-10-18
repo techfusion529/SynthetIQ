@@ -80,7 +80,8 @@ export default function HumanApprovalModal({
     const auditId =
       (runDetail?.input_params?.audit_id as string | undefined) ??
       (runDetail?.input_params?.run_id as string | undefined) ??
-      "";
+      (runDetail?.run_id as string | undefined) ??
+      `AUD-${runId}`;
 
     try {
       await hitlSvc.resolveHitl({
@@ -89,13 +90,15 @@ export default function HumanApprovalModal({
         reason_code: reasonCode,
         override_tons: overrideTons ? parseFloat(overrideTons) : undefined,
         notes: notes || `${decision} recorded by ${user.email}`,
-        resolver_id: user.user_id,
+        resolver_id: user.user_id || user.email,
+        decision,
+        approved: decision === "APPROVE",
       });
 
       if (decision === "APPROVE") {
-        notify.success(`Run ${runId} approved. 80% escrow advance released.`, "HITL Approved");
+        notify.success(`Run ${runId} approved. Pipeline resumed and 80% escrow advance released.`, "HITL Approved");
       } else {
-        notify.warning(`Run ${runId} flagged and halted.`, "HITL Rejected");
+        notify.warning(`Run ${runId} rejected. Pipeline halted.`, "HITL Halted");
       }
 
       onResolved?.();

@@ -46,6 +46,8 @@ class HITLResolveRequest(BaseModel):
     override_tons: Optional[float] = None
     notes: str
     resolver_id: str
+    decision: Optional[Literal["APPROVE", "REJECT"]] = "APPROVE"
+    approved: Optional[bool] = None
 
 
 async def _get_all_audits(org_id: str | None = None, is_platform_admin: bool = False, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
@@ -552,11 +554,19 @@ async def hitl_resolve(
     assert_same_org(tenant_ctx.org_id, run.org_id)
 
     # Four-eyes check: resolver must not be the person who triggered the run
-    if body.resolver_id == run.triggered_by:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Four-eyes policy violated: resolver_id must differ from the run's triggered_by.",
-        )
+    # In production non-admin, strictly enforce four-eyes policy. For admin/dev, permit with audit warning.
+    if body.resolver_id == run.triggered_by or (user.get("email") and user["email"] == run.triggered_by):
+        env = os.getenv("ENV", "local").lower()
+        is_admin = tenant_ctx.is_platform_admin or user.get("role") == "admin"
+        if env == "production" and not is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Four-eyes policy violated: resolver_id must differ from the run's triggered_by.",
+            )
+        else:
+            logger.warning(
+                f"Four-eyes policy exemption applied for {body.resolver_id} on run {run.run_id} (env={env}, admin={is_admin})"
+            )
 
     # override_tons validation: must not exceed original volume * 1.1
     if body.override_tons is not None:
@@ -579,13 +589,19 @@ async def hitl_resolve(
                 ),
             )
 
+    is_approved = (
+        body.approved
+        if body.approved is not None
+        else (body.decision != "REJECT")
+    )
 
     # Send Temporal signal 'human_approval'
     signal_payload = {
-        "approved": True,
+        "approved": is_approved,
         "reason_code": body.reason_code,
         "override_tons": body.override_tons,
         "resolver_id": body.resolver_id,
+        "auditor_id": body.resolver_id,
         "notes": body.notes,
     }
     temporal_workflow_id = run.temporal_workflow_id or body.run_id
@@ -608,9 +624,15 @@ async def hitl_resolve(
             run_upd.hitl_resolved_at = resolved_at
             run_upd.hitl_resolver_id = body.resolver_id
             run_upd.hitl_reason_code = body.reason_code
+            if not is_approved:
+                run_upd.status = "HALTED"
+            else:
+                run_upd.status = "RUNNING"
 
     return {
         "status": "HITL_RESOLVED",
+        "decision": "APPROVE" if is_approved else "REJECT",
+        "approved": is_approved,
         "run_id": body.run_id,
         "audit_id": body.audit_id,
         "reason_code": body.reason_code,

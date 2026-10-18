@@ -157,17 +157,73 @@ SAGA_COMPENSATION_FAILED_COUNTER = Counter(
 )
 
 
-def get_logger(name: str) -> logging.Logger:
-    """Configures structured logger with consistent format."""
-    logger = logging.getLogger(name)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        fmt = logging.Formatter(
-            fmt='{"time":"%(asctime)s","level":"%(levelname)s","service":"%(name)s","message":"%(message)s"}',
-            datefmt="%Y-%m-%dT%H:%M:%SZ",
-        )
-        handler.setFormatter(fmt)
-        logger.addHandler(handler)
-        log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-        logger.setLevel(getattr(logging, log_level, logging.INFO))
     return logger
+
+
+# ---------------------------------------------------------------------------
+# OpenTelemetry Provider Setup & APM Integration
+# ---------------------------------------------------------------------------
+
+_otel_tracer_provider: Any = None
+_otel_meter_provider: Any = None
+
+
+def setup_opentelemetry(
+    service_name: str,
+    endpoint: str | None = None,
+    enable_tracing: bool = True,
+    enable_metrics: bool = True,
+) -> tuple[Any, Any]:
+    """Setup OpenTelemetry TracerProvider and MeterProvider with OTLP export.
+
+    Supports both HTTP (port 4318) and gRPC (port 4317) OTLP collectors.
+    """
+    global _otel_tracer_provider, _otel_meter_provider
+    target_endpoint = endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or os.getenv("OTLP_ENDPOINT", "http://localhost:4318")
+
+    try:
+        from opentelemetry import metrics as otel_metrics, trace as otel_trace
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.sdk.metrics import MeterProvider
+        from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+
+        resource = Resource.create({
+            "service.name": service_name,
+            "service.version": "0.1.0",
+            "deployment.environment": os.getenv("ENVIRONMENT", "dev"),
+            "k8s.pod.name": os.getenv("HOSTNAME", f"{service_name}-pod"),
+        })
+
+        base_endpoint = target_endpoint.rstrip("/")
+        if base_endpoint.startswith("http://") or base_endpoint.startswith("https://") or ":4318" in base_endpoint:
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter as HTTPTraceExporter
+            from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter as HTTPMetricExporter
+            trace_url = base_endpoint if "/v1/traces" in base_endpoint else f"{base_endpoint}/v1/traces"
+            metric_url = base_endpoint if "/v1/metrics" in base_endpoint else f"{base_endpoint}/v1/metrics"
+            span_exp = HTTPTraceExporter(endpoint=trace_url)
+            metric_exp = HTTPMetricExporter(endpoint=metric_url)
+        else:
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter as GRPCTraceExporter
+            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter as GRPCMetricExporter
+            span_exp = GRPCTraceExporter(endpoint=base_endpoint, insecure=True)
+            metric_exp = GRPCMetricExporter(endpoint=base_endpoint, insecure=True)
+
+        if enable_tracing:
+            _otel_tracer_provider = TracerProvider(resource=resource)
+            _otel_tracer_provider.add_span_processor(BatchSpanProcessor(span_exp))
+            otel_trace.set_tracer_provider(_otel_tracer_provider)
+
+        if enable_metrics:
+            reader = PeriodicExportingMetricReader(metric_exp, export_interval_millis=15000)
+            _otel_meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
+            otel_metrics.set_meter_provider(_otel_meter_provider)
+
+        logger = get_logger(service_name)
+        logger.info(f"OpenTelemetry configured successfully: {target_endpoint}")
+    except Exception as e:
+        logger = get_logger(service_name)
+        logger.warning(f"OpenTelemetry setup skipped or failed: {e}")
+
+    return _otel_tracer_provider, _otel_meter_provider

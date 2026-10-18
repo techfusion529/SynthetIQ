@@ -22,3 +22,5 @@ data:
   PUBSUB_SCADA_SUBSCRIPTION: {{ .Values.config.pubsubScadaSubscription | default "scada-telemetry-sub" | quote }}
   JEV_MODE: {{ .Values.config.jevMode | default "NIMBLE_PRIMARY" | quote }}
   ENVIRONMENT: {{ .Values.global.environment | default "dev" | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otelEndpoint | default "http://synthetiq-otel-collector:4318" | quote }}
+  OTLP_ENDPOINT: {{ .Values.config.otelEndpoint | default "http://synthetiq-otel-collector:4318" | quote }}

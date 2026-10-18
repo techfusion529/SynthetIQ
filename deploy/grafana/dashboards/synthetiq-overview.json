@@ -1,0 +1,86 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 3,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Active Compliance Workflows",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(synthetiq_workflow_active_total)",
+          "legendFormat": "Active Workflows"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] } }
+      }
+    },
+    {
+      "title": "Total Tonnage Processed (EPR Credits)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(synthetiq_tonnage_processed_total)",
+          "legendFormat": "Tons"
+        }
+      ]
+    },
+    {
+      "title": "Fraud Detection Rate",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(synthetiq_scada_verdicts_total{result=\"fraud_detected\"}[1h])) / sum(rate(synthetiq_scada_verdicts_total[1h])) * 100",
+          "legendFormat": "Fraud %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "max": 100, "min": 0, "unit": "percent", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "red", "value": 30 }] } }
+      }
+    },
+    {
+      "title": "Compliance Status by Company",
+      "type": "bargauge",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "synthetiq_company_compliance_pct",
+          "legendFormat": "{{ company_id }}"
+        }
+      ]
+    },
+    {
+      "title": "Auction Price vs Statutory Corridor",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "synthetiq_auction_price_per_ton", "legendFormat": "Current Price" },
+        { "expr": "synthetiq_auction_corridor_min", "legendFormat": "Min (30%)" },
+        { "expr": "synthetiq_auction_corridor_max", "legendFormat": "Max (100%)" }
+      ]
+    },
+    {
+      "title": "Escrow Settlement Status",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "synthetiq_escrow_released_total", "legendFormat": "Released (80%)" },
+        { "expr": "synthetiq_escrow_held_total", "legendFormat": "Held (20%)" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["synthetiq", "epr", "overview"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "title": "SynthetIQ — EPR Compliance Overview",
+  "uid": "synthetiq-overview"
+}

@@ -122,24 +122,49 @@ app = FastAPI(
 )
 
 # ---- OpenTelemetry setup ------------------------------------------------
-# Only initialise a TracerProvider + OTLP exporter when OTLP_ENDPOINT is set.
-# FastAPIInstrumentor is always wired so spans are emitted even to a no-op exporter.
-_otlp_endpoint = os.getenv("OTLP_ENDPOINT", "")
+_otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or os.getenv("OTLP_ENDPOINT", "")
 if _otlp_endpoint:
     try:
-        from opentelemetry import trace
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        from opentelemetry import metrics, trace
+        from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.sdk.metrics import MeterProvider
+        from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 
-        _provider = TracerProvider()
-        _provider.add_span_processor(
-            BatchSpanProcessor(OTLPSpanExporter(endpoint=_otlp_endpoint))
-        )
-        trace.set_tracer_provider(_provider)
-        logger.info(f"[OTel] TracerProvider initialised, exporting to {_otlp_endpoint}")
+        _resource = Resource.create({
+            "service.name": "synthetiq-api",
+            "service.version": "0.1.0",
+            "deployment.environment": os.getenv("ENVIRONMENT", "dev"),
+            "k8s.pod.name": os.getenv("HOSTNAME", "synthetiq-api-pod"),
+        })
+
+        # Setup TracerProvider
+        _tracer_provider = TracerProvider(resource=_resource)
+        if _otlp_endpoint.startswith("http://") or _otlp_endpoint.startswith("https://") or ":4318" in _otlp_endpoint:
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter as HTTPTraceExporter
+            from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter as HTTPMetricExporter
+            _trace_url = _otlp_endpoint if "/v1/traces" in _otlp_endpoint else f"{_otlp_endpoint.rstrip('/')}/v1/traces"
+            _metric_url = _otlp_endpoint if "/v1/metrics" in _otlp_endpoint else f"{_otlp_endpoint.rstrip('/')}/v1/metrics"
+            _span_exporter = HTTPTraceExporter(endpoint=_trace_url)
+            _metric_exporter = HTTPMetricExporter(endpoint=_metric_url)
+        else:
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter as GRPCTraceExporter
+            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter as GRPCMetricExporter
+            _span_exporter = GRPCTraceExporter(endpoint=_otlp_endpoint, insecure=True)
+            _metric_exporter = GRPCMetricExporter(endpoint=_otlp_endpoint, insecure=True)
+
+        _tracer_provider.add_span_processor(BatchSpanProcessor(_span_exporter))
+        trace.set_tracer_provider(_tracer_provider)
+
+        # Setup MeterProvider
+        _metric_reader = PeriodicExportingMetricReader(_metric_exporter, export_interval_millis=15000)
+        _meter_provider = MeterProvider(resource=_resource, metric_readers=[_metric_reader])
+        metrics.set_meter_provider(_meter_provider)
+
+        logger.info(f"[OTel] TracerProvider & MeterProvider initialized, exporting to {_otlp_endpoint}")
     except Exception as _otel_exc:
-        logger.warning(f"[OTel] TracerProvider setup failed ({_otel_exc}); continuing without exporter")
+        logger.warning(f"[OTel] OpenTelemetry setup failed ({_otel_exc}); continuing without exporter")
 
 try:
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor

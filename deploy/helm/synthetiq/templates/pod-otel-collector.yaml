@@ -1,0 +1,75 @@
+{{- if .Values.otelCollector.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synthetiq-otel-collector
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+    {{- include "synthetiq.selectorLabels" (dict "component" "otel-collector" "root" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.otelCollector.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "synthetiq.selectorLabels" (dict "component" "otel-collector" "root" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "synthetiq.selectorLabels" (dict "component" "otel-collector" "root" .) | nindent 8 }}
+    spec:
+      containers:
+        - name: otel-collector
+          image: "{{ .Values.otelCollector.image.repository }}:{{ .Values.otelCollector.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          command:
+            - "--config=/etc/otelcol/otel-collector-config.yaml"
+          ports:
+            - containerPort: 4317
+              name: otlp-grpc
+              protocol: TCP
+            - containerPort: 4318
+              name: otlp-http
+              protocol: TCP
+            - containerPort: 8889
+              name: metrics
+              protocol: TCP
+            - containerPort: 8888
+              name: internal
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+          resources:
+            {{- toYaml .Values.otelCollector.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: synthetiq-otel-collector
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+      name: otlp-grpc
+    - port: 4318
+      targetPort: otlp-http
+      protocol: TCP
+      name: otlp-http
+    - port: 8889
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+    - port: 8888
+      targetPort: internal
+      protocol: TCP
+      name: internal
+  selector:
+    {{- include "synthetiq.selectorLabels" (dict "component" "otel-collector" "root" .) | nindent 4 }}
+{{- end }}

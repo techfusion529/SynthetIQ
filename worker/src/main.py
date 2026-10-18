@@ -149,6 +149,19 @@ async def initialize_services() -> None:
         initialize_privacy_service(enabled=False)
         logger.info("Privacy service disabled (PII scrubbing off)")
 
+    # Initialize OpenTelemetry and Observability Service
+    try:
+        from services.observability import initialize_observability
+        otlp_target = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or os.getenv("OTLP_ENDPOINT") or config.observability.otel_endpoint
+        initialize_observability(
+            service_name="synthetiq-worker",
+            otlp_endpoint=otlp_target,
+            enable_telemetry=config.observability.enable_telemetry,
+        )
+        logger.info(f" - OpenTelemetry & Observability service initialized (endpoint: {otlp_target})")
+    except Exception as otel_exc:
+        logger.warning(f"Observability initialization failed ({otel_exc}); continuing")
+
     logger.info("All services initialized successfully!")
 
 

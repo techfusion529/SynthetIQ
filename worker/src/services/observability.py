@@ -81,24 +81,42 @@ class ObservabilityService:
 
     def _setup_tracing(self, otlp_endpoint: str) -> None:
         """Setup OpenTelemetry tracing."""
-        resource = Resource.create({"service.name": self.service_name})
+        import os
+        base_endpoint = otlp_endpoint.rstrip("/")
+        trace_url = base_endpoint if "/v1/traces" in base_endpoint else f"{base_endpoint}/v1/traces"
+
+        resource = Resource.create({
+            "service.name": self.service_name,
+            "service.version": "0.1.0",
+            "deployment.environment": os.getenv("ENVIRONMENT", "dev"),
+            "k8s.pod.name": os.getenv("HOSTNAME", "synthetiq-worker-pod"),
+        })
 
         tracer_provider = TracerProvider(resource=resource)
-        span_exporter = OTLPSpanExporter(endpoint=f"{otlp_endpoint}/v1/traces")
+        span_exporter = OTLPSpanExporter(endpoint=trace_url)
         span_processor = BatchSpanProcessor(span_exporter)
         tracer_provider.add_span_processor(span_processor)
 
         trace.set_tracer_provider(tracer_provider)
-        logger.info(f"OpenTelemetry tracing configured: {otlp_endpoint}")
+        logger.info(f"OpenTelemetry tracing configured: {trace_url}")
 
     def _setup_metrics(self, otlp_endpoint: str) -> None:
         """Setup OpenTelemetry metrics."""
-        resource = Resource.create({"service.name": self.service_name})
+        import os
+        base_endpoint = otlp_endpoint.rstrip("/")
+        metric_url = base_endpoint if "/v1/metrics" in base_endpoint else f"{base_endpoint}/v1/metrics"
 
-        metric_exporter = OTLPMetricExporter(endpoint=f"{otlp_endpoint}/v1/metrics")
+        resource = Resource.create({
+            "service.name": self.service_name,
+            "service.version": "0.1.0",
+            "deployment.environment": os.getenv("ENVIRONMENT", "dev"),
+            "k8s.pod.name": os.getenv("HOSTNAME", "synthetiq-worker-pod"),
+        })
+
+        metric_exporter = OTLPMetricExporter(endpoint=metric_url)
         metric_reader = PeriodicExportingMetricReader(
             metric_exporter,
-            export_interval_millis=60000,  # Export every 60 seconds
+            export_interval_millis=15000,  # Export every 15 seconds
         )
 
         meter_provider = MeterProvider(
@@ -107,7 +125,7 @@ class ObservabilityService:
         )
 
         metrics.set_meter_provider(meter_provider)
-        logger.info(f"OpenTelemetry metrics configured: {otlp_endpoint}")
+        logger.info(f"OpenTelemetry metrics configured: {metric_url}")
 
     @asynccontextmanager
     async def trace_llm_call(

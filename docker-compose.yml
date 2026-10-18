@@ -23,6 +23,8 @@ services:
       - JEV_MODE=${JEV_MODE:-NIMBLE_PRIMARY}
       - DATABASE_URL=postgresql+asyncpg://synthetiq:synthetiq@app-db:5432/synthetiq
       - REDIS_URL=redis://redis:6379/0
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      - OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       - GCP_PROJECT_ID=${GCP_PROJECT_ID:-synthetiq-dev}
       - GCP_REGION=${GCP_REGION:-asia-south1}
       - BIGQUERY_DATASET_ID=${BIGQUERY_DATASET_ID:-epr_compliance}
@@ -55,6 +57,8 @@ services:
       - OLLAMA_ENABLE_PII_SCRUBBING=${OLLAMA_ENABLE_PII_SCRUBBING:-false}
       - DATABASE_URL=postgresql+asyncpg://synthetiq:synthetiq@app-db:5432/synthetiq
       - REDIS_URL=redis://redis:6379/0
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      - OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       - GCP_PROJECT_ID=${GCP_PROJECT_ID:-synthetiq-dev}
       - GCP_REGION=${GCP_REGION:-asia-south1}
       - BIGQUERY_DATASET_ID=${BIGQUERY_DATASET_ID:-epr_compliance}

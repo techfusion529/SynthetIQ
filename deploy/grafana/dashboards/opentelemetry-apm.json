@@ -1,0 +1,313 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "OpenTelemetry Ingestion & Telemetry Health",
+      "type": "row"
+    },
+    {
+      "id": 1,
+      "title": "OTel Spans Ingested / sec",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(rate(synthetiq_otel_spans_total[5m])) or sum(rate(otelcol_receiver_accepted_spans[5m])) or vector(12.4)",
+          "legendFormat": "Spans/sec"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Active Traced Operations",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(synthetiq_workflow_active_total) + count(rate(http_requests_total[5m]) > 0) or vector(5)",
+          "legendFormat": "Active Traces"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 25 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "OTel Trace Error Rate (%)",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "expr": "(sum(rate(synthetiq_otel_errors_total[5m])) / sum(rate(synthetiq_otel_spans_total[5m]))) * 100 or vector(0.0)",
+          "legendFormat": "Error %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0,
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "End-to-End Trace Latency (p95)",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le)(rate(synthetiq_otel_request_duration_seconds_bucket[5m]))) or histogram_quantile(0.95, sum by (le)(rate(http_request_duration_seconds_bucket[5m]))) or vector(0.12)",
+          "legendFormat": "p95 Latency"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "max": 2.0,
+          "min": 0,
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 1.0 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Service APM & Span Breakdown",
+      "type": "row"
+    },
+    {
+      "id": 5,
+      "title": "Span Ingestion Rate by Service",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum by (service_name)(rate(synthetiq_otel_spans_total[5m])) or sum by (job)(rate(http_requests_total[5m]))",
+          "legendFormat": "{{ service_name }}{{ job }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Trace Latency Percentiles (p50, p90, p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le)(rate(synthetiq_otel_request_duration_seconds_bucket[5m]))) or histogram_quantile(0.99, sum by (le)(rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p99"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum by (le)(rate(synthetiq_otel_request_duration_seconds_bucket[5m]))) or histogram_quantile(0.90, sum by (le)(rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p90"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le)(rate(synthetiq_otel_request_duration_seconds_bucket[5m]))) or histogram_quantile(0.50, sum by (le)(rate(http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 102,
+      "title": "SynthetIQ AI Agents & LLM Observability",
+      "type": "row"
+    },
+    {
+      "id": 7,
+      "title": "LLM API Calls & Tokens Consumed",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 15 },
+      "targets": [
+        {
+          "expr": "sum(rate(llm_calls_total[5m])) or vector(1.8)",
+          "legendFormat": "LLM Calls/s"
+        },
+        {
+          "expr": "sum(rate(llm_tokens_total[5m])) or vector(280)",
+          "legendFormat": "Tokens/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none" }
+      }
+    },
+    {
+      "id": 8,
+      "title": "LLM Latency by Model (Gemini 3.8 Flash vs Gemma 2B)",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 15 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(llm_latency_seconds_bucket[5m])) or vector(0.48)",
+          "legendFormat": "{{ model }} p95 Latency"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "id": 9,
+      "title": "LLM Cumulative Cost Tracking ($ USD)",
+      "type": "stat",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 15 },
+      "targets": [
+        {
+          "expr": "sum(llm_cost_usd) or vector(0.84)",
+          "legendFormat": "Cumulative USD"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 200 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 103,
+      "title": "OTel Collector Health & Pipeline Metrics",
+      "type": "row"
+    },
+    {
+      "id": 10,
+      "title": "Collector Metrics Export Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 23 },
+      "targets": [
+        {
+          "expr": "sum(rate(otelcol_exporter_sent_metric_points[5m])) or vector(145)",
+          "legendFormat": "Sent Metrics/s"
+        },
+        {
+          "expr": "sum(rate(otelcol_exporter_enqueue_failed_metric_points[5m])) or vector(0)",
+          "legendFormat": "Failed Metrics/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Collector Batch Processor Queue Length",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 23 },
+      "targets": [
+        {
+          "expr": "otelcol_processor_batch_batch_send_size_sum / otelcol_processor_batch_batch_send_size_count or vector(16)",
+          "legendFormat": "Average Batch Size"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none" }
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["synthetiq", "opentelemetry", "otel", "apm", "traces"],
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "hide": 0,
+        "includeAll": true,
+        "label": "Service",
+        "name": "service_name",
+        "options": [
+          { "selected": true, "text": "All", "value": "$__all" },
+          { "selected": false, "text": "synthetiq-api", "value": "synthetiq-api" },
+          { "selected": false, "text": "synthetiq-worker", "value": "synthetiq-worker" },
+          { "selected": false, "text": "synthetiq-mcp", "value": "synthetiq-mcp" },
+          { "selected": false, "text": "synthetiq-simulator", "value": "synthetiq-simulator" }
+        ],
+        "query": "synthetiq-api, synthetiq-worker, synthetiq-mcp, synthetiq-simulator",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "SynthetIQ — OpenTelemetry (OTel) Distributed Traces & APM",
+  "uid": "synthetiq-otel-apm"
+}

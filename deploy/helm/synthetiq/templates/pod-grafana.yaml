@@ -54,7 +54,8 @@ spec:
           configMap:
             name: grafana-dashboards-config
         - name: grafana-dashboards
-          emptyDir: {}
+          configMap:
+            name: grafana-dashboards-files
 ---
 apiVersion: v1
 kind: Service

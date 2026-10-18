@@ -1,7 +1,0 @@
-{
-  "task_id": "task-phase6-hitl-hardening",
-  "task_description": "Phase 6: HITL hardening — validated resolution endpoint, 72h timeout, OTel/Prometheus observability, per-tenant LLM cost cap, HITL Console dashboard page, two-org isolation tests, CI literals + mypy gates, README update.",
-  "status": "pending",
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
-  "blocked_reason": null
-}

@@ -1,7 +1,0 @@
-{
-  "task_id": "task-phase3-partB-worker-wiring",
-  "task_description": "Phase 3 Part B: wire dynamic run config into the Temporal worker (Items 8-12), replace module-level agent singletons with per-call factory creation, and remove all hardcoded demo defaults from API routes, seed data, worker services, and the dashboard (Items 13-15).",
-  "status": "pending",
-  "feature_order": ["FEAT-001", "FEAT-002"],
-  "blocked_reason": null
-}

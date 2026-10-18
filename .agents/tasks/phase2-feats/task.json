@@ -1,7 +1,0 @@
-{
-  "task_id": "task-phase2-temporal-first",
-  "task_description": "Replace the inline simulation pipeline in orchestrator.py/audit.py/settlement.py/agent_config.py with a Temporal-first execution model: new POST /runs endpoint, unified RunInput model, deterministic fail-closed activity contracts, real HITL signals, Temporal Schedules replacing APScheduler, DB+Temporal merged status reads, and dashboard updates.",
-  "status": "pending",
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
-  "blocked_reason": null
-}

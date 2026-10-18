@@ -1,7 +1,0 @@
-{
-  "task_id": "task-phase4-data-onboarding",
-  "task_description": "Phase 4 Data Onboarding: canonical Pydantic schemas, IngestionRun table, DataSource mapping/secret_ref columns, connector hardening (SQL injection fix, private IP blocking, CSV upload, BigQuery service account enforcement, DataSourceNotConfigured), mapping/validate/upload API endpoints, preflight check gating POST /runs, dashboard datasources page enhancements (mapping UI, validate, CSV upload, secret_ref field).",
-  "status": "pending",
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
-  "blocked_reason": null
-}

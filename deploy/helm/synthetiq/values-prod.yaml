@@ -167,6 +167,18 @@ otelCollector:
       cpu: 200m
       memory: 256Mi
 
+# ---- Documentation Portal (Docusaurus) ----
+docs:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
 # Ollama local models disabled in prod (uses Gemini via API)
 ollama:
   enabled: false
@@ -186,4 +198,6 @@ ingress:
   temporal:
     enabled: true
   grafana:
+    enabled: true
+  docs:
     enabled: true

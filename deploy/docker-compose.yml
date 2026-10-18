@@ -104,6 +104,15 @@ services:
       --host-port=0.0.0.0:8085
       --project=synthetiq-local
 
+  # --- Documentation Portal (Docusaurus) ---
+  docs:
+    build:
+      context: ../docs
+      dockerfile: Dockerfile
+    container_name: synthetiq-docs
+    ports:
+      - "3002:80"
+
 volumes:
   ollama-data:
   grafana-provisioning-ds:

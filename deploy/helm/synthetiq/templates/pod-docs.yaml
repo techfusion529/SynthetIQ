@@ -1,0 +1,57 @@
+{{- if .Values.docs.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synthetiq-docs
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+    {{- include "synthetiq.selectorLabels" (dict "component" "docs" "root" .) | nindent 4 }}
+spec:
+  replicas: {{ .Values.docs.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "synthetiq.selectorLabels" (dict "component" "docs" "root" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "synthetiq.selectorLabels" (dict "component" "docs" "root" .) | nindent 8 }}
+    spec:
+      containers:
+        - name: docs
+          image: "{{ .Values.docs.image.repository }}:{{ .Values.docs.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.docs.port | default 80 }}
+              name: http
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.docs.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /docs/
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /docs/
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: synthetiq-docs
+  labels:
+    {{- include "synthetiq.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.docs.port | default 80 }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "synthetiq.selectorLabels" (dict "component" "docs" "root" .) | nindent 4 }}
+{{- end }}

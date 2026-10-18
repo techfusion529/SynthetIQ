@@ -256,6 +256,22 @@ otelCollector:
       cpu: 500m
       memory: 512Mi
 
+# ---- Documentation Portal (Docusaurus) ----
+docs:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/docs"
+    tag: "{{ .Values.global.imageTag }}"
+  port: 80
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
 # ---- Ingress Configuration ----
 ingress:
   enabled: true
@@ -280,6 +296,10 @@ ingress:
   grafana:
     enabled: true
     path: /grafana
+    annotations: {}
+  docs:
+    enabled: true
+    path: /docs
     annotations: {}
 
 

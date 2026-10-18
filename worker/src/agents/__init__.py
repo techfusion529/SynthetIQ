@@ -24,6 +24,7 @@ __all__ = [
     "run_brand_liability_agent",
     "run_regulatory_agent",
     "run_treasury_agent",
+    "run_recycler_bidder_agent",
     "run_logistics_agent",
     "run_auditor_agent",
     "run_erp_agent",
@@ -46,6 +47,7 @@ _MODULE_MAP: dict[str, str] = {
     "run_regulatory_agent": "agents.regulatory_agent",
     "TREASURY_INSTRUCTION": "agents.treasury_agent",
     "run_treasury_agent": "agents.treasury_agent",
+    "run_recycler_bidder_agent": "agents.recycler_bidder",
     "epr_compliance_pipeline": "agents.orchestrator",
     "run_epr_pipeline": "agents.orchestrator",
 }

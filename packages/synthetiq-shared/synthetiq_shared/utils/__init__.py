@@ -1,6 +1,7 @@
 """Shared utilities  -  observability, logging, and cryptography."""
 
 from .crypto import compute_audit_hash, sign_form1_sha256
+from .auction_simulator import generate_simulated_bids, simulate_and_persist_bids
 from .telemetry import (
     ACTIVE_AUCTIONS_GAUGE,
     AUDIT_VERDICTS_COUNTER,
@@ -15,6 +16,8 @@ __all__ = [
     "get_logger",
     "compute_audit_hash",
     "sign_form1_sha256",
+    "generate_simulated_bids",
+    "simulate_and_persist_bids",
     "WORKFLOW_EXECUTION_COUNTER",
     "WORKFLOW_DURATION_SECONDS",
     "AUDIT_VERDICTS_COUNTER",

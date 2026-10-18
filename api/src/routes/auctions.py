@@ -43,12 +43,34 @@ async def _get_all_auctions(org_id: str | None = None, is_platform_admin: bool =
 async def _get_bids(auction_id: str, org_id: str | None = None) -> list[dict[str, Any]]:
     try:
         from synthetiq_shared.database import get_db_session
-        from synthetiq_shared.models import BidRecord
+        from synthetiq_shared.models import BidRecord, AuctionRecord
+        from synthetiq_shared.utils.auction_simulator import simulate_and_persist_bids
         async with get_db_session() as session:
             query = select(BidRecord).where(BidRecord.auction_id == auction_id).order_by(BidRecord.created_at.asc())
             if org_id is not None:
                 query = query.where(BidRecord.org_id == org_id)
             rows = (await session.execute(query)).scalars().all()
+
+            if not rows:
+                # If no bids exist for this auction, auto-simulate from accredited recyclers
+                auc = (await session.execute(
+                    select(AuctionRecord).where(AuctionRecord.auction_id == auction_id)
+                )).scalar_one_or_none()
+                if auc:
+                    eff_floor = auc.corridor_min if auc.corridor_min is not None else auc.floor_price_inr
+                    eff_ceil = auc.corridor_max if auc.corridor_max is not None else auc.ceiling_price_inr
+                    sim_rows = await simulate_and_persist_bids(
+                        auction_id=auction_id,
+                        category=auc.category,
+                        target_tons=auc.target_tons or 100.0,
+                        floor_price=eff_floor or 3.6,
+                        ceiling_price=eff_ceil or 12.0,
+                        org_id=auc.org_id,
+                    )
+                    if org_id is not None:
+                        return [b.to_dict() for b in sim_rows if b.org_id == org_id]
+                    return [b.to_dict() for b in sim_rows]
+
             return [r.to_dict() for r in rows]
     except Exception as exc:
         logger.warning(f"DB bids query failed ({exc})")
@@ -148,6 +170,8 @@ async def broadcast_rfp(
     try:
         from synthetiq_shared.database import get_db_session
         from synthetiq_shared.models import AuctionRecord
+        from synthetiq_shared.utils.auction_simulator import simulate_and_persist_bids
+
         async with get_db_session() as session:
             session.add(AuctionRecord(
                 auction_id=auction_id,
@@ -165,12 +189,33 @@ async def broadcast_rfp(
             ))
             await session.commit()
         logger.info(f"Persisted auction {auction_id}")
+
+        # Simulate bids from accredited Recycler Bidders within statutory corridor
+        sim_bids = await simulate_and_persist_bids(
+            auction_id=auction_id,
+            category=category,
+            target_tons=target_tons,
+            floor_price=_corridor_min,
+            ceiling_price=_corridor_max,
+            org_id=tenant_ctx.org_id,
+        )
+        logger.info(f"Simulated {len(sim_bids)} recycler bids for auction {auction_id}")
     except Exception as exc:
-        logger.warning(f"Could not persist auction ({exc})")
+        logger.warning(f"Could not persist auction or simulate bids ({exc})")
+
     res = await temporal_service.start_workflow(
         workflow_name="AuctionLiquidityWorkflow",
         workflow_id=workflow_id,
-        args=[company_id, category, float(target_tons), float(statutory_rate)],
+        args=[
+            company_id,
+            category,
+            float(target_tons),
+            float(statutory_rate),
+            auction_id,
+            tenant_ctx.org_id or "",
+            float(_corridor_min),
+            float(_corridor_max),
+        ],
     )
     return {
         "status": "auction_broadcast",

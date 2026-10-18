@@ -109,10 +109,23 @@ class AuctionLiquidityWorkflow:
         category: str,
         target_tons: float,
         statutory_base_rate: float = 12.0,
+        auction_id: str = "",
+        org_id: str = "",
+        corridor_min: float = 0.0,
+        corridor_max: float = 0.0,
     ) -> dict[str, Any]:
         auction_result = await workflow.execute_activity(
             execute_double_auction_activity,
-            args=[f"RFP-{company_id}", category, target_tons, statutory_base_rate],
+            args=[
+                f"RFP-{company_id}",
+                category,
+                target_tons,
+                statutory_base_rate,
+                org_id,
+                auction_id,
+                corridor_min,
+                corridor_max,
+            ],
             retry_policy=_RETRY,
             start_to_close_timeout=_TIMEOUT,
         )
@@ -557,7 +570,13 @@ class MasterEPRComplianceWorkflow:
             )
 
             # RUN-05 Break B: use auction winner as recycler for downstream stages
-            effective_recycler_id = auction.get("winner_org_id") or recycler_id
+            raw_winner = auction.get("winner_org_id")
+            if isinstance(raw_winner, list):
+                effective_recycler_id = str(raw_winner[0]).strip() if raw_winner else recycler_id
+            elif isinstance(raw_winner, dict):
+                effective_recycler_id = str(raw_winner.get("recycler_id") or raw_winner.get("winner_org_id") or recycler_id).strip()
+            else:
+                effective_recycler_id = str(raw_winner).strip() if raw_winner else recycler_id
             clearing_price = float(auction.get("clearing_price") or 0.0)
             if not clearing_price:
                 raise ApplicationError("FAIL_CLOSED: clearing_price missing from auction result", non_retryable=True)

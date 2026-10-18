@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from src.activities.agent_activities import (
+    AuctionResult,
     audit_scada_telemetry_activity,
     calculate_brand_liability_activity,
     create_escrow_split_po_activity,
@@ -69,6 +70,29 @@ def test_continuous_double_auction_corridor():
     assert res["statutory_ceiling"] == 10.0  # 100%
     assert res["cleared_tons"] == 100.0
     assert res["status"] == "COMPLETED"
+    assert isinstance(res["winner_org_id"], str)
+    assert len(res["winner_org_id"]) > 0
+
+
+def test_auction_result_multi_winner_list_normalization():
+    """AuctionResult must normalize list of winner IDs into a single valid string without ValidationError."""
+    # List of strings from multi-bidder clearing
+    result_with_list = {
+        "clearing_price": 6.5,
+        "winner_org_id": ["RECYC-SURAT-02", "RECYC-DELHI-01", "RECYC-NOIDA-03"],
+        "total_volume_tons": 250.0,
+    }
+    auction = AuctionResult(**result_with_list)
+    assert auction.winner_org_id == "RECYC-SURAT-02"
+    assert auction.clearing_price == 6.5
+
+    # List of dicts
+    result_with_dict_list = {
+        "clearing_price": 7.2,
+        "winner_org_id": [{"recycler_id": "RECYC-DELHI-01"}, {"recycler_id": "RECYC-SURAT-02"}],
+    }
+    auction2 = AuctionResult(**result_with_dict_list)
+    assert auction2.winner_org_id == "RECYC-DELHI-01"
 
 
 def test_escrow_eighty_twenty_split():
@@ -85,3 +109,26 @@ def test_escrow_eighty_twenty_split():
     assert po["total_amount_inr"] == 80000.0
     assert po["advance_amount_inr"] == 64000.0  # 80%
     assert po["retention_amount_inr"] == 16000.0  # 20%
+
+
+def test_recycler_bids_simulation():
+    """Recycler Bidder agent must generate valid competitive bids within the statutory corridor."""
+    from synthetiq_shared.utils.auction_simulator import generate_simulated_bids
+
+    auction_id = "AUC-TEST-SIM-01"
+    floor = 3.60
+    ceiling = 12.00
+    bids = generate_simulated_bids(
+        auction_id=auction_id,
+        category="cat_i_rigid",
+        target_tons=100.0,
+        floor_price=floor,
+        ceiling_price=ceiling,
+    )
+    assert len(bids) == 4
+    for b in bids:
+        assert b["auction_id"] == auction_id
+        assert floor <= b["price_per_kg"] <= ceiling
+        assert b["volume_tons"] > 0
+        assert b["status"] == "BIDDING"
+        assert b["recycler_id"].startswith("RECYC-")

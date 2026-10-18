@@ -158,7 +158,9 @@ Auction Rules:
   - Target: clear the exact requested volume (partial fill is acceptable if no more bids exist)
   - Mandatory JSON output keys:
       rfp_id, category, statutory_floor_inr, statutory_ceiling_inr,
-      winner_org_id, allocated_bids, cleared_tons, total_cost_inr, clearing_price_inr,
+      winner_org_id (string: primary accredited recycler ID, e.g. "RECYC-DELHI-01"),
+      winning_recycler_ids (list of strings if split across multiple recyclers),
+      allocated_bids, cleared_tons, total_cost_inr, clearing_price_inr,
       status (COMPLETED / PARTIAL), optimization_notes
 """
 
@@ -216,15 +218,32 @@ async def run_treasury_agent(
         elif "```" in text:
             text = text.split("```")[1].split("```")[0]
         parsed_data = json.loads(text.strip())
-        if not parsed_data.get("winner_org_id"):
+
+        # Normalise winner_org_id to a single string (primary winner)
+        winner = parsed_data.get("winner_org_id")
+        if isinstance(winner, list):
+            parsed_data["winning_recycler_ids"] = [
+                (w.get("recycler_id") or w.get("winner_org_id") if isinstance(w, dict) else str(w))
+                for w in winner
+            ]
+            parsed_data["winner_org_id"] = (
+                parsed_data["winning_recycler_ids"][0] if parsed_data["winning_recycler_ids"] else "RECYC-DELHI-01"
+            )
+        elif isinstance(winner, dict):
+            parsed_data["winner_org_id"] = winner.get("recycler_id") or winner.get("winner_org_id") or "RECYC-DELHI-01"
+        elif not winner:
             if parsed_data.get("allocated_bids") and len(parsed_data["allocated_bids"]) > 0:
+                first_bid = parsed_data["allocated_bids"][0]
                 parsed_data["winner_org_id"] = (
-                    parsed_data["allocated_bids"][0].get("recycler_id")
-                    or parsed_data["allocated_bids"][0].get("winner_org_id")
+                    first_bid.get("recycler_id")
+                    or first_bid.get("winner_org_id")
                     or "RECYC-DELHI-01"
                 )
             else:
                 parsed_data["winner_org_id"] = "RECYC-DELHI-01"
+        else:
+            parsed_data["winner_org_id"] = str(winner).strip()
+
         if "clearing_price" not in parsed_data and "clearing_price_inr" in parsed_data:
             parsed_data["clearing_price"] = parsed_data["clearing_price_inr"]
         return parsed_data
